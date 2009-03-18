@@ -3,14 +3,19 @@ require 'net/ldap'
 
 module ActiveDirectory
   class Container
-    attr_reader :name
+    attr_reader :name, :directory
     
-    def initialize(name)
+    def initialize(name, directory)
       @name = name.gsub(/\s+/, "")
+      @directory = directory
     end
     
     def ==(other)
-      @name.downcase == other.name.downcase
+      if @directory == other.directory
+        @name.downcase == other.name.downcase
+      else
+        false
+      end
     end
     
     def eql?(other)
@@ -32,7 +37,13 @@ module ActiveDirectory
       @username = username
       @common_name = username
       @directory = directory
-      @container = container
+      
+      if @directory == container.directory
+        @container = container
+      else
+        raise "Container must be in the same directory."
+      end
+      
       @distinguished_name = "cn=" + @common_name + "," + @container.name +
                             "," + directory.root
       @groups = []
@@ -135,7 +146,13 @@ module ActiveDirectory
     def initialize(name, directory, container)
       @name = name
       @directory = directory
-      @container = container
+      
+      if @directory == container.directory
+        @container = container
+      else
+        raise "Container must be in the same directory."
+      end
+      
       @distinguished_name = "cn=" + name + "," + @container.name + "," +
                             directory.root
     end
@@ -190,7 +207,7 @@ module ActiveDirectory
       @user = user
       @server = server
       @port = port
-      @containers = [ Container.new("cn=Users") ]
+      @containers = [ Container.new("cn=Users", self) ]
       @users = []
       @groups = []
       @ldap = Net::LDAP.new :host => @server,

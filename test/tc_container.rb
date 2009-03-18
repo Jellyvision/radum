@@ -4,30 +4,39 @@ require '../active-directory'
 # This tests the Container class.
 class TC_Container < Test::Unit::TestCase
   def setup
-    @c1a = ActiveDirectory::Container.new("ou=People")
-    @c1b = ActiveDirectory::Container.new("ou=people")
-    @c2a = ActiveDirectory::Container.new("ou=Staff,ou=People")
-    @c2b = ActiveDirectory::Container.new("ou=Staff, ou=People")
-    @c3a = ActiveDirectory::Container.new("cn=Users")
+    @ad1 = ActiveDirectory::AD.new("dc=vmware,dc=local", "test1")
+    @ad2 = ActiveDirectory::AD.new("dc=vmware,dc=com", "test2")
+    @c1a_ad1 = ActiveDirectory::Container.new("ou=People", @ad1)
+    @c1b_ad1 = ActiveDirectory::Container.new("ou=People", @ad1)
+    @c1c_ad1 = ActiveDirectory::Container.new("ou=people", @ad1)
+    @c2a_ad1 = ActiveDirectory::Container.new("ou=Staff,ou=People", @ad1)
+    @c2b_ad1 = ActiveDirectory::Container.new("ou=Staff, ou=People", @ad1)
+    @c3_ad1 = ActiveDirectory::Container.new("cn=Users", @ad1)
+    @c4_ad2 = ActiveDirectory::Container.new("cn=Users", @ad2)
   end
   
   def test_no_spaces
-    assert(@c2b.name.split(/\s+/).length == 1, "Should be no spaces in name")
+    assert(@c2b_ad1.name.split(/\s+/).length == 1,
+           "Should be no spaces in name")
   end
   
   def test_equal
-    assert(@c1a == @c1a, "Should be equal")
+    assert(@c1a_ad1 == @c1b_ad1, "Should be equal")
   end
   
   def test_equal_case_insensitive
-    assert(@c1a == @c1b, "Case insensitive equality test failed")
+    assert(@c1a_ad1 == @c1c_ad1, "Should be equal with difference case")
   end
   
   def test_equal_spaces
-    assert(@c2a == @c2b, "Should be equal with whitespace difference")
+    assert(@c2a_ad1 == @c2b_ad1, "Should be equal with whitespace difference")
   end
   
   def test_not_equal
-    assert(@c1a != @c3a, "Should not be equal")
+    assert(@c1a_ad1 != @c3_ad1, "Should not be equal")
+  end
+  
+  def test_not_equal_ad
+    assert(@c3_ad1 != @c4_ad2, "Should not be equal")
   end
 end
