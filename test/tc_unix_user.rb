@@ -10,8 +10,8 @@ class TC_UNIXUser < Test::Unit::TestCase
     @c2_ad2 = ActiveDirectory::Container.new("ou=Staff,ou=People", @ad2)
     @ug1_ad1_c1_ad1 = ActiveDirectory::UNIXGroup.new("staff", @ad1, @c1_ad1,
                                                      1001)
-    @ug2_ad1_c1_ad1 = ActiveDirectory::UNIXGroup.new("enable", @ad1, @c1_ad1,                                                          
-                                                     1002)
+    @ug2_ad1_c1_ad1 = ActiveDirectory::UNIXGroup.new("enable", @ad1, @c1_ad1,
+                                                      1002)
     @ug3_ad2_c2_ad2 = ActiveDirectory::UNIXGroup.new("enable", @ad2, @c2_ad2,
                                                      1003)
     @g4_ad1_c1_ad1 = ActiveDirectory::Group.new("class", @ad1, @c1_ad1)
