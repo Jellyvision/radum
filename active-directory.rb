@@ -106,14 +106,14 @@ module ActiveDirectory
       @uid = uid
       @main_group = main_group
       
-      unless @main_group.instance_of? UNIXGroup
-        raise "UNIXUser main_group must be a UNIXGroup."
-      else
-        if @main_group.directory == @directory
-          @gid = @main_group.gid
+      if @directory == @main_group.directory
+        unless @main_group.instance_of? UNIXGroup
+          raise "UNIXUser main_group must be a UNIXGroup."
         else
-          raise "UNIXUser main_group must be in the same directory."
+          @gid = @main_group.gid
         end
+      else
+        raise "UNIXUser main_group must be in the same directory."
       end
       
       @shell = shell
@@ -124,7 +124,7 @@ module ActiveDirectory
     def add_group(group)
       if group.instance_of? UNIXGroup
         if @directory == group.directory
-          @groups.push group unless(@groups.include? group ||
+          @groups.push group unless(@groups.include?(group) ||
                                     group == @main_group)
         else
           raise "Group must be in the same directory."

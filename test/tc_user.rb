@@ -59,13 +59,13 @@ class TC_User < Test::Unit::TestCase
   
   def test_add_unix_group_different_directory_exception
     assert_raise RuntimeError do
-      @u1a_ad1_c1_ad1.add_group(@ug2_ad2_c3_ad2)
+      @u1a_ad1_c1_ad1.add_group @ug2_ad2_c3_ad2
     end
   end
   
   def test_group_add_different_directory_exception
     assert_raise RuntimeError do
-      @u1a_ad1_c1_ad1.add_group(@g3_ad2_c3_ad2)
+      @u1a_ad1_c1_ad1.add_group @g3_ad2_c3_ad2
     end
   end
   
@@ -77,12 +77,12 @@ class TC_User < Test::Unit::TestCase
   
   def test_add_group
     assert_block("Should have added exactly two groups") do
-      @u1a_ad1_c1_ad1.add_group(@g1_ad1_c1_ad1)
-      @u1a_ad1_c1_ad1.add_group(@g2_ad1_c2_ad1)
-      @u1a_ad1_c1_ad1.add_group(@g2_ad1_c2_ad1)
+      @u1a_ad1_c1_ad1.add_group @g1_ad1_c1_ad1
+      @u1a_ad1_c1_ad1.add_group @g2_ad1_c2_ad1
+      @u1a_ad1_c1_ad1.add_group @g2_ad1_c2_ad1
       @u1a_ad1_c1_ad1.groups.length == 2 &&
       @u1a_ad1_c1_ad1.groups.find { |group| group == @g1_ad1_c1_ad1 } &&
-      @u1a_ad1_c1_ad1.groups.find { |group| group = @g2_ad1_c2_ad1 }
+      @u1a_ad1_c1_ad1.groups.find { |group| group == @g2_ad1_c2_ad1 }
     end
   end
 end
