@@ -46,8 +46,7 @@ module ActiveDirectory
   end
   
   class User
-    attr_reader :username, :directory, :container, :distinguished_name
-    attr :groups, true
+    attr_reader :username, :directory, :container, :distinguished_name, :groups
     attr :full_name, true
     attr :password, true
     
