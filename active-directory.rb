@@ -207,7 +207,7 @@ module ActiveDirectory
       @user = user
       @server = server
       @port = port
-      @containers = [ Container.new("cn=Users", self) ]
+      @containers = []
       @users = []
       @groups = []
       @ldap = Net::LDAP.new :host => @server,
@@ -220,7 +220,11 @@ module ActiveDirectory
     end
     
     def add_container(container)
-      @containers.push container unless @containers.include? container
+      if self == container.directory
+        @containers.push container unless @containers.include? container
+      else
+        raise "Container must be in the same directory."
+      end
     end
     
     def remove_container(container)
@@ -228,6 +232,15 @@ module ActiveDirectory
     end
     
     def add_user(user)
+      found = @containers.find do |container|
+        user.container == container
+      end
+      
+      raise "User must be in a container for this directory." unless found
+      
+      # There is no need to check if the user is in the same directory if the
+      # container check above was successful, and that's the only way we can
+      # get here.
       @users.push user unless @users.include? user
     end
     
@@ -242,6 +255,15 @@ module ActiveDirectory
     end
     
     def add_group(group)
+      found = @containers.find do |container|
+        group.container == container
+      end
+      
+      raise "Group must be in a container for this directory." unless found
+      
+      # There is no need to check if the group is in the same directory if the
+      # container check above was successful, and that's the only way we can
+      # get here.
       @groups.push group unless @groups.include? group
     end
     
@@ -325,7 +347,7 @@ module ActiveDirectory
     end
     
     def ==(other)
-      @root == other.root
+      @root.downcase == other.root.downcase
     end
     
     def eql?(other)
