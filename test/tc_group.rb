@@ -16,6 +16,12 @@ class TC_Group < Test::Unit::TestCase
     @g2_ad2_c3_ad2 = ActiveDirectory::Group.new("staff", @ad2, @c3_ad2)
     @ug1_ad1_c1_ad1 = ActiveDirectory::UNIXGroup.new("class", @ad1, @c1_ad1,
                                                      1001)
+    @u1_ad1_c1_ad1 = ActiveDirectory::User.new("user", @ad1, @c1_ad1)
+    @u2_ad2_c3_ad2 = ActiveDirectory::User.new("user", @ad2, @c3_ad2)
+    @uu1_ad1_c1_ad1 = ActiveDirectory::UNIXUser.new("user", @ad1, @c1_ad1,
+                                                     1000, @ug1_ad1_c1_ad1,
+                                                     "/bin/bash",
+                                                     "/home/user")
   end
   
   def test_different_container_directory_exception
@@ -42,5 +48,25 @@ class TC_Group < Test::Unit::TestCase
   
   def test_not_equal_group_unix_group
     assert(@g1a_ad1_c1_ad1 != @ug1_ad1_c1_ad1, "Should not be equal")
+  end
+  
+  def test_add_user
+    assert_block("Should have added exactly one user") do
+      @g1a_ad1_c1_ad1.add_user @u1_ad1_c1_ad1
+      @g1a_ad1_c1_ad1.add_user @u1_ad1_c1_ad1
+      @g1a_ad1_c1_ad1.users.length == 1
+    end
+  end
+  
+  def test_add_user_exception
+    assert_raise RuntimeError do
+      @g1a_ad1_c1_ad1.add_user @u2_ad2_c3_ad2
+    end
+  end
+  
+  def test_add_user_main_group_exception
+    assert_raise RuntimeError do
+      @ug1_ad1_c1_ad1.add_user @uu1_ad1_c1_ad1
+    end
   end
 end

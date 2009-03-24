@@ -20,12 +20,20 @@ module ActiveDirectory
       end
     end
     
+    def remove_user(user)
+      @users.delete user
+    end
+    
     def add_group(group)
       if self == group.container
         @groups.push group unless @groups.include? group
       else
         raise "Group must be in this container."
       end
+    end
+    
+    def remove_group(group)
+      @groups.delete group
     end
     
     def ==(other)
@@ -67,18 +75,6 @@ module ActiveDirectory
       @container.add_user self
     end
     
-    def add_group(group)
-      if @directory == group.directory
-        @groups.push group unless @groups.include? group
-      else
-        raise "Group must be in the same directory."
-      end
-    end
-    
-    def remove_group(group)
-      @groups.delete group
-    end
-    
     def common_name
       @common_name
     end
@@ -92,6 +88,20 @@ module ActiveDirectory
       @distinguished_name = "cn=" + cn + "," + @container.name + "," +
                             directory.root
       @common_name = cn
+    end
+    
+    def add_group(group)
+      if @directory == group.directory
+        @groups.push group unless @groups.include? group
+        group.add_user self unless group.users.include? self
+      else
+        raise "Group must be in the same directory."
+      end
+    end
+    
+    def remove_group(group)
+      @groups.delete group
+      group.remove_user self if group.users.include? self
     end
     
     def ==(other)
@@ -142,8 +152,10 @@ module ActiveDirectory
     def add_group(group)
       if group.instance_of? UNIXGroup
         if @directory == group.directory
-          @groups.push group unless(@groups.include?(group) ||
-                                    group == @main_group)
+          unless @groups.include?(group) || group == @main_group
+            @groups.push group
+            group.add_user self
+          end
         else
           raise "Group must be in the same directory."
         end
@@ -159,7 +171,7 @@ module ActiveDirectory
   end
   
   class Group
-    attr_reader :name, :directory, :container, :distinguished_name
+    attr_reader :name, :directory, :container, :distinguished_name, :users
     
     def initialize(name, directory, container)
       @name = name
@@ -173,7 +185,22 @@ module ActiveDirectory
       
       @distinguished_name = "cn=" + name + "," + @container.name + "," +
                             directory.root
+      @users = []
       @container.add_group self
+    end
+    
+    def add_user(user)
+      if @directory == user.directory
+        @users.push user unless @users.include? user
+        user.add_group self unless user.groups.include? self
+      else
+        raise "User must be in the same directory."
+      end
+    end
+    
+    def remove_user(user)
+      @users.delete user
+      user.remove_group self if user.groups.include? self
     end
     
     def ==(other)
@@ -205,6 +232,14 @@ module ActiveDirectory
       super name, directory, container
       @gid = gid
       @nis_domain = nis_domain
+    end
+    
+    def add_user(user)
+      if user.instance_of?(UNIXUser) && self == user.main_group
+          raise "Cannot add a user to the user's main UNIXGroup."
+      else
+        super user
+      end
     end
     
     def to_s
