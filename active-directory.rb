@@ -3,11 +3,29 @@ require 'net/ldap'
 
 module ActiveDirectory
   class Container
-    attr_reader :name, :directory
+    attr_reader :name, :directory, :users, :groups
     
     def initialize(name, directory)
       @name = name.gsub(/\s+/, "")
       @directory = directory
+      @users = []
+      @groups = []
+    end
+    
+    def add_user(user)
+      if self == user.container
+        @users.push user unless @users.include? user
+      else
+        raise "User must be in this container."
+      end
+    end
+    
+    def add_group(group)
+      if self == group.container
+        @groups.push group unless @groups.include? group
+      else
+        raise "Group must be in this container."
+      end
     end
     
     def ==(other)
@@ -47,6 +65,7 @@ module ActiveDirectory
       @distinguished_name = "cn=" + @common_name + "," + @container.name +
                             "," + directory.root
       @groups = []
+      @container.add_user self
     end
     
     def add_group(group)
@@ -155,6 +174,7 @@ module ActiveDirectory
       
       @distinguished_name = "cn=" + name + "," + @container.name + "," +
                             directory.root
+      @container.add_group self
     end
     
     def ==(other)
