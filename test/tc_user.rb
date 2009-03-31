@@ -85,4 +85,31 @@ class TC_User < Test::Unit::TestCase
       @u1a_ad1_c1_ad1.groups.find { |group| group == @g2_ad1_c2_ad1 }
     end
   end
+  
+  def test_user_added_to_container
+    assert_block("User should have been automatically added to container") do
+      @c1_ad1.users.find do |user|
+        user == @u1a_ad1_c1_ad1
+      end
+    end
+  end
+  
+  def test_add_group_user_added_to_group
+    assert_block("Group should have user when added to user") do
+      @u1a_ad1_c1_ad1.add_group @g1_ad1_c1_ad1
+      @g1_ad1_c1_ad1.users.find do |user|
+        user == @u1a_ad1_c1_ad1
+      end
+    end
+  end
+  
+  def test_remove_group_user_removed_from_group
+    assert_block("Group should have removed user when removed from user") do
+      @u1a_ad1_c1_ad1.add_group @g1_ad1_c1_ad1
+      @u1a_ad1_c1_ad1.remove_group @g1_ad1_c1_ad1
+      ! @g1_ad1_c1_ad1.users.find do |user|
+        user == @u1a_ad1_c1_ad1
+      end
+    end
+  end
 end
