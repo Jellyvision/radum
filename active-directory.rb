@@ -49,7 +49,7 @@ module ActiveDirectory
     end
     
     def to_s
-      "Container [#{@name}]"
+      "Container [#{@name},#{@directory.root}]"
     end
   end
   
@@ -302,9 +302,10 @@ module ActiveDirectory
       @users.delete user
     end
     
-    def find_user(username, container)
+    def find_user(username)
       @users.find do |user|
-        user.username == username && user.container == container
+        # This relies on the fact that usernames must be unique in an AD.
+        user.username == username
       end
     end
     
@@ -325,9 +326,10 @@ module ActiveDirectory
       @groups.delete group
     end
     
-    def find_group(name, container)
+    def find_group(name)
       @groups.find do |group|
-        group.name == name && group.container == container
+        # This relies on the fact that group names must be unique in an AD.
+        group.name == name
       end
     end
     
@@ -398,6 +400,10 @@ module ActiveDirectory
           add_user(user)
         end
       end
+      
+      # TO DO: add users to the groups they should be in, this will
+      # automatically add the groups to the users as well. This could be
+      # done in reverse - whatever, just do it.
     end
     
     def ==(other)
