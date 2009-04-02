@@ -8,6 +8,7 @@ module ActiveDirectory
     def initialize(name, directory)
       @name = name.gsub(/\s+/, "")
       @directory = directory
+      @directory.add_container self
       @users = []
       @groups = []
     end
@@ -73,6 +74,7 @@ module ActiveDirectory
                             "," + directory.root
       @groups = []
       @container.add_user self
+      @directory.add_user self unless self.instance_of? UNIXUser
     end
     
     def common_name
@@ -104,6 +106,10 @@ module ActiveDirectory
       group.remove_user self if group.users.include? self
     end
     
+    def member_of?(group)
+      @groups.include? group
+    end
+    
     def ==(other)
       # The disginguished name and the username (sAMAccountName) must be
       # unique (case-insensitive).
@@ -130,6 +136,10 @@ module ActiveDirectory
     
     def initialize(username, directory, container, uid, main_group, shell,
                    home_directory, nis_domain = nil)
+      if directory.uids.include? uid
+        raise "UID is already in use in the directory."
+      end
+      
       super username, directory, container
       @uid = uid
       @main_group = main_group
@@ -147,6 +157,7 @@ module ActiveDirectory
       @shell = shell
       @home_directory = home_directory
       @nis_domain = nis_domain
+      @directory.add_user self
     end
     
     def add_group(group)
@@ -172,6 +183,7 @@ module ActiveDirectory
   
   class Group
     attr_reader :name, :directory, :container, :distinguished_name, :users
+    attr :groups, true
     
     def initialize(name, directory, container)
       @name = name
@@ -186,7 +198,9 @@ module ActiveDirectory
       @distinguished_name = "cn=" + name + "," + @container.name + "," +
                             directory.root
       @users = []
+      @groups = []
       @container.add_group self
+      @directory.add_group self unless self.instance_of? UNIXGroup
     end
     
     def add_user(user)
@@ -201,6 +215,26 @@ module ActiveDirectory
     def remove_user(user)
       @users.delete user
       user.remove_group self if user.groups.include? self
+    end
+    
+    def member_of?(group)
+      @groups.include? group
+    end
+    
+    def add_group(group)
+      unless @directory == group.directory
+        raise "Group must be in the same directory."
+      end
+      
+      if self == group
+        raise "A group cannot have itself as a member."
+      end
+      
+      @groups.push group unless @groups.include? group
+    end
+    
+    def remove_group(group)
+      @groups.delete group
     end
     
     def ==(other)
@@ -229,9 +263,14 @@ module ActiveDirectory
     attr_reader :gid, :nis_domain
     
     def initialize(name, directory, container, gid, nis_domain = nil)
+      if directory.gids.include? gid
+        raise "GID is already in use in the directory."
+      end
+      
       super name, directory, container
       @gid = gid
       @nis_domain = nis_domain
+      @directory.add_group self
     end
     
     def add_user(user)
@@ -248,7 +287,7 @@ module ActiveDirectory
   end
   
   class AD
-    attr_reader :root, :domain, :server, :port, :ldap
+    attr_reader :root, :domain, :server, :port, :ldap, :uids, :gids
     attr :containers, true
     attr :users, true
     attr :groups, true
@@ -264,6 +303,8 @@ module ActiveDirectory
       @containers = []
       @users = []
       @groups = []
+      @uids = []
+      @gids = []
       @ldap = Net::LDAP.new :host => @server,
                             :port => @port,
                             :auth => {
@@ -296,10 +337,17 @@ module ActiveDirectory
       # container check above was successful, and that's the only way we can
       # get here.
       @users.push user unless @users.include? user
+      
+      if user.instance_of? UNIXUser
+        # UNIXUser creation fails if the UID is in use, so there's no need to
+        # check here.
+        @uids.push user.uid
+      end
     end
     
     def remove_user(user)
       @users.delete user
+      @uids.delete user.uid
     end
     
     def find_user(username)
@@ -320,10 +368,17 @@ module ActiveDirectory
       # container check above was successful, and that's the only way we can
       # get here.
       @groups.push group unless @groups.include? group
+      
+      if group.instance_of? UNIXGroup
+        # UNIXGroup creation fails if the GID is already in use, so there's no
+        # need to check here.
+        @gids.push group.gid
+      end
     end
     
     def remove_group(group)
       @groups.delete group
+      @gids.delete group.gid
     end
     
     def find_group(name)
@@ -357,11 +412,11 @@ module ActiveDirectory
           rescue NoMethodError
           end
           
+          # Note that groups add themselves to the directory groups array.
           if gid
-            add_group(UNIXGroup.new(entry.name.pop, self, container,
-                                    gid, nis_domain))
+            UNIXGroup.new(entry.name.pop, self, container, gid, nis_domain)
           else
-            add_group(Group.new(entry.name.pop, self, container))
+            Group.new(entry.name.pop, self, container)
           end 
         end
       end
@@ -385,6 +440,7 @@ module ActiveDirectory
           rescue NoMethodError
           end
           
+          # Note that users add themselves to the directory users array.
           if uid && gid
             if group = find_group_by_gid(gid)
               user = UNIXUser.new(entry.sAMAccountName.pop, self, container,
@@ -396,8 +452,6 @@ module ActiveDirectory
             user = User.new(entry.sAMAccountName.pop, self, container)
             user.common_name = entry.cn.pop
           end
-          
-          add_user(user)
         end
       end
       

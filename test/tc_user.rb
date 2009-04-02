@@ -112,4 +112,12 @@ class TC_User < Test::Unit::TestCase
       end
     end
   end
+  
+  def test_member_of
+    assert_block("User should be member of the single group") do
+      @u1a_ad1_c1_ad1.add_group @g1_ad1_c1_ad1
+      (@u1a_ad1_c1_ad1.member_of? @g1_ad1_c1_ad1) &&
+      ! (@u1a_ad1_c1_ad1.member_of? @g2_ad1_c2_ad1)
+    end
+  end
 end

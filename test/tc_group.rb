@@ -96,4 +96,41 @@ class TC_Group < Test::Unit::TestCase
       end
     end
   end
+  
+  def test_add_group_self_exception
+    assert_raise RuntimeError do
+      @g1a_ad1_c1_ad1.add_group @g1a_ad1_c1_ad1
+    end
+  end
+  
+  def test_add_group_other_directory_exception
+    assert_raise RuntimeError do
+      @g1a_ad1_c1_ad1.add_group @g2_ad2_c3_ad2
+    end
+  end
+  
+  def test_add_group
+    assert_block("Group should have added another group") do
+      @g1a_ad1_c1_ad1.add_group @ug1_ad1_c1_ad1
+      @g1a_ad1_c1_ad1.groups.find do |group|
+        group == @ug1_ad1_c1_ad1
+      end
+    end
+  end
+  
+  def test_remove_group
+    assert_block("Group should have been removed") do
+      @g1a_ad1_c1_ad1.add_group @ug1_ad1_c1_ad1
+      @g1a_ad1_c1_ad1.remove_group @ug1_ad1_c1_ad1
+      ! @g1a_ad1_c1_ad1.groups.find do |group|
+        group == @ug1_ad1_c1_ad1
+      end
+    end
+  end
+  
+  def test_duplicate_gid_exception
+    assert_raise RuntimeError do
+      ActiveDirectory::UNIXGroup.new("class", @ad1, @c1_ad1, 1001)
+    end
+  end
 end

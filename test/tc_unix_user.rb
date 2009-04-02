@@ -57,4 +57,11 @@ class TC_UNIXUser < Test::Unit::TestCase
       @uu1a_ad1_c1_ad1.groups.find { |group| group == @ug2_ad1_c1_ad1 }
     end
   end
+  
+  def test_duplicate_uid_exception
+    assert_raise RuntimeError do
+      ActiveDirectory::UNIXUser.new("test", @ad1, @c1_ad1, 1000,
+                                    @ug1_ad1_c1_ad1, "/bin/bash", "/home/user")
+    end
+  end
 end

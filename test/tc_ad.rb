@@ -38,7 +38,7 @@ class TC_Ad < Test::Unit::TestCase
   
   def test_add_container
     assert_block("Should have added exactly one container") do
-      @ad1a.add_container @c1_ad1a
+      # Note the container adds itself to the directory when created.
       @ad1a.add_container @c1_ad1a
       @ad1a.containers.length == 1
     end
@@ -46,31 +46,17 @@ class TC_Ad < Test::Unit::TestCase
   
   def test_add_user
     assert_block("Should have added exactly one user") do
-      @ad1a.add_container @c1_ad1a
-      @ad1a.add_user @u1a_ad1a_c1_ad1a
+      # Note the user adds itself to the directory when created.
       @ad1a.add_user @u1a_ad1a_c1_ad1a
       @ad1a.users.length == 1
     end
   end
   
-  def test_add_user_without_container_exception
-    assert_raise RuntimeError do
-      @ad1a.add_user @u1a_ad1a_c1_ad1a
-    end
-  end
-  
   def test_add_group
     assert_block("Should have added exactly one group") do
-      @ad1a.add_container @c1_ad1a
-      @ad1a.add_group @g1_ad1a_c1_ad1a
+      # Note the group adds itself to the directory when created.
       @ad1a.add_group @g1_ad1a_c1_ad1a
       @ad1a.groups.length == 1
-    end
-  end
-  
-  def test_add_group_without_container_exception
-    assert_raise RuntimeError do
-      @ad1a.add_group @g1_ad1a_c1_ad1a
     end
   end
 end
