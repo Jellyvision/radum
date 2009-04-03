@@ -13,10 +13,14 @@ class TC_Container < Test::Unit::TestCase
     @c2b_ad1 = ActiveDirectory::Container.new("ou=Staff, ou=People", @ad1)
     @c3_ad1 = ActiveDirectory::Container.new("cn=Users", @ad1)
     @c4_ad2 = ActiveDirectory::Container.new("cn=Users", @ad2)
-    @g1_ad1_c1a_ad1 = ActiveDirectory::Group.new("staff", @ad1, @c1a_ad1)
-    @g2_ad2_c4_ad2 = ActiveDirectory::Group.new("enable", @ad2, @c4_ad2)
-    @u1_ad1_c1a_ad1 = ActiveDirectory::User.new("user", @ad1, @c1a_ad1)
-    @u2_ad2_c4_ad2 = ActiveDirectory::User.new("user", @ad2, @c4_ad2)
+    @g1_c1a_ad1 = ActiveDirectory::Group.new("staff", @c1a_ad1)
+    @g2_c4_ad2 = ActiveDirectory::Group.new("enable", @c4_ad2)
+    @u1_c1a_ad1 = ActiveDirectory::User.new("user", @c1a_ad1)
+    @u2_c4_ad2 = ActiveDirectory::User.new("user", @c4_ad2)
+  end
+  
+  def test_ad_removed_flag_false
+    assert(@c1a_ad1.removed == false, "ad_removed flag should be false")
   end
   
   def test_no_spaces
@@ -40,35 +44,85 @@ class TC_Container < Test::Unit::TestCase
     assert(@c1a_ad1 != @c3_ad1, "Should not be equal")
   end
   
-  def test_not_equal_ad
+  def test_not_equal_different_directory
     assert(@c3_ad1 != @c4_ad2, "Should not be equal")
   end
   
   def test_add_user
     assert_block("Should have added exactly one user") do
-      @c1a_ad1.add_user @u1_ad1_c1a_ad1
-      @c1a_ad1.add_user @u1_ad1_c1a_ad1
+      # Users add themselves to containers on initialization, so this would be
+      # an attempt to add a second time. We want to be totally certain, so the
+      # add is done a third time anyway.
+      @c1a_ad1.add_user @u1_c1a_ad1
+      @c1a_ad1.add_user @u1_c1a_ad1
       @c1a_ad1.users.length == 1
     end
   end
   
-  def test_add_user_exception
+  def test_add_user_different_container_exception
     assert_raise RuntimeError do
-      @c1a_ad1.add_user @u2_ad2_c4_ad2
+      # You have to remove a user from its container so that its removed flag
+      # is set or the other container will ignore it.
+      @c4_ad2.remove_user @u2_c4_ad2
+      @c1a_ad1.add_user @u2_c4_ad2
+    end
+  end
+  
+  def test_remove_user_removed_flag_set
+    assert_block("Should have set removed user removed flag") do
+      @c1a_ad1.remove_user @u1_c1a_ad1
+      @u1_c1a_ad1.removed == true
     end
   end
   
   def test_add_group
     assert_block("Should have added exactly one group") do
-      @c1a_ad1.add_group @g1_ad1_c1a_ad1
-      @c1a_ad1.add_group @g1_ad1_c1a_ad1
+      # Groups add themselves to containers on initialization, so this would be
+      # an attempt to add a second time. We want to be totally certain, so the
+      # add is done a third time anyway.
+      @c1a_ad1.add_group @g1_c1a_ad1
+      @c1a_ad1.add_group @g1_c1a_ad1
       @c1a_ad1.groups.length == 1
     end
   end
   
-  def test_add_group_exception
+  def test_add_group_different_container_exception
     assert_raise RuntimeError do
-      @c1a_ad1.add_group @g2_ad2_c4_ad2
+      # You have to remove a group from its container so that its removed flag
+      # is set or the other container will ignore it.
+      @c4_ad2.remove_group @g2_c4_ad2
+      @c1a_ad1.add_group @g2_c4_ad2
+    end
+  end
+  
+  def test_remove_group_removed_flag_set
+    assert_block("Should have set removed group removed flag") do
+      @c1a_ad1.remove_group @g1_c1a_ad1
+      @g1_c1a_ad1.removed == true
+    end
+  end
+  
+  def test_uid_gid_added_to_container_directory
+    assert_block("Should have added UID and GID to directory") do
+      ActiveDirectory::UNIXUser.new("foo", @c3_ad1, 1000,
+                                    ActiveDirectory::UNIXGroup.new("bar",
+                                                                   @c3_ad1,
+                                                                   1000),
+                                    "/bin/bash", "/home/foo")
+      @ad1.uids.find { |uid| uid == 1000 } &&
+      @ad1.gids.find { |gid| gid == 1000 }
+    end
+  end
+  
+  def test_uid_gid_removed_from_container_directory
+    assert_block("Should have removed UID and GID from directory") do
+      bar = ActiveDirectory::UNIXGroup.new("bar", @c3_ad1, 1000)
+      foo = ActiveDirectory::UNIXUser.new("foo", @c3_ad1, 1000, bar,
+                                          "/bin/bash", "/home/foo")
+      @c3_ad1.remove_user foo
+      @c3_ad1.remove_group bar
+      ! (@ad1.uids.find {|uid| uid == 1000 } ||
+         @ad1.gids.find {|gid| gid == 1000 })
     end
   end
 end

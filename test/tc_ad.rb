@@ -10,8 +10,6 @@ class TC_Ad < Test::Unit::TestCase
     @ad2 = ActiveDirectory::AD.new("dc=vmware,dc=com", "test2")
     @c1_ad1a = ActiveDirectory::Container.new("ou=People", @ad1a)
     @c2_ad2 = ActiveDirectory::Container.new("ou=Staff,ou=People", @ad2)
-    @g1_ad1a_c1_ad1a = ActiveDirectory::Group.new("staff", @ad1a, @c1_ad1a)
-    @u1a_ad1a_c1_ad1a = ActiveDirectory::User.new("user", @ad1a, @c1_ad1a)
   end
   
   def test_equal
@@ -32,31 +30,28 @@ class TC_Ad < Test::Unit::TestCase
   
   def test_add_container_different_directory_exception
     assert_raise RuntimeError do
+      # You have to remove a container from its directory so that its removed
+      # flag is set or the other directory will ignore it.
+      @ad2.remove_container @c2_ad2
       @ad1a.add_container @c2_ad2
     end
   end
   
   def test_add_container
     assert_block("Should have added exactly one container") do
-      # Note the container adds itself to the directory when created.
+      # Containers add themselves to directories on initialization, so this
+      # would be an attempt to add a second time. We want to be totally certain,
+      # so the add is done a third time anyway.
+      @ad1a.add_container @c1_ad1a
       @ad1a.add_container @c1_ad1a
       @ad1a.containers.length == 1
     end
   end
   
-  def test_add_user
-    assert_block("Should have added exactly one user") do
-      # Note the user adds itself to the directory when created.
-      @ad1a.add_user @u1a_ad1a_c1_ad1a
-      @ad1a.users.length == 1
-    end
-  end
-  
-  def test_add_group
-    assert_block("Should have added exactly one group") do
-      # Note the group adds itself to the directory when created.
-      @ad1a.add_group @g1_ad1a_c1_ad1a
-      @ad1a.groups.length == 1
+  def test_remove_container_ad_removed_flag_set
+    assert_block("Should have set removed container ad_removed flag") do
+      @ad1a.remove_container @c1_ad1a
+      @c1_ad1a.removed == true
     end
   end
 end
