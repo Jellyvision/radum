@@ -52,7 +52,7 @@ class TC_Ad < Test::Unit::TestCase
     assert_block("Should have added exactly one container") do
       # Containers add themselves to directories on initialization, so this
       # would be an attempt to add a second time. We want to be totally certain,
-      # so the add is done a third time anyway.      
+      # so the add is done a third time anyway.
       @ad1a.add_container @c1_ad1a
       @c1_ad1a.removed = true
       @ad1a.add_container @c1_ad1a

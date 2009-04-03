@@ -14,7 +14,7 @@ class TC_Group < Test::Unit::TestCase
     @ug1_c1_ad1 = ActiveDirectory::UNIXGroup.new("class", @c1_ad1, 1001)
     @u1_c1_ad1 = ActiveDirectory::User.new("user1", @c1_ad1)
     @u2_c3_ad2 = ActiveDirectory::User.new("user2", @c3_ad2)
-    @uu1_c1_ad1 = ActiveDirectory::UNIXUser.new("user3", @c1_ad1, 1000, 
+    @uu1_c1_ad1 = ActiveDirectory::UNIXUser.new("user3", @c1_ad1, 1000,
                                                 @ug1_c1_ad1, "/bin/bash",
                                                 "/home/user")
   end
