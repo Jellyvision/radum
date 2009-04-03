@@ -48,6 +48,18 @@ class TC_Ad < Test::Unit::TestCase
     end
   end
   
+  def test_add_container_removed_flag_manually_set
+    assert_block("Should have added exactly one container") do
+      # Containers add themselves to directories on initialization, so this
+      # would be an attempt to add a second time. We want to be totally certain,
+      # so the add is done a third time anyway.      
+      @ad1a.add_container @c1_ad1a
+      @c1_ad1a.removed = true
+      @ad1a.add_container @c1_ad1a
+      @ad1a.containers.length == 1
+    end
+  end
+  
   def test_remove_container_ad_removed_flag_set
     assert_block("Should have set removed container ad_removed flag") do
       @ad1a.remove_container @c1_ad1a

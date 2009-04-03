@@ -6,42 +6,45 @@ class TC_Container < Test::Unit::TestCase
   def setup
     @ad1 = ActiveDirectory::AD.new("dc=vmware,dc=local", "test1")
     @ad2 = ActiveDirectory::AD.new("dc=vmware,dc=com", "test2")
-    @c1a_ad1 = ActiveDirectory::Container.new("ou=People", @ad1)
-    @c1b_ad1 = ActiveDirectory::Container.new("ou=People", @ad1)
-    @c1c_ad1 = ActiveDirectory::Container.new("ou=people", @ad1)
-    @c2a_ad1 = ActiveDirectory::Container.new("ou=Staff,ou=People", @ad1)
-    @c2b_ad1 = ActiveDirectory::Container.new("ou=Staff, ou=People", @ad1)
+    @c1_ad1 = ActiveDirectory::Container.new("ou=People", @ad1)
+    @c2_ad1 = ActiveDirectory::Container.new("ou=Staff, ou=People", @ad1)
     @c3_ad1 = ActiveDirectory::Container.new("cn=Users", @ad1)
     @c4_ad2 = ActiveDirectory::Container.new("cn=Users", @ad2)
-    @g1_c1a_ad1 = ActiveDirectory::Group.new("staff", @c1a_ad1)
+    @g1_c1_ad1 = ActiveDirectory::Group.new("staff", @c1_ad1)
     @g2_c4_ad2 = ActiveDirectory::Group.new("enable", @c4_ad2)
-    @u1_c1a_ad1 = ActiveDirectory::User.new("user", @c1a_ad1)
+    @u1_c1_ad1 = ActiveDirectory::User.new("user", @c1_ad1)
     @u2_c4_ad2 = ActiveDirectory::User.new("user", @c4_ad2)
   end
   
   def test_ad_removed_flag_false
-    assert(@c1a_ad1.removed == false, "ad_removed flag should be false")
+    assert(@c1_ad1.removed == false, "ad_removed flag should be false")
   end
   
   def test_no_spaces
-    assert(@c2b_ad1.name.split(/\s+/).length == 1,
+    assert(@c2_ad1.name.split(/\s+/).length == 1,
            "Should be no spaces in name")
   end
   
-  def test_equal
-    assert(@c1a_ad1 == @c1b_ad1, "Should be equal")
+  def test_equal_exception
+    assert_raise RuntimeError do
+      ActiveDirectory::Container.new("ou=People", @ad1)
+    end
   end
   
-  def test_equal_case_insensitive
-    assert(@c1a_ad1 == @c1c_ad1, "Should be equal with difference case")
+  def test_equal_case_insensitive_exception
+    assert_raise RuntimeError do
+      ActiveDirectory::Container.new("ou=people", @ad1)
+    end
   end
   
-  def test_equal_spaces
-    assert(@c2a_ad1 == @c2b_ad1, "Should be equal with whitespace difference")
+  def test_equal_spaces_exception
+    assert_raise RuntimeError do
+      ActiveDirectory::Container.new("ou=Staff,ou=People", @ad1)
+    end
   end
   
   def test_not_equal
-    assert(@c1a_ad1 != @c3_ad1, "Should not be equal")
+    assert(@c1_ad1 != @c3_ad1, "Should not be equal")
   end
   
   def test_not_equal_different_directory
@@ -53,9 +56,21 @@ class TC_Container < Test::Unit::TestCase
       # Users add themselves to containers on initialization, so this would be
       # an attempt to add a second time. We want to be totally certain, so the
       # add is done a third time anyway.
-      @c1a_ad1.add_user @u1_c1a_ad1
-      @c1a_ad1.add_user @u1_c1a_ad1
-      @c1a_ad1.users.length == 1
+      @c1_ad1.add_user @u1_c1_ad1
+      @c1_ad1.add_user @u1_c1_ad1
+      @c1_ad1.users.length == 1
+    end
+  end
+  
+  def test_add_user_removed_flag_manually_set
+    assert_block("Should have added exactly one user") do
+      # Users add themselves to containers on initialization, so this would be
+      # an attempt to add a second time. We want to be totally certain, so the
+      # add is done a third time anyway.
+      @c1_ad1.add_user @u1_c1_ad1
+      @u1_c1_ad1.removed = true
+      @c1_ad1.add_user @u1_c1_ad1
+      @c1_ad1.users.length == 1
     end
   end
   
@@ -64,14 +79,14 @@ class TC_Container < Test::Unit::TestCase
       # You have to remove a user from its container so that its removed flag
       # is set or the other container will ignore it.
       @c4_ad2.remove_user @u2_c4_ad2
-      @c1a_ad1.add_user @u2_c4_ad2
+      @c1_ad1.add_user @u2_c4_ad2
     end
   end
   
   def test_remove_user_removed_flag_set
     assert_block("Should have set removed user removed flag") do
-      @c1a_ad1.remove_user @u1_c1a_ad1
-      @u1_c1a_ad1.removed == true
+      @c1_ad1.remove_user @u1_c1_ad1
+      @u1_c1_ad1.removed == true
     end
   end
   
@@ -80,9 +95,21 @@ class TC_Container < Test::Unit::TestCase
       # Groups add themselves to containers on initialization, so this would be
       # an attempt to add a second time. We want to be totally certain, so the
       # add is done a third time anyway.
-      @c1a_ad1.add_group @g1_c1a_ad1
-      @c1a_ad1.add_group @g1_c1a_ad1
-      @c1a_ad1.groups.length == 1
+      @c1_ad1.add_group @g1_c1_ad1
+      @c1_ad1.add_group @g1_c1_ad1
+      @c1_ad1.groups.length == 1
+    end
+  end
+  
+  def test_add_group_removed_flag_manually_set
+    assert_block("Should have added exactly one group") do
+      # Groups add themselves to containers on initialization, so this would be
+      # an attempt to add a second time. We want to be totally certain, so the
+      # add is done a third time anyway.
+      @c1_ad1.add_group @g1_c1_ad1
+      @g1_c1_ad1.removed = true
+      @c1_ad1.add_group @g1_c1_ad1
+      @c1_ad1.groups.length == 1
     end
   end
   
@@ -91,14 +118,14 @@ class TC_Container < Test::Unit::TestCase
       # You have to remove a group from its container so that its removed flag
       # is set or the other container will ignore it.
       @c4_ad2.remove_group @g2_c4_ad2
-      @c1a_ad1.add_group @g2_c4_ad2
+      @c1_ad1.add_group @g2_c4_ad2
     end
   end
   
   def test_remove_group_removed_flag_set
     assert_block("Should have set removed group removed flag") do
-      @c1a_ad1.remove_group @g1_c1a_ad1
-      @g1_c1a_ad1.removed == true
+      @c1_ad1.remove_group @g1_c1_ad1
+      @g1_c1_ad1.removed == true
     end
   end
   

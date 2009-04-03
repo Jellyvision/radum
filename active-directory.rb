@@ -7,7 +7,16 @@ module ActiveDirectory
     attr :removed, true
     
     def initialize(name, directory)
-      @name = name.gsub(/\s+/, "")
+      name.gsub!(/\s+/, "")
+      
+      # The container name (like a user) must be unique (case-insensitive).
+      # We would not want someone accidently making two equal containers
+      # and adding users/groups in the wrong way.
+      if directory.find_container name
+        raise "Container is already in the directory."
+      end
+      
+      @name = name
       @directory = directory
       # The removed flag must be set to true first since we are not in the
       # directory yet.
@@ -25,8 +34,11 @@ module ActiveDirectory
         if self == user.container
           # Someone could have manaually set the removed flag as well, so
           # we still check.
-          @users.push user unless @users.include? user
-          @directory.uids.push user.uid if user.instance_of? UNIXUser
+          unless @users.include? user
+            @users.push user
+            @directory.uids.push user.uid if user.instance_of? UNIXUser
+          end
+          
           user.removed = false
         else
           raise "User must be in this container."
@@ -47,8 +59,11 @@ module ActiveDirectory
         if self == group.container
           # Someone could have manaually set the removed flag as well, so
           # we still check.
-          @groups.push group unless @groups.include? group
-          @directory.gids.push group.gid if group.instance_of? UNIXGroup
+          unless @groups.include? group
+            @groups.push group
+            @directory.gids.push group.gid if group.instance_of? UNIXGroup
+          end
+          
           group.removed = false
         else
           raise "Group must be in this container."
@@ -60,18 +75,6 @@ module ActiveDirectory
       @groups.delete group
       @directory.gids.delete group.gid if group.instance_of? UNIXGroup
       group.removed = true
-    end
-    
-    def ==(other)
-      if @directory == other.directory
-        @name.downcase == other.name.downcase
-      else
-        false
-      end
-    end
-    
-    def eql?(other)
-      self == other
     end
     
     def to_s
@@ -86,6 +89,13 @@ module ActiveDirectory
     attr :removed, true
     
     def initialize(username, container)
+      # The username (sAMAccountName) must be unique (case-insensitive). This
+      # is needed in case someone tries to make the same username in two
+      # different containers.
+      if container.directory.find_user username
+        raise "User is already in the directory."
+      end
+      
       @username = username
       @common_name = username
       @container = container
@@ -134,21 +144,6 @@ module ActiveDirectory
       @groups.include? group
     end
     
-    def ==(other)
-      # The disginguished name and the username (sAMAccountName) must be
-      # unique (case-insensitive).
-      if @container.directory == other.container.directory
-        @distinguished_name.downcase == other.distinguished_name.downcase ||
-        @username.downcase == other.username.downcase
-      else
-        false
-      end
-    end
-    
-    def eql?(other)
-      self == other
-    end
-    
     def to_s
       "User [#{@username} #{@distinguished_name}]"
     end
@@ -160,6 +155,7 @@ module ActiveDirectory
     
     def initialize(username, container, uid, main_group, shell, home_directory,
                    nis_domain = nil)
+      # The UID must be unique.
       if container.directory.uids.include? uid
         raise "UID is already in use in the directory."
       end
@@ -214,6 +210,13 @@ module ActiveDirectory
     attr :removed, true
     
     def initialize(name, container)
+      # The group name (like a user) must be unique (case-insensitive). This
+      # is needed in case someone tries to make the same group name in two
+      # different containers.
+      if container.directory.find_group name
+        raise "Group is already in the directory."
+      end
+      
       @name = name
       @container = container
       @distinguished_name = "cn=" + name + "," + @container.name + "," +
@@ -263,23 +266,6 @@ module ActiveDirectory
       @groups.delete group
     end
     
-    def ==(other)
-      # I believe that it is not possible to have a distinguished name that's
-      # not built from the name itself, but just in case, I am checking both.
-      # The disginguished name and the group name (like a user) must be unique
-      # (case-insensitive).
-      if @container.directory == other.container.directory
-        @distinguished_name.downcase == other.distinguished_name.downcase ||
-        @name.downcase == other.name.downcase
-      else
-        false
-      end
-    end
-    
-    def eql?(other)
-      self == other
-    end
-    
     def to_s
       "Group [#{@distinguished_name}]"
     end
@@ -289,6 +275,7 @@ module ActiveDirectory
     attr_reader :gid, :nis_domain
     
     def initialize(name, container, gid, nis_domain = nil)
+      # The GID must be unique.
       if container.directory.gids.include? gid
         raise "GID is already in use in the directory."
       end
@@ -342,6 +329,14 @@ module ActiveDirectory
                             }
     end
     
+    def find_container(name)
+      @containers.find do |container|
+        # This relies on the fact that a container name must be unique in a
+        # directory.
+        container.name.downcase == name.downcase
+      end
+    end
+    
     # This is to add containers who were previously removed and have their
     # removed flag set.
     def add_container(container)
@@ -366,24 +361,30 @@ module ActiveDirectory
     def find_user(username)
       @containers.each do |container|
         found = container.users.find do |user|
-          # This relies on the fact that usernames must be unique in an AD.
-          user.username == username
+          # This relies on the fact that usernames (sAMAccountName) must be
+          # unique in a directory.
+          user.username.downcase == username.downcase
         end
         
         return found if found
       end
+      
+      return false
     end
     
     # Groups are only stored in containers, which are only stored here.
     def find_group(name)
       @containers.each do |container|
         found = container.groups.find do |group|
-          # This relies on the fact that group names must be unique in an AD.
-          group.name == name
+          # This relies on the fact that group names must be unique in a
+          # directory.
+          group.name.downcase == name.downcase
         end
         
         return found if found
       end
+      
+      return false
     end
     
     def find_group_by_gid(gid)
