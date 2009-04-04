@@ -417,9 +417,9 @@ module ActiveDirectory
           
           # Note that groups add themselves to their container.
           if gid
-            UNIXGroup.new(entry.name.pop, self, container, gid, nis_domain)
+            UNIXGroup.new(entry.name.pop, container, gid, nis_domain)
           else
-            Group.new(entry.name.pop, self, container)
+            Group.new(entry.name.pop, container)
           end 
         end
       end
@@ -446,13 +446,13 @@ module ActiveDirectory
           # Note that users add themselves to their container.
           if uid && gid
             if group = find_group_by_gid(gid)
-              user = UNIXUser.new(entry.sAMAccountName.pop, self, container,
-                                  uid, group, entry.loginShell.pop,
+              user = UNIXUser.new(entry.sAMAccountName.pop, container, uid,
+                                  group, entry.loginShell.pop,
                                   entry.unixHomeDirectory.pop, nis_domain)
               user.common_name = entry.cn.pop
             end
           else
-            user = User.new(entry.sAMAccountName.pop, self, container)
+            user = User.new(entry.sAMAccountName.pop, container)
             user.common_name = entry.cn.pop
           end
         end
