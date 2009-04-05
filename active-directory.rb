@@ -580,6 +580,7 @@ module ActiveDirectory
       "AD [#{@root} #{@server} #{@port}]"
     end
     
+    # TO DO: make this a private instance method instead?
     def AD.sid2rid_int(sid)
       sid.unpack("H2H2nNV*").pop.to_i
     end
