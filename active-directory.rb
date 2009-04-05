@@ -36,6 +36,7 @@ module ActiveDirectory
           # we still check.
           unless @users.include? user
             @users.push user
+            @directory.rids.push user.rid if user.rid
             @directory.uids.push user.uid if user.instance_of? UNIXUser
           end
           
@@ -48,6 +49,7 @@ module ActiveDirectory
     
     def remove_user(user)
       @users.delete user
+      @directory.rids.delete user.rid if user.rid
       @directory.uids.delete user.uid if user.instance_of? UNIXUser
       user.removed = true
     end
@@ -61,6 +63,7 @@ module ActiveDirectory
           # we still check.
           unless @groups.include? group
             @groups.push group
+            @directory.rids.push group.rid if group.rid
             @directory.gids.push group.gid if group.instance_of? UNIXGroup
           end
           
@@ -73,6 +76,7 @@ module ActiveDirectory
     
     def remove_group(group)
       @groups.delete group
+      @directory.rids.delete group.rid if group.rid
       @directory.gids.delete group.gid if group.instance_of? UNIXGroup
       group.removed = true
     end
@@ -83,12 +87,17 @@ module ActiveDirectory
   end
   
   class User
-    attr_reader :username, :container, :distinguished_name, :groups
+    attr_reader :username, :container, :rid, :distinguished_name, :groups
     attr :full_name, true
     attr :password, true
     attr :removed, true
     
-    def initialize(username, container)
+    def initialize(username, container, rid = nil)
+      # The RID must be unique.
+      if container.directory.rids.include? rid
+        raise "RID is already in use in the directory."
+      end
+      
       # The username (sAMAccountName) must be unique (case-insensitive). This
       # is needed in case someone tries to make the same username in two
       # different containers.
@@ -99,6 +108,7 @@ module ActiveDirectory
       @username = username
       @common_name = username
       @container = container
+      @rid = rid
       @distinguished_name = "cn=" + @common_name + "," + @container.name +
                             "," + @container.directory.root
       @groups = []
@@ -109,6 +119,15 @@ module ActiveDirectory
       @removed = true
       @container.add_user self unless self.instance_of? UNIXUser
       @removed = false
+    end
+    
+    def primary_group
+      @primary_group
+    end
+    
+    def primary_group=(group)
+      self.remove_group group
+      @primary_group = group
     end
     
     def common_name
@@ -141,11 +160,11 @@ module ActiveDirectory
     end
     
     def member_of?(group)
-      @groups.include? group
+      @groups.include? group || @primary_group == group
     end
     
     def to_s
-      "User [#{@username} #{@distinguished_name}]"
+      "User [(RID #{@rid}) #{@username} #{@distinguished_name}]"
     end
   end
   
@@ -154,13 +173,13 @@ module ActiveDirectory
     attr :gecos, true
     
     def initialize(username, container, uid, main_group, shell, home_directory,
-                   nis_domain = nil)
+                   nis_domain = nil, rid = nil)
       # The UID must be unique.
       if container.directory.uids.include? uid
         raise "UID is already in use in the directory."
       end
       
-      super username, container
+      super username, container, rid
       @uid = uid
       @main_group = main_group
       
@@ -200,16 +219,21 @@ module ActiveDirectory
     end
     
     def to_s
-      "UNIXUser [(UID #{@uid}, GID #{@main_group.gid}) #{@username} " +
-      "#{@distinguished_name}]"
+      "UNIXUser [(RID #{@rid}, UID #{@uid}, GID #{@main_group.gid}) " +
+      "#{@username} " + "#{@distinguished_name}]"
     end
   end
   
   class Group
-    attr_reader :name, :container, :distinguished_name, :users, :groups
+    attr_reader :name, :container, :rid, :distinguished_name, :users, :groups
     attr :removed, true
     
-    def initialize(name, container)
+    def initialize(name, container, rid = nil)
+      # The RID must be unique.
+      if container.directory.rids.include? rid
+        raise "RID is already in use in the directory."
+      end
+      
       # The group name (like a user) must be unique (case-insensitive). This
       # is needed in case someone tries to make the same group name in two
       # different containers.
@@ -219,6 +243,7 @@ module ActiveDirectory
       
       @name = name
       @container = container
+      @rid = rid
       @distinguished_name = "cn=" + name + "," + @container.name + "," +
                             @container.directory.root
       @users = []
@@ -267,20 +292,20 @@ module ActiveDirectory
     end
     
     def to_s
-      "Group [#{@distinguished_name}]"
+      "Group [(RID #{@rid}) #{@distinguished_name}]"
     end
   end
   
   class UNIXGroup < Group
     attr_reader :gid, :nis_domain
     
-    def initialize(name, container, gid, nis_domain = nil)
+    def initialize(name, container, gid, nis_domain = nil, rid = nil)
       # The GID must be unique.
       if container.directory.gids.include? gid
         raise "GID is already in use in the directory."
       end
       
-      super name, container
+      super name, container, rid
       @gid = gid
       @nis_domain = nis_domain
       # The removed flag must be set to true first since we are not in the
@@ -299,7 +324,7 @@ module ActiveDirectory
     end
     
     def to_s
-      "UNIXGroup [(GID #{@gid}) #{@distinguished_name}]"
+      "UNIXGroup [(RID #{@rid}, GID #{@gid}) #{@distinguished_name}]"
     end
   end
   
@@ -307,6 +332,7 @@ module ActiveDirectory
     attr_reader :root, :domain, :server, :port, :ldap
     attr :uids, true
     attr :gids, true
+    attr :rids, true
     attr :containers, true
     
     def initialize(root, password, user = "cn=Administrator,cn=Users",
@@ -320,6 +346,9 @@ module ActiveDirectory
       @containers = []
       @uids = []
       @gids = []
+      # RIDs are in a flat namespace, so there's no need to keep track of them
+      # for user or group objects specifically, just in the directory overall.
+      @rids = []
       @ldap = Net::LDAP.new :host => @server,
                             :port => @port,
                             :auth => {
@@ -387,6 +416,18 @@ module ActiveDirectory
       return false
     end
     
+    def find_group_by_rid(rid)
+      @containers.each do |container|
+        found = container.groups.find do |group|
+          group.rid == rid
+        end
+        
+        return found if found
+      end
+      
+      return false
+    end
+    
     def find_group_by_gid(gid)
       @containers.each do |container|
         found = container.groups.find do |group|
@@ -395,17 +436,19 @@ module ActiveDirectory
         
         return found if found
       end
+      
+      return false
     end
     
     def load
       # Find all the groups first. We might need one to represent the main
       # group of a UNIX user.
-      filter = Net::LDAP::Filter.eq("objectclass", "group")
+      group_filter = Net::LDAP::Filter.eq("objectclass", "group")
       
       @containers.each do |container|
         base = container.name + ",#{@root}"
         
-        @ldap.search(:base => base, :filter => filter) do |entry|
+        @ldap.search(:base => base, :filter => group_filter) do |entry|
           gid = nil
           nis_domain = nil
           
@@ -415,23 +458,25 @@ module ActiveDirectory
           rescue NoMethodError
           end
           
+          rid = AD.sid2rid_int(entry.objectSid.pop)
+          
           # Note that groups add themselves to their container.
           if gid
-            UNIXGroup.new(entry.name.pop, container, gid, nis_domain)
+            UNIXGroup.new(entry.name.pop, container, gid, nis_domain, rid)
           else
-            Group.new(entry.name.pop, container)
+            Group.new(entry.name.pop, container, rid)
           end 
         end
       end
       
       # Find all the users. The main UNIX group must be set for UNIXUser
       # objects, so it will be necessary to search for that.
-      filter = Net::LDAP::Filter.eq("objectclass", "user")
+      user_filter = Net::LDAP::Filter.eq("objectclass", "user")
       
       @containers.each do |container|
         base = container.name + ",#{@root}"
         
-        @ldap.search(:base => base, :filter => filter) do |entry|
+        @ldap.search(:base => base, :filter => user_filter) do |entry|
           uid = nil
           gid = nil
           nis_domain = nil
@@ -443,24 +488,84 @@ module ActiveDirectory
           rescue NoMethodError
           end
           
+          rid = AD.sid2rid_int(entry.objectSid.pop)
+          
           # Note that users add themselves to their container.
           if uid && gid
             if group = find_group_by_gid(gid)
               user = UNIXUser.new(entry.sAMAccountName.pop, container, uid,
                                   group, entry.loginShell.pop,
-                                  entry.unixHomeDirectory.pop, nis_domain)
+                                  entry.unixHomeDirectory.pop, nis_domain,
+                                  rid)
               user.common_name = entry.cn.pop
             end
           else
-            user = User.new(entry.sAMAccountName.pop, container)
+            user = User.new(entry.sAMAccountName.pop, container, rid)
             user.common_name = entry.cn.pop
           end
         end
       end
       
-      # TO DO: add users to the groups they should be in, this will
-      # automatically add the groups to the users as well. This could be
-      # done in reverse - whatever, just do it.
+      # Add users to groups, which also adds the groups to the user, etc. This
+      # takes into account a UNIXUser's main_group. In that case, the main_group
+      # attribute is set instead of adding the group the the UNIXUser's group
+      # array.
+      @containers.each do |container|
+        container.groups.each do |group|
+          base = "cn=#{group.name}," + container.name + ",#{@root}"
+          
+          @ldap.search(:base => base, :filter => group_filter) do |entry|
+            begin
+              entry.member.each do |member|
+                name = member.split(',')[0].split('=')[1]
+                # Groups can have groups or users as members, unlike UNIX where
+                # groups cannot contain group members.
+                member_group = self.find_group name
+                
+                if member_group
+                  group.add_group member_group
+                end
+                
+                member_user = self.find_user name
+                
+                if member_user
+                  if member_user.instance_of? UNIXUser
+                    unless group == member_user.main_group
+                      group.add_user member_user
+                    end
+                  else
+                    group.add_user member_user
+                  end
+                end
+              end
+            rescue NoMethodError
+            end
+          end
+        end
+        
+        # The "members" AD attribute for a group does not contain users in
+        # its list if their "primaryGroupID" attribute defines that membership
+        # instead. For example, the "Domain Users" group contains all accounts
+        # as members usually, but normally its "members" attribute is empty
+        # because those users have their membership defined by their own
+        # "primaryGroupID" instead (which is the RID of "Domain Users" most
+        # of the time). Therefore, we need to set the User instance's
+        # primary_group attribute to get the real picture.
+        container.users.each do |user|
+          base = "cn=#{user.common_name}," + container.name + ",#{@root}"
+          
+          @ldap.search(:base => base, :filter => user_filter) do |entry|
+            rid = entry.primaryGroupID.pop.to_i
+            primary_group = self.find_group_by_rid rid
+            
+            if primary_group
+              user.primary_group = primary_group
+            else
+              raise "User should have primary group in directory."
+            end
+          end
+        end
+      end
     end
     
     def ==(other)
@@ -473,6 +578,10 @@ module ActiveDirectory
     
     def to_s
       "AD [#{@root} #{@server} #{@port}]"
+    end
+    
+    def AD.sid2rid_int(sid)
+      sid.unpack("H2H2nNV*").pop.to_i
     end
   end
 end

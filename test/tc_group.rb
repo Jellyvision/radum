@@ -9,8 +9,8 @@ class TC_Group < Test::Unit::TestCase
     @c1_ad1 = ActiveDirectory::Container.new("ou=People", @ad1)
     @c2_ad1 = ActiveDirectory::Container.new("ou=Staff,ou=People", @ad1)
     @c3_ad2 = ActiveDirectory::Container.new("ou=People", @ad2)
-    @g1_c1_ad1 = ActiveDirectory::Group.new("staff", @c1_ad1)
-    @g2_c3_ad2 = ActiveDirectory::Group.new("staff", @c3_ad2)
+    @g1_c1_ad1 = ActiveDirectory::Group.new("staff", @c1_ad1, 1722)
+    @g2_c3_ad2 = ActiveDirectory::Group.new("staff", @c3_ad2, 1722)
     @ug1_c1_ad1 = ActiveDirectory::UNIXGroup.new("class", @c1_ad1, 1001)
     @u1_c1_ad1 = ActiveDirectory::User.new("user1", @c1_ad1)
     @u2_c3_ad2 = ActiveDirectory::User.new("user2", @c3_ad2)
@@ -22,6 +22,18 @@ class TC_Group < Test::Unit::TestCase
   def test_removed_flag_false
     assert_block("Removed flags should be false.") do
       @g1_c1_ad1.removed == false && @ug1_c1_ad1.removed == false
+    end
+  end
+  
+  def test_duplicate_rid_exception
+    assert_raise RuntimeError do
+      ActiveDirectory::Group.new("test", @c1_ad1, 1722)
+    end
+  end
+  
+  def test_duplicate_gid_exception
+    assert_raise RuntimeError do
+      ActiveDirectory::UNIXGroup.new("class", @c1_ad1, 1001)
     end
   end
   
@@ -126,12 +138,6 @@ class TC_Group < Test::Unit::TestCase
       ! @g1_c1_ad1.groups.find do |group|
         group == @ug1_c1_ad1
       end
-    end
-  end
-  
-  def test_duplicate_gid_exception
-    assert_raise RuntimeError do
-      ActiveDirectory::UNIXGroup.new("class", @c1_ad1, 1001)
     end
   end
 end

@@ -21,6 +21,13 @@ class TC_UNIXUser < Test::Unit::TestCase
     assert(@uu1a_c1_ad1.removed == false, "Removed flag should be false")
   end
   
+  def test_duplicate_uid_exception
+    assert_raise RuntimeError do
+      ActiveDirectory::UNIXUser.new("test", @c1_ad1, 1000, @ug1_c1_ad1,
+                                    "/bin/bash", "/home/user")
+    end
+  end
+  
   def test_main_group_different_directory_exception
     assert_raise RuntimeError do
       ActiveDirectory::UNIXUser.new("test", @c1_ad1, 1000, @ug3_c2_ad2,
@@ -55,13 +62,6 @@ class TC_UNIXUser < Test::Unit::TestCase
       @uu1a_c1_ad1.add_group @ug2_c1_ad1
       @uu1a_c1_ad1.groups.length == 1 &&
       @uu1a_c1_ad1.groups.find { |group| group == @ug2_c1_ad1 }
-    end
-  end
-  
-  def test_duplicate_uid_exception
-    assert_raise RuntimeError do
-      ActiveDirectory::UNIXUser.new("test", @c1_ad1, 1000, @ug1_c1_ad1,
-                                    "/bin/bash", "/home/user")
     end
   end
 end

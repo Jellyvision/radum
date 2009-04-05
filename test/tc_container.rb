@@ -129,27 +129,30 @@ class TC_Container < Test::Unit::TestCase
     end
   end
   
-  def test_uid_gid_added_to_container_directory
+  def test_rid_uid_gid_added_to_container_directory
     assert_block("Should have added UID and GID to directory") do
       ActiveDirectory::UNIXUser.new("foo", @c3_ad1, 1000,
                                     ActiveDirectory::UNIXGroup.new("bar",
                                                                    @c3_ad1,
-                                                                   1000),
-                                    "/bin/bash", "/home/foo")
+                                                                   1001),
+                                    "/bin/bash", "/home/foo", "test", 1002)
       @ad1.uids.find { |uid| uid == 1000 } &&
-      @ad1.gids.find { |gid| gid == 1000 }
+      @ad1.gids.find { |gid| gid == 1001 } &&
+      @ad1.rids.find { |rid| rid == 1002 }
     end
   end
   
-  def test_uid_gid_removed_from_container_directory
+  def test_rid_uid_gid_removed_from_container_directory
     assert_block("Should have removed UID and GID from directory") do
       bar = ActiveDirectory::UNIXGroup.new("bar", @c3_ad1, 1000)
-      foo = ActiveDirectory::UNIXUser.new("foo", @c3_ad1, 1000, bar,
-                                          "/bin/bash", "/home/foo")
+      foo = ActiveDirectory::UNIXUser.new("foo", @c3_ad1, 1001, bar,
+                                          "/bin/bash", "/home/foo", "test",
+                                          1002)
       @c3_ad1.remove_user foo
       @c3_ad1.remove_group bar
-      ! (@ad1.uids.find {|uid| uid == 1000 } ||
-         @ad1.gids.find {|gid| gid == 1000 })
+      ! (@ad1.uids.find { |uid| uid == 1000 } ||
+         @ad1.gids.find { |gid| gid == 1001 } ||
+         @ad1.rids.find { |rid| rid == 1002 })
     end
   end
 end
