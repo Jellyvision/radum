@@ -162,6 +162,19 @@ module ActiveDirectory
       @common_name = cn
     end
     
+    # The groups array this adds the group to represents the group's
+    # member AD attribute. A user is listed in the group's member AD attribute
+    # unless it is the user's Windows primary group. In that case, the user's
+    # membership is based solely on the user's primaryGroupID attribute (which
+    # contains the RID of that group - that group does not list the member in
+    # its member AD attribute, hence the logic here). This is a convenience
+    # since there is no user AD attribute that represents the Windows group
+    # memberships. The unix_main_group has the user as a member in a similar
+    # way based on the gidNumber AD attribute for the user. The group's
+    # memberUid and msSFU30PosixMember AD attributes do not list the user
+    # as a member if the group is their unix_main_group, but this module
+    # makes sure UNIXUsers are also members of their unix_main_group from
+    # the Windows perspective.
     def add_group(group)
       if @container.directory == group.container.directory
         unless @primary_group == group
@@ -246,19 +259,6 @@ module ActiveDirectory
       end
     end
     
-    def add_group(group)
-      if group.instance_of? UNIXGroup
-        if @container.directory == group.container.directory
-          @groups.push group unless @groups.include? group
-          group.add_user self unless group.users.include? self
-        else
-          raise "Group must be in the same directory."
-        end
-      else
-        super group
-      end
-    end
-    
     def to_s
       "UNIXUser [(RID #{@rid}, UID #{@uid}, GID #{@unix_main_group.gid}) " +
       "#{@username} " + "#{@distinguished_name}]"
@@ -298,6 +298,17 @@ module ActiveDirectory
       @removed = false
     end
     
+    # The users array this adds the user to represents the group's
+    # member AD attribute. A user is listed in the group's member AD attribute
+    # unless it is the user's Windows primary group. In that case, the user's
+    # membership is based solely on the user's primaryGroupID attribute (which
+    # contains the RID of that group - that group does not list the member in
+    # its member AD attribute, hence the logic here). The unix_main_group has
+    # the user as a member in a similar way based on the gidNumber AD attribute
+    # for the user. The group's memberUid and msSFU30PosixMember AD attributes
+    # do not list the user as a member if the group is their unix_main_group,
+    # but this module makes sure UNIXUsers are also members of their
+    # unix_main_group from the Windows perspective.
     def add_user(user)
       if @container.directory == user.container.directory
         unless self == user.primary_group
@@ -393,6 +404,13 @@ module ActiveDirectory
                                   :username => @user + "," + @root,
                                   :password => @password
                             }
+      
+      # We add the cn=Users container by default because it is highly likely
+      # that users have the Domain Users Windows group as their Windows
+      # primary group. If we did not do this, there would likely be a ton
+      # of warning messages in the load() method. Keep in mind that containers
+      # automatically add themselves to their AD object.
+      ActiveDirectory::Container.new("cn=Users", self)
     end
     
     def find_container(name)
