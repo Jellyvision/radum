@@ -117,7 +117,7 @@ module ActiveDirectory
       # The removed flag must be set to true first since we are not in the
       # container yet.
       @removed = true
-      @container.add_user self unless self.instance_of? UNIXUser
+      @container.add_user self unless instance_of? UNIXUser
       @removed = false
     end
     
@@ -126,7 +126,7 @@ module ActiveDirectory
     end
     
     def primary_group=(group)
-      self.remove_group group
+      remove_group group
       @primary_group = group
     end
     
@@ -253,7 +253,7 @@ module ActiveDirectory
       # The removed flag must be set to true first since we are not in the
       # container yet.
       @removed = true
-      @container.add_group self unless self.instance_of? UNIXGroup
+      @container.add_group self unless instance_of? UNIXGroup
       @removed = false
     end
     
@@ -458,7 +458,7 @@ module ActiveDirectory
           rescue NoMethodError
           end
           
-          rid = AD.sid2rid_int(entry.objectSid.pop)
+          rid = sid2rid_int(entry.objectSid.pop)
           
           # Note that groups add themselves to their container.
           if gid
@@ -488,7 +488,7 @@ module ActiveDirectory
           rescue NoMethodError
           end
           
-          rid = AD.sid2rid_int(entry.objectSid.pop)
+          rid = sid2rid_int(entry.objectSid.pop)
           
           # Note that users add themselves to their container.
           if uid && gid
@@ -520,13 +520,13 @@ module ActiveDirectory
                 name = member.split(',')[0].split('=')[1]
                 # Groups can have groups or users as members, unlike UNIX where
                 # groups cannot contain group members.
-                member_group = self.find_group name
+                member_group = find_group name
                 
                 if member_group
                   group.add_group member_group
                 end
                 
-                member_user = self.find_user name
+                member_user = find_user name
                 
                 if member_user
                   if member_user.instance_of? UNIXUser
@@ -556,7 +556,7 @@ module ActiveDirectory
           
           @ldap.search(:base => base, :filter => user_filter) do |entry|
             rid = entry.primaryGroupID.pop.to_i
-            primary_group = self.find_group_by_rid rid
+            primary_group = find_group_by_rid rid
             
             if primary_group
               user.primary_group = primary_group
@@ -580,8 +580,9 @@ module ActiveDirectory
       "AD [#{@root} #{@server} #{@port}]"
     end
     
-    # TO DO: make this a private instance method instead?
-    def AD.sid2rid_int(sid)
+    private
+    
+    def sid2rid_int(sid)
       sid.unpack("H2H2nNV*").pop.to_i
     end
   end
