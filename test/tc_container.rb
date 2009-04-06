@@ -12,8 +12,9 @@ class TC_Container < Test::Unit::TestCase
     @c4_ad2 = ActiveDirectory::Container.new("cn=Users", @ad2)
     @g1_c1_ad1 = ActiveDirectory::Group.new("staff", @c1_ad1)
     @g2_c4_ad2 = ActiveDirectory::Group.new("enable", @c4_ad2)
-    @u1_c1_ad1 = ActiveDirectory::User.new("user", @c1_ad1)
-    @u2_c4_ad2 = ActiveDirectory::User.new("user", @c4_ad2)
+    @g3_c3_ad1 = ActiveDirectory::Group.new("test", @c3_ad1)
+    @u1_c1_ad1 = ActiveDirectory::User.new("user", @c1_ad1, @g1_c1_ad1)
+    @u2_c4_ad2 = ActiveDirectory::User.new("user", @c4_ad2, @g2_c4_ad2)
   end
   
   def test_ad_removed_flag_false
@@ -122,16 +123,31 @@ class TC_Container < Test::Unit::TestCase
     end
   end
   
+  def test_remove_primary_group_exception
+    assert_raise RuntimeError do
+      @c1_ad1.remove_group @g1_c1_ad1
+    end
+  end
+  
+  def test_remove_unix_main_group_exception
+    assert_raise RuntimeError do
+      foo = ActiveDirectory::UNIXGroup.new("bar", @c3_ad1, 1000)
+      ActiveDirectory::UNIXUser.new("foo", @c3_ad1, @g1_c1_ad1, 1001, foo,
+                                    "/bin/bash", "/home/foo", "test", 1002)
+      @c3_ad1.remove_group foo
+    end
+  end
+  
   def test_remove_group_removed_flag_set
     assert_block("Should have set removed group removed flag") do
-      @c1_ad1.remove_group @g1_c1_ad1
-      @g1_c1_ad1.removed == true
+      @c3_ad1.remove_group @g3_c3_ad1
+      @g3_c3_ad1.removed == true
     end
   end
   
   def test_rid_uid_gid_added_to_container_directory
     assert_block("Should have added UID and GID to directory") do
-      ActiveDirectory::UNIXUser.new("foo", @c3_ad1, 1000,
+      ActiveDirectory::UNIXUser.new("foo", @c3_ad1, @g1_c1_ad1, 1000,
                                     ActiveDirectory::UNIXGroup.new("bar",
                                                                    @c3_ad1,
                                                                    1001),
@@ -145,7 +161,7 @@ class TC_Container < Test::Unit::TestCase
   def test_rid_uid_gid_removed_from_container_directory
     assert_block("Should have removed UID and GID from directory") do
       bar = ActiveDirectory::UNIXGroup.new("bar", @c3_ad1, 1000)
-      foo = ActiveDirectory::UNIXUser.new("foo", @c3_ad1, 1001, bar,
+      foo = ActiveDirectory::UNIXUser.new("foo", @c3_ad1, @g1_c1_ad1, 1001, bar,
                                           "/bin/bash", "/home/foo", "test",
                                           1002)
       @c3_ad1.remove_user foo

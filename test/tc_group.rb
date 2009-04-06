@@ -11,11 +11,13 @@ class TC_Group < Test::Unit::TestCase
     @c3_ad2 = ActiveDirectory::Container.new("ou=People", @ad2)
     @g1_c1_ad1 = ActiveDirectory::Group.new("staff", @c1_ad1, 1722)
     @g2_c3_ad2 = ActiveDirectory::Group.new("staff", @c3_ad2, 1722)
+    @g4_c1_ad1 = ActiveDirectory::Group.new("primary", @c1_ad1)
+    @g5_c3_ad2 = ActiveDirectory::Group.new("priamry", @c3_ad2)
     @ug1_c1_ad1 = ActiveDirectory::UNIXGroup.new("class", @c1_ad1, 1001)
-    @u1_c1_ad1 = ActiveDirectory::User.new("user1", @c1_ad1)
-    @u2_c3_ad2 = ActiveDirectory::User.new("user2", @c3_ad2)
-    @uu1_c1_ad1 = ActiveDirectory::UNIXUser.new("user3", @c1_ad1, 1000,
-                                                @ug1_c1_ad1, "/bin/bash",
+    @u1_c1_ad1 = ActiveDirectory::User.new("user1", @c1_ad1, @g4_c1_ad1)
+    @u2_c3_ad2 = ActiveDirectory::User.new("user2", @c3_ad2, @g5_c3_ad2)
+    @uu1_c1_ad1 = ActiveDirectory::UNIXUser.new("user3", @c1_ad1, @g4_c1_ad1,
+                                                1000, @ug1_c1_ad1, "/bin/bash",
                                                 "/home/user")
   end
   
@@ -77,9 +79,9 @@ class TC_Group < Test::Unit::TestCase
     end
   end
   
-  def test_add_user_main_group_exception
+  def test_add_user_primary_group_exception
     assert_raise RuntimeError do
-      @ug1_c1_ad1.add_user @uu1_c1_ad1
+      @g4_c1_ad1.add_user @u1_c1_ad1
     end
   end
   

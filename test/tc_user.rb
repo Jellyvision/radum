@@ -12,10 +12,12 @@ class TC_User < Test::Unit::TestCase
     @g1_c1_ad1 = ActiveDirectory::Group.new("staff", @c1_ad1)
     @g2_c2_ad1 = ActiveDirectory::Group.new("enable", @c2_ad1)
     @g3_c3_ad2 = ActiveDirectory::Group.new("staff", @c3_ad2)
+    @g4_c1_ad1 = ActiveDirectory::Group.new("primary", @c1_ad1)
+    @g5_c3_ad2 = ActiveDirectory::Group.new("primary", @c3_ad2)
     @ug1_c1_ad1 = ActiveDirectory::UNIXGroup.new("class", @c1_ad1, 1001)
     @ug2_c3_ad2 = ActiveDirectory::UNIXGroup.new("class", @c3_ad2, 1001)
-    @u1_c1_ad1 = ActiveDirectory::User.new("user", @c1_ad1, 1834)
-    @u2_c3_ad2 = ActiveDirectory::User.new("user", @c3_ad2, 1834)
+    @u1_c1_ad1 = ActiveDirectory::User.new("user", @c1_ad1, @g4_c1_ad1, 1834)
+    @u2_c3_ad2 = ActiveDirectory::User.new("user", @c3_ad2, @g5_c3_ad2, 1834)
   end
   
   def test_removed_flag_false
@@ -24,25 +26,25 @@ class TC_User < Test::Unit::TestCase
   
   def test_duplicate_rid_exception
     assert_raise RuntimeError do
-      ActiveDirectory::User.new("test", @c1_ad1, 1834)
+      ActiveDirectory::User.new("test", @c1_ad1, @g4_c1_ad1, 1834)
     end
   end
   
   def test_equal_exception
     assert_raise RuntimeError do
-      ActiveDirectory::User.new("user", @c1_ad1)
+      ActiveDirectory::User.new("user", @c1_ad1, @g4_c1_ad1)
     end
   end
   
   def test_equal_container_difference_exception
     assert_raise RuntimeError do
-      ActiveDirectory::User.new("user", @c2_ad1)
+      ActiveDirectory::User.new("user", @c2_ad1, @g4_c1_ad1)
     end
   end
   
   def test_equal_name_case_exception
     assert_raise RuntimeError do
-      ActiveDirectory::User.new("User", @c1_ad1)
+      ActiveDirectory::User.new("User", @c1_ad1, @g4_c1_ad1)
     end
   end
   
@@ -71,6 +73,12 @@ class TC_User < Test::Unit::TestCase
   def test_add_group_no_exception
     assert_nothing_raised do
       @u1_c1_ad1.add_group @g1_c1_ad1
+    end
+  end
+  
+  def test_add_primary_group_exception
+    assert_raise RuntimeError do
+      @u1_c1_ad1.add_group @g4_c1_ad1
     end
   end
   

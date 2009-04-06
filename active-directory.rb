@@ -75,6 +75,20 @@ module ActiveDirectory
     end
     
     def remove_group(group)
+      # We cannot remove a group that still has a user referencing it as their
+      # primary_group or unix_main_group.
+      @directory.users.each do |user|
+        if group == user.primary_group
+          raise "Cannot remove group: it is a User's primary_group."
+        end
+        
+        if user.instance_of? UNIXUser
+          if group == user.unix_main_group
+            raise "Cannot remove group: it is a UNIXUser's unix_main_group."
+          end
+        end
+      end
+      
       @groups.delete group
       @directory.rids.delete group.rid if group.rid
       @directory.gids.delete group.gid if group.instance_of? UNIXGroup
@@ -92,7 +106,7 @@ module ActiveDirectory
     attr :password, true
     attr :removed, true
     
-    def initialize(username, container, rid = nil)
+    def initialize(username, container, primary_group, rid = nil)
       # The RID must be unique.
       if container.directory.rids.include? rid
         raise "RID is already in use in the directory."
@@ -108,10 +122,13 @@ module ActiveDirectory
       @username = username
       @common_name = username
       @container = container
+      @primary_group = primary_group
       @rid = rid
       @distinguished_name = "cn=" + @common_name + "," + @container.name +
                             "," + @container.directory.root
       @groups = []
+      @full_name = username
+      @password = nil
       # A UNIXUser adding itself the container needs to happen at the end of
       # the initializer in that class instead because the UID value is needed.
       # The removed flag must be set to true first since we are not in the
@@ -147,8 +164,12 @@ module ActiveDirectory
     
     def add_group(group)
       if @container.directory == group.container.directory
-        @groups.push group unless @groups.include? group
-        group.add_user self unless group.users.include? self
+        unless @primary_group == group
+          @groups.push group unless @groups.include? group
+          group.add_user self unless group.users.include? self
+        else
+          raise "User is already a member of their primary group."
+        end
       else
         raise "Group must be in the same directory."
       end
@@ -169,33 +190,36 @@ module ActiveDirectory
   end
   
   class UNIXUser < User
-    attr_reader :uid, :main_group, :gid, :shell, :home_directory, :nis_domain
+    attr_reader :uid, :gid, :shell, :home_directory, :nis_domain
     attr :gecos, true
     
-    def initialize(username, container, uid, main_group, shell, home_directory,
-                   nis_domain = nil, rid = nil)
+    def initialize(username, container, primary_group, uid, unix_main_group,
+                   shell, home_directory, nis_domain = nil, rid = nil)
       # The UID must be unique.
       if container.directory.uids.include? uid
         raise "UID is already in use in the directory."
       end
       
-      super username, container, rid
+      super username, container, primary_group, rid
       @uid = uid
-      @main_group = main_group
+      @unix_main_group = unix_main_group
       
-      if @container.directory == @main_group.container.directory
-        unless @main_group.instance_of? UNIXGroup
-          raise "UNIXUser main_group must be a UNIXGroup."
+      if @container.directory == @unix_main_group.container.directory
+        unless @unix_main_group.instance_of? UNIXGroup
+          raise "UNIXUser unix_main_group must be a UNIXGroup."
         else
-          @gid = @main_group.gid
+          @gid = @unix_main_group.gid
+          @container.add_group @unix_main_group
+          add_group @unix_main_group
         end
       else
-        raise "UNIXUser main_group must be in the same directory."
+        raise "UNIXUser unix_main_group must be in the same directory."
       end
       
       @shell = shell
       @home_directory = home_directory
       @nis_domain = nis_domain
+      @gecos = username
       # The removed flag must be set to true first since we are not in the
       # container yet.
       @removed = true
@@ -203,13 +227,30 @@ module ActiveDirectory
       @removed = false
     end
     
+    def unix_main_group
+      @unix_main_group
+    end
+    
+    def unix_main_group=(group)
+      if group.instance_of? UNIXGroup
+        if @container.directory == group.container.directory
+          @unix_main_group = group
+          @gid = group.gid
+          @container.add_group group
+          add_group group
+        else
+          raise "UNIXUser unix_main_group must be in the same directory."
+        end
+      else
+        raise "UNIXUser unix_main_group must be a UNIXGroup."
+      end
+    end
+    
     def add_group(group)
       if group.instance_of? UNIXGroup
         if @container.directory == group.container.directory
-          unless @groups.include?(group) || group == @main_group
-            @groups.push group
-            group.add_user self
-          end
+          @groups.push group unless @groups.include? group
+          group.add_user self unless group.users.include? self
         else
           raise "Group must be in the same directory."
         end
@@ -219,7 +260,7 @@ module ActiveDirectory
     end
     
     def to_s
-      "UNIXUser [(RID #{@rid}, UID #{@uid}, GID #{@main_group.gid}) " +
+      "UNIXUser [(RID #{@rid}, UID #{@uid}, GID #{@unix_main_group.gid}) " +
       "#{@username} " + "#{@distinguished_name}]"
     end
   end
@@ -259,8 +300,12 @@ module ActiveDirectory
     
     def add_user(user)
       if @container.directory == user.container.directory
-        @users.push user unless @users.include? user
-        user.add_group self unless user.groups.include? self
+        unless self == user.primary_group
+          @users.push user unless @users.include? user
+          user.add_group self unless user.groups.include? self
+        else
+          raise "Group is already the User's primary_group."
+        end
       else
         raise "User must be in the same directory."
       end
@@ -313,14 +358,6 @@ module ActiveDirectory
       @removed = true
       @container.add_group self
       @removed = false
-    end
-    
-    def add_user(user)
-      if user.instance_of?(UNIXUser) && self == user.main_group
-          raise "Cannot add a user to the user's main UNIXGroup."
-      else
-        super user
-      end
     end
     
     def to_s
@@ -384,6 +421,18 @@ module ActiveDirectory
     def remove_container(container)
       @containers.delete container
       container.removed = true
+    end
+    
+    def users
+      all_users = []
+      
+      @containers.each do |container|
+        container.users.each do |user|
+          all_users.push user
+        end
+      end
+      
+      all_users
     end
     
     # Users are only stored in containers, which are only stored here.
@@ -489,27 +538,40 @@ module ActiveDirectory
           end
           
           rid = sid2rid_int(entry.objectSid.pop)
+          primary_group = find_group_by_rid entry.primaryGroupID.pop.to_i
           
-          # Note that users add themselves to their container.
-          if uid && gid
-            if group = find_group_by_gid(gid)
-              user = UNIXUser.new(entry.sAMAccountName.pop, container, uid,
-                                  group, entry.loginShell.pop,
-                                  entry.unixHomeDirectory.pop, nis_domain,
-                                  rid)
+          # Note that users add themselves to their container. We have to have
+          # found the primary_group already, or we can't make the user. The
+          # primary group is important information, but it is stored as a RID
+          # value in the primaryGroupID AD attribute. The group membership
+          # it defines is defined nowhere else however. We will print a warning
+          # for any users skipped. This is why the AD object automatically
+          # adds a cn=Users container.
+          if primary_group
+            if uid && gid
+              if unix_main_group = find_group_by_gid(gid)
+                user = UNIXUser.new(entry.sAMAccountName.pop, container,
+                                    primary_group, uid, unix_main_group,
+                                    entry.loginShell.pop,
+                                    entry.unixHomeDirectory.pop, nis_domain,
+                                    rid)
+                user.common_name = entry.cn.pop
+              end
+            else
+              user = User.new(entry.sAMAccountName.pop, container,
+                              primary_group, rid)
               user.common_name = entry.cn.pop
             end
           else
-            user = User.new(entry.sAMAccountName.pop, container, rid)
-            user.common_name = entry.cn.pop
+            puts "Warning: Windows primary group not found for: " +
+                 entry.sAMAccountName.pop
           end
         end
       end
       
-      # Add users to groups, which also adds the groups to the user, etc. This
-      # takes into account a UNIXUser's main_group. In that case, the main_group
-      # attribute is set instead of adding the group the the UNIXUser's group
-      # array.
+      # Add users to groups, which also adds the groups to the user, etc. The
+      # Windows primary_group was taken care of when creating the users
+      # previously.
       @containers.each do |container|
         container.groups.each do |group|
           base = "cn=#{group.name}," + container.name + ",#{@root}"
@@ -529,39 +591,10 @@ module ActiveDirectory
                 member_user = find_user name
                 
                 if member_user
-                  if member_user.instance_of? UNIXUser
-                    unless group == member_user.main_group
-                      group.add_user member_user
-                    end
-                  else
-                    group.add_user member_user
-                  end
+                  group.add_user member_user
                 end
               end
             rescue NoMethodError
-            end
-          end
-        end
-        
-        # The "members" AD attribute for a group does not contain users in
-        # its list if their "primaryGroupID" attribute defines that membership
-        # instead. For example, the "Domain Users" group contains all accounts
-        # as members usually, but normally its "members" attribute is empty
-        # because those users have their membership defined by their own
-        # "primaryGroupID" instead (which is the RID of "Domain Users" most
-        # of the time). Therefore, we need to set the User instance's
-        # primary_group attribute to get the real picture.
-        container.users.each do |user|
-          base = "cn=#{user.common_name}," + container.name + ",#{@root}"
-          
-          @ldap.search(:base => base, :filter => user_filter) do |entry|
-            rid = entry.primaryGroupID.pop.to_i
-            primary_group = find_group_by_rid rid
-            
-            if primary_group
-              user.primary_group = primary_group
-            else
-              raise "User should have primary group in directory."
             end
           end
         end

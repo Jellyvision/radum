@@ -12,9 +12,9 @@ class TC_UNIXUser < Test::Unit::TestCase
     @ug2_c1_ad1 = ActiveDirectory::UNIXGroup.new("enable", @c1_ad1, 1002)
     @ug3_c2_ad2 = ActiveDirectory::UNIXGroup.new("enable", @c2_ad2, 1003)
     @g4_c1_ad1 = ActiveDirectory::Group.new("class", @c1_ad1)
-    @uu1a_c1_ad1 = ActiveDirectory::UNIXUser.new("user", @c1_ad1, 1000,
-                                                  @ug1_c1_ad1, "/bin/bash",
-                                                  "/home/user")
+    @uu1a_c1_ad1 = ActiveDirectory::UNIXUser.new("user", @c1_ad1, @g4_c1_ad1,
+                                                  1000, @ug1_c1_ad1,
+                                                  "/bin/bash", "/home/user")
   end
   
   def test_removed_flag_false
@@ -23,22 +23,22 @@ class TC_UNIXUser < Test::Unit::TestCase
   
   def test_duplicate_uid_exception
     assert_raise RuntimeError do
-      ActiveDirectory::UNIXUser.new("test", @c1_ad1, 1000, @ug1_c1_ad1,
-                                    "/bin/bash", "/home/user")
+      ActiveDirectory::UNIXUser.new("test", @c1_ad1, @g4_c1_ad1, 1000,
+                                    @ug1_c1_ad1, "/bin/bash", "/home/user")
     end
   end
   
-  def test_main_group_different_directory_exception
+  def test_unix_main_group_different_directory_exception
     assert_raise RuntimeError do
-      ActiveDirectory::UNIXUser.new("test", @c1_ad1, 1000, @ug3_c2_ad2,
-                                    "/bin/bash", "/home/test")
+      ActiveDirectory::UNIXUser.new("test", @c1_ad1, @g4_c1_ad1, 1000,
+                                    @ug3_c2_ad2, "/bin/bash", "/home/test")
     end
   end
   
-  def test_main_group_non_unix_exception
+  def test_unix_main_group_non_unix_exception
     assert_raise RuntimeError do
-      ActiveDirectory::UNIXUser.new("test", @c1_ad1, 1000, @g4_c1_ad1,
-                                    "/bin/bash", "/home/test")
+      ActiveDirectory::UNIXUser.new("test", @c1_ad1, @g4_c1_ad1, 1000,
+                                    @g4_c1_ad1, "/bin/bash", "/home/test")
     end
   end
   
@@ -56,11 +56,12 @@ class TC_UNIXUser < Test::Unit::TestCase
   
   def test_add_group
     assert_block("Should have added exactly one group") do
-      # Note: won't add main group to groups array.
-      @uu1a_c1_ad1.add_group @ug1_c1_ad1
+      # Note that the UNIXUser already added its unix_main_group, so the count
+      # should be two (so it should have really added a total of two groups
+      # only).
       @uu1a_c1_ad1.add_group @ug2_c1_ad1
       @uu1a_c1_ad1.add_group @ug2_c1_ad1
-      @uu1a_c1_ad1.groups.length == 1 &&
+      @uu1a_c1_ad1.groups.length == 2 &&
       @uu1a_c1_ad1.groups.find { |group| group == @ug2_c1_ad1 }
     end
   end
