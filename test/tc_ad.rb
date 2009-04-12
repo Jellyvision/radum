@@ -41,10 +41,11 @@ class TC_Ad < Test::Unit::TestCase
     assert_block("Should have added exactly one container") do
       # Containers add themselves to directories on initialization, so this
       # would be an attempt to add a second time. We want to be totally certain,
-      # so the add is done a third time anyway.
+      # so the add is done a third time anyway. Note that the cn=Users container
+      # is added automatically, so the count should be 2.
       @ad1a.add_container @c1_ad1a
       @ad1a.add_container @c1_ad1a
-      @ad1a.containers.length == 1
+      @ad1a.containers.length == 2
     end
   end
   
@@ -52,11 +53,12 @@ class TC_Ad < Test::Unit::TestCase
     assert_block("Should have added exactly one container") do
       # Containers add themselves to directories on initialization, so this
       # would be an attempt to add a second time. We want to be totally certain,
-      # so the add is done a third time anyway.
+      # so the add is done a third time anyway. Note that the cn=Users container
+      # is added automatically, so the count shoud be 2.
       @ad1a.add_container @c1_ad1a
       @c1_ad1a.removed = true
       @ad1a.add_container @c1_ad1a
-      @ad1a.containers.length == 1
+      @ad1a.containers.length == 2
     end
   end
   
