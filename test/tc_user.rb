@@ -4,6 +4,7 @@ require '../active-directory'
 # This tests the User class.
 class TC_User < Test::Unit::TestCase
   def setup
+    @type = ActiveDirectory::GROUP_DOMAIN_LOCAL_DISTRIBUTION
     @ad1 = ActiveDirectory::AD.new("dc=vmware,dc=local", "test1")
     @ad2 = ActiveDirectory::AD.new("dc=vmware,dc=com", "test2")
     @c1_ad1 = ActiveDirectory::Container.new("ou=People", @ad1)
@@ -27,6 +28,13 @@ class TC_User < Test::Unit::TestCase
   def test_duplicate_rid_exception
     assert_raise RuntimeError do
       ActiveDirectory::User.new("test", @c1_ad1, @g4_c1_ad1, 1834)
+    end
+  end
+  
+  def test_primary_group_type_exception
+    assert_raise RuntimeError do
+      @u1_c1_ad1.primary_group = ActiveDirectory::Group.new("broken",
+                                                            @c1_ad1, @type)
     end
   end
   

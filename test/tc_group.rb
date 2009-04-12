@@ -4,13 +4,14 @@ require '../active-directory'
 # This tests the Group and UNIXGroup classes.
 class TC_Group < Test::Unit::TestCase
   def setup
+    @type = ActiveDirectory::GROUP_GLOBAL_SECURITY
     @ad1 = ActiveDirectory::AD.new("dc=vmware,dc=local", "test1")
     @ad2 = ActiveDirectory::AD.new("dc=vmware,dc=com", "test2")
     @c1_ad1 = ActiveDirectory::Container.new("ou=People", @ad1)
     @c2_ad1 = ActiveDirectory::Container.new("ou=Staff,ou=People", @ad1)
     @c3_ad2 = ActiveDirectory::Container.new("ou=People", @ad2)
-    @g1_c1_ad1 = ActiveDirectory::Group.new("staff", @c1_ad1, 1722)
-    @g2_c3_ad2 = ActiveDirectory::Group.new("staff", @c3_ad2, 1722)
+    @g1_c1_ad1 = ActiveDirectory::Group.new("staff", @c1_ad1, @type, 1722)
+    @g2_c3_ad2 = ActiveDirectory::Group.new("staff", @c3_ad2, @type, 1722)
     @g4_c1_ad1 = ActiveDirectory::Group.new("primary", @c1_ad1)
     @g5_c3_ad2 = ActiveDirectory::Group.new("priamry", @c3_ad2)
     @ug1_c1_ad1 = ActiveDirectory::UNIXGroup.new("class", @c1_ad1, 1001)
@@ -29,7 +30,7 @@ class TC_Group < Test::Unit::TestCase
   
   def test_duplicate_rid_exception
     assert_raise RuntimeError do
-      ActiveDirectory::Group.new("test", @c1_ad1, 1722)
+      ActiveDirectory::Group.new("test", @c1_ad1, @type, 1722)
     end
   end
   

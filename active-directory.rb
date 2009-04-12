@@ -2,6 +2,38 @@ require 'rubygems'
 require 'net/ldap'
 
 module ActiveDirectory
+  # These are the Fixnum representation of what should be Bignum objects AFAIK.
+  # In the AD Users and Groups tool, they are shown as hexidecimal values,
+  # indicating they should be Bignums (well, some of them obviously). However,
+  # if you try to edit the values in that tool (with advanced attribute
+  # editing enabled or with the ADSI Edit tool), these show up as the Fixnum
+  # values below. We are going to stick with that, even though it is lame. I
+  # could not pull these out as Bignum objects.
+  GROUP_DOMAIN_LOCAL_SECURITY = -2147483644
+  GROUP_DOMAIN_LOCAL_DISTRIBUTION = 4
+  GROUP_GLOBAL_SECURITY = -2147483646
+  GROUP_GLOBAL_DISTRIBUTION = 2
+  GROUP_UNIVERSAL_SECURITY = -2147483640
+  GROUP_UNIVERSAL_DISTRIBUTION = 8
+  
+  def ActiveDirectory.group_type_to_s(type)
+    case type
+    when ActiveDirectory::GROUP_DOMAIN_LOCAL_SECURITY
+      "GROUP_DOMAIN_LOCAL_SECURITY"
+    when ActiveDirectory::GROUP_DOMAIN_LOCAL_DISTRIBUTION
+      "GROUP_DOMAIN_LOCAL_DISTRIBUTION"
+    when ActiveDirectory::GROUP_GLOBAL_SECURITY
+      "GROUP_GLOBAL_SECURITY"
+    when ActiveDirectory::GROUP_GLOBAL_DISTRIBUTION
+      "GROUP_GLOBAL_DISTRIBUTION"
+    when ActiveDirectory::GROUP_UNIVERSAL_SECURITY
+      "GROUP_UNIVERSAL_SECURITY"
+    when ActiveDirectory::GROUP_UNIVERSAL_DISTRIBUTION
+      "GROUP_UNIVERSAL_DISTRIBUTION"
+    else "UNKNOWN"
+    end
+  end
+  
   class Container
     attr_reader :name, :directory, :users, :groups
     attr :removed, true
@@ -122,6 +154,21 @@ module ActiveDirectory
       @username = username
       @common_name = username
       @container = container
+      
+      # The primary group must be of one of these two types. It appears you can
+      # change a group's type to GROUP_DOMAIN_LOCAL_SECURITY in the AD Users and
+      # Groups tool if someone has that as their primary group, but you can't
+      # set a group of that type as someone's primary group. You can't change
+      # the type of a group to anything that has an AD group type of
+      # "Distribution" most definitely. The AD group type must be "Security"
+      # for primary groups. I am just going to avoid as much confusion as
+      # possible unless someone were to complain.
+      unless primary_group.type == ActiveDirectory::GROUP_GLOBAL_SECURITY ||
+             primary_group.type == ActiveDirectory::GROUP_UNIVERSAL_SECURITY
+             raise "User primary group must be of type GROUP_GLOBAL_SECURITY" +
+             " or GROUP_UNIVERSAL_SECURITY."
+      end
+      
       @primary_group = primary_group
       @rid = rid
       @distinguished_name = "cn=" + @common_name + "," + @container.name +
@@ -143,6 +190,12 @@ module ActiveDirectory
     end
     
     def primary_group=(group)
+      unless group.type == ActiveDirectory::GROUP_GLOBAL_SECURITY ||
+             group.type == ActiveDirectory::GROUP_UNIVERSAL_SECURITY
+             raise "User primary group must be of type GROUP_GLOBAL_SECURITY" +
+             " or GROUP_UNIVERSAL_SECURITY."
+      end
+      
       remove_group group
       @primary_group = group
     end
@@ -266,10 +319,12 @@ module ActiveDirectory
   end
   
   class Group
-    attr_reader :name, :container, :rid, :distinguished_name, :users, :groups
+    attr_reader :name, :container, :type, :rid, :distinguished_name, :users
+    attr_reader :groups
     attr :removed, true
     
-    def initialize(name, container, rid = nil)
+    def initialize(name, container,
+                   type = ActiveDirectory::GROUP_GLOBAL_SECURITY, rid = nil)
       # The RID must be unique.
       if container.directory.rids.include? rid
         raise "RID is already in use in the directory."
@@ -284,6 +339,7 @@ module ActiveDirectory
       
       @name = name
       @container = container
+      @type = type
       @rid = rid
       @distinguished_name = "cn=" + name + "," + @container.name + "," +
                             @container.directory.root
@@ -348,20 +404,23 @@ module ActiveDirectory
     end
     
     def to_s
-      "Group [(RID #{@rid}) #{@distinguished_name}]"
+      "Group [(" + ActiveDirectory.group_type_to_s(@type) +
+      ", RID #{@rid}) #{@distinguished_name}]"
     end
   end
   
   class UNIXGroup < Group
     attr_reader :gid, :nis_domain
     
-    def initialize(name, container, gid, nis_domain = nil, rid = nil)
+    def initialize(name, container, gid,
+                   type = ActiveDirectory::GROUP_GLOBAL_SECURITY,
+                   nis_domain = nil, rid = nil)
       # The GID must be unique.
       if container.directory.gids.include? gid
         raise "GID is already in use in the directory."
       end
       
-      super name, container, rid
+      super name, container, type, rid
       @gid = gid
       @nis_domain = nis_domain
       # The removed flag must be set to true first since we are not in the
@@ -372,7 +431,8 @@ module ActiveDirectory
     end
     
     def to_s
-      "UNIXGroup [(RID #{@rid}, GID #{@gid}) #{@distinguished_name}]"
+      "UNIXGroup [("  + ActiveDirectory.group_type_to_s(@type) + 
+      ", RID #{@rid}, GID #{@gid}) #{@distinguished_name}]"
     end
   end
   
@@ -529,9 +589,10 @@ module ActiveDirectory
           
           # Note that groups add themselves to their container.
           if gid
-            UNIXGroup.new(entry.name.pop, container, gid, nis_domain, rid)
+            UNIXGroup.new(entry.name.pop, container, gid,
+                          entry.groupType.pop.to_i, nis_domain, rid)
           else
-            Group.new(entry.name.pop, container, rid)
+            Group.new(entry.name.pop, container, entry.groupType.pop.to_i, rid)
           end 
         end
       end
