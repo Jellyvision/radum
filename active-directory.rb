@@ -8,13 +8,14 @@ module ActiveDirectory
   # if you try to edit the values in that tool (with advanced attribute
   # editing enabled or with the ADSI Edit tool), these show up as the Fixnum
   # values below. We are going to stick with that, even though it is lame. I
-  # could not pull these out as Bignum objects.
+  # could not pull these out as Bignum objects. Some of these are small enough
+  # to be Fixnums though, so I left them as their hex values.
   GROUP_DOMAIN_LOCAL_SECURITY = -2147483644
-  GROUP_DOMAIN_LOCAL_DISTRIBUTION = 4
+  GROUP_DOMAIN_LOCAL_DISTRIBUTION = 0x4
   GROUP_GLOBAL_SECURITY = -2147483646
-  GROUP_GLOBAL_DISTRIBUTION = 2
+  GROUP_GLOBAL_DISTRIBUTION = 0x2
   GROUP_UNIVERSAL_SECURITY = -2147483640
-  GROUP_UNIVERSAL_DISTRIBUTION = 8
+  GROUP_UNIVERSAL_DISTRIBUTION = 0x8
   
   def ActiveDirectory.group_type_to_s(type)
     case type
@@ -33,6 +34,11 @@ module ActiveDirectory
     else "UNKNOWN"
     end
   end
+  
+  # These are the userAccountControl values for users AFAIK from direct testing.
+  # These are small enough to be represented as Fixnums.
+  USER_DISABLED = 0x202
+  USER_ENABLED = 0x200
   
   class Container
     attr_reader :name, :directory, :users, :groups
@@ -134,11 +140,13 @@ module ActiveDirectory
   
   class User
     attr_reader :username, :container, :rid, :distinguished_name, :groups
+    attr :disabled, true
     attr :full_name, true
     attr :password, true
     attr :removed, true
     
-    def initialize(username, container, primary_group, rid = nil)
+    def initialize(username, container, primary_group, disabled = false,
+                   rid = nil)
       # The RID must be unique.
       if container.directory.rids.include? rid
         raise "RID is already in use in the directory."
@@ -170,6 +178,7 @@ module ActiveDirectory
       end
       
       @primary_group = primary_group
+      @disabled = disabled
       @rid = rid
       @distinguished_name = "cn=" + @common_name + "," + @container.name +
                             "," + @container.directory.root
@@ -251,7 +260,8 @@ module ActiveDirectory
     end
     
     def to_s
-      "User [(RID #{@rid}) #{@username} #{@distinguished_name}]"
+      "User [(" + (@disabled ? "USER_DISABLED" : "USER_ENABLED") +
+      ", RID #{@rid}) #{@username} #{@distinguished_name}]"
     end
   end
   
@@ -260,13 +270,14 @@ module ActiveDirectory
     attr :gecos, true
     
     def initialize(username, container, primary_group, uid, unix_main_group,
-                   shell, home_directory, nis_domain = nil, rid = nil)
+                   shell, home_directory, nis_domain = nil, disabled = false,
+                   rid = nil)
       # The UID must be unique.
       if container.directory.uids.include? uid
         raise "UID is already in use in the directory."
       end
       
-      super username, container, primary_group, rid
+      super username, container, primary_group, disabled, rid
       @uid = uid
       @unix_main_group = unix_main_group
       
@@ -313,8 +324,9 @@ module ActiveDirectory
     end
     
     def to_s
-      "UNIXUser [(RID #{@rid}, UID #{@uid}, GID #{@unix_main_group.gid}) " +
-      "#{@username} " + "#{@distinguished_name}]"
+      "UNIXUser [(" + (@disabled ? "USER_DISABLED" : "USER_ENABLED") +
+      ", RID #{@rid}, UID #{@uid}, GID #{@unix_main_group.gid}) #{@username} " +
+      "#{@distinguished_name}]"
     end
   end
   
@@ -618,6 +630,7 @@ module ActiveDirectory
           
           rid = sid2rid_int(entry.objectSid.pop)
           primary_group = find_group_by_rid entry.primaryGroupID.pop.to_i
+          disabled = entry.userAccountControl.pop.to_i == 0x202 ? true : false
           
           # Note that users add themselves to their container. We have to have
           # found the primary_group already, or we can't make the user. The
@@ -633,12 +646,12 @@ module ActiveDirectory
                                     primary_group, uid, unix_main_group,
                                     entry.loginShell.pop,
                                     entry.unixHomeDirectory.pop, nis_domain,
-                                    rid)
+                                    disabled, rid)
                 user.common_name = entry.cn.pop
               end
             else
               user = User.new(entry.sAMAccountName.pop, container,
-                              primary_group, rid)
+                              primary_group, disabled, rid)
               user.common_name = entry.cn.pop
             end
           else

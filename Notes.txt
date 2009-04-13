@@ -1,0 +1,50 @@
+Group Types
+===========
+
+Group Scope       Group Type        Can Be Primary    groupType Value
+-----------       ----------        --------------    ---------------
+Domain Local      Security          No*               0x80000004 (-2147483644)
+Domain Local      Distribution      No                0x4 (4)
+Global            Security          Yes               0x80000002 (-2147483646)
+Global            Distribution      No                0x2 (2)
+Universal         Security          Yes               0x80000008 (-2147483640)
+Universal         Distribution      No                0x8 (8)
+
+* = Apparently you can change a group which someone has as their primary group
+    to Domain Local/Security and not get an error, but you cannot select such
+    a group as a user's primary group. Therefore, I take this as not "really"
+    being able to use that as a primary group. In other cases, you will get an
+    error changing to the "Distribution" scope if someone has that group as
+    their primary group.
+
+Some of those hex values are Bignums, so I put their Fixnum values as integers.
+I actually use the integer values for the larger ones in the code. The AD
+Users and Group (or ADSI Edit) applications shows these as the integer values
+if you try and edit them, so I am just doing what Microsoft does :-)
+
+Keeping in mind the restriction that only "Security" type groups can be used
+for primary groups (see the note above for Domain Local scope), the following
+transformations are possible with respect to Group Scope:
+
+Domain Local --> Universal
+Global --> Universal
+Universal --> Domain Local
+Universal --> Global
+
+If you change a group to Universal, you can then change it to whatever you
+want it seems.
+
+
+Disabled Users
+==============
+
+The AD attribute userAccountControl appears to contain the following flags with
+respect to an account being enabled or disabled (in the code, I simply look
+for the disabled value and set the class attribute appropriately - the "dsmod"
+command has a specific option for disabling an account, so that's all I care
+about really).
+
+userAccountControl Disabled = 0x202
+userAccountControl Enabled  = 0x200 (apparently, probably other values for
+                                     whatever, I just care about 0x202 here)
+
