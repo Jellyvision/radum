@@ -133,7 +133,8 @@ class TC_Container < Test::Unit::TestCase
     assert_raise RuntimeError do
       foo = ActiveDirectory::UNIXGroup.new("bar", @c3_ad1, 1000)
       ActiveDirectory::UNIXUser.new("foo", @c3_ad1, @g1_c1_ad1, 1001, foo,
-                                    "/bin/bash", "/home/foo", "test", 1002)
+                                    "/bin/bash", "/home/foo", "test", false,
+                                    1002)
       @c3_ad1.remove_group foo
     end
   end
@@ -151,7 +152,8 @@ class TC_Container < Test::Unit::TestCase
                                     ActiveDirectory::UNIXGroup.new("bar",
                                                                    @c3_ad1,
                                                                    1001),
-                                    "/bin/bash", "/home/foo", "test", 1002)
+                                    "/bin/bash", "/home/foo", "test", false,
+                                    1002)
       @ad1.uids.find { |uid| uid == 1000 } &&
       @ad1.gids.find { |gid| gid == 1001 } &&
       @ad1.rids.find { |rid| rid == 1002 }
@@ -163,7 +165,7 @@ class TC_Container < Test::Unit::TestCase
       bar = ActiveDirectory::UNIXGroup.new("bar", @c3_ad1, 1000)
       foo = ActiveDirectory::UNIXUser.new("foo", @c3_ad1, @g1_c1_ad1, 1001, bar,
                                           "/bin/bash", "/home/foo", "test",
-                                          1002)
+                                          false, 1002)
       @c3_ad1.remove_user foo
       @c3_ad1.remove_group bar
       ! (@ad1.uids.find { |uid| uid == 1000 } ||

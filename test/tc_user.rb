@@ -17,8 +17,10 @@ class TC_User < Test::Unit::TestCase
     @g5_c3_ad2 = ActiveDirectory::Group.new("primary", @c3_ad2)
     @ug1_c1_ad1 = ActiveDirectory::UNIXGroup.new("class", @c1_ad1, 1001)
     @ug2_c3_ad2 = ActiveDirectory::UNIXGroup.new("class", @c3_ad2, 1001)
-    @u1_c1_ad1 = ActiveDirectory::User.new("user", @c1_ad1, @g4_c1_ad1, 1834)
-    @u2_c3_ad2 = ActiveDirectory::User.new("user", @c3_ad2, @g5_c3_ad2, 1834)
+    @u1_c1_ad1 = ActiveDirectory::User.new("user", @c1_ad1, @g4_c1_ad1, false,
+                                           1834)
+    @u2_c3_ad2 = ActiveDirectory::User.new("user", @c3_ad2, @g5_c3_ad2, false,
+                                           1834)
   end
   
   def test_removed_flag_false
@@ -27,7 +29,7 @@ class TC_User < Test::Unit::TestCase
   
   def test_duplicate_rid_exception
     assert_raise RuntimeError do
-      ActiveDirectory::User.new("test", @c1_ad1, @g4_c1_ad1, 1834)
+      ActiveDirectory::User.new("test", @c1_ad1, @g4_c1_ad1, false, 1834)
     end
   end
   
