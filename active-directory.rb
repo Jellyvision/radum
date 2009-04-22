@@ -1,15 +1,34 @@
 require 'rubygems'
+gem 'ruby-net-ldap', '~> 0.0'
 require 'net/ldap'
 
+# This module provides an interface to Microsoft's Active Directory for working
+# with users and groups. The User class represents a standard Windows user
+# account. The UNIXUser class represents a Windows account that has UNIX
+# attributes. Similarly, the Group class represents a standard Windows group,
+# and a UNIXGroup represents a Windows group that has UNIX attributes. This
+# module concentrates only on users and groups at this time.
+#
+# This is a pure Ruby implementation, but when possible it utilizes the
+# Windows command line to create users and groups as needed. On UNIX systems
+# these methods will fail by returning nil. Methods that fall under this
+# restriction are noted.
+#
+# Author:: Shaun Rowland (mailto:rowand@shaunrowland.com)
+# Copyright:: Copyright 2009 Shaun Rowland. All rights reserved.
+# License:: BSD License included in the project LICENSE file.
 module ActiveDirectory
-  # These are the Fixnum representation of what should be Bignum objects AFAIK.
-  # In the AD Users and Groups tool, they are shown as hexidecimal values,
-  # indicating they should be Bignums (well, some of them obviously). However,
-  # if you try to edit the values in that tool (with advanced attribute
-  # editing enabled or with the ADSI Edit tool), these show up as the Fixnum
-  # values below. We are going to stick with that, even though it is lame. I
-  # could not pull these out as Bignum objects. Some of these are small enough
-  # to be Fixnums though, so I left them as their hex values.
+  # Group type constants.
+  #
+  # These are the Fixnum representation of what should be Bignum objects in
+  # some cases as far as I am aware. In the AD Users and Groups tool, they are
+  # shown as hexidecimal values, indicating they should be Bignums (well, some
+  # of them obviously). However, if you try to edit the values in that tool
+  # (with advanced attribute editing enabled or with the ADSI Edit tool), these
+  # show up as the Fixnum values below. We are going to stick with that, even
+  # though it is lame. I could not pull these out as Bignum objects. Some
+  # of these are small enough to be Fixnums though, so I left them as their
+  # hex values.
   GROUP_DOMAIN_LOCAL_SECURITY = -2147483644
   GROUP_DOMAIN_LOCAL_DISTRIBUTION = 0x4
   GROUP_GLOBAL_SECURITY = -2147483646
@@ -17,6 +36,9 @@ module ActiveDirectory
   GROUP_UNIVERSAL_SECURITY = -2147483640
   GROUP_UNIVERSAL_DISTRIBUTION = 0x8
   
+  # This is a convenience method to return a String representation of a
+  # Group's type attribute, which has the value of one of the group type
+  # ActiveDirectory constants.
   def ActiveDirectory.group_type_to_s(type)
     case type
     when ActiveDirectory::GROUP_DOMAIN_LOCAL_SECURITY
@@ -35,16 +57,37 @@ module ActiveDirectory
     end
   end
   
-  # These are the userAccountControl values for users AFAIK from direct testing.
-  # These are small enough to be represented as Fixnums.
+  # User status constants.
+  #
+  # These are the userAccountControl values for users as far as I am aware
+  # from direct testing. These are small enough to be represented as Fixnums.
   USER_DISABLED = 0x202
   USER_ENABLED = 0x200
   
+  # This class represents a container which contains users and groups, such
+  # as an OU.
   class Container
-    attr_reader :name, :directory, :users, :groups
+    # The String represenation of the Container's name.
+    attr_reader :name
+    # The AD object this Container belongs to.
+    attr_reader :directory
+    # An Array of User or UNIXUser objects that are in this Container.
+    attr_reader :users
+    # An Array of Group or UNIXGroup objects that are in this Container.
+    attr_reader :groups
+    # True if the Container has been removed from the AD, false
+    # otherwise. This is set by the AD if the container is removed.
     attr :removed, true
     
-    def initialize(name, directory)
+    # The Container object automatically adds it self to the AD directory
+    # object passed in. The name should be the LDAP path sans the AD root:
+    #
+    #   ad = ActiveDirectory::AD.new('dc=example,dc=net', 'password',
+    #                                'cn=Administrator,cn=Users', '192.168.1.1')
+    #   cn = ActiveDirectory::Container.new("ou=People", ad)
+    #
+    # Spaces are removed from the name.
+    def initialize(name, directory) # :doc:
       name.gsub!(/\s+/, "")
       
       # The container name (like a user) must be unique (case-insensitive).
@@ -65,8 +108,9 @@ module ActiveDirectory
       @groups = []
     end
     
-    # This is to add users who were previously removed and have their removed
-    # flag set.
+    # This is to add User and UNIXUser objects which were previously removed
+    # and have their removed flag set. User and UNIXUser objects automatically
+    # add themselves to their Container object.
     def add_user(user)
       if user.removed
         if self == user.container
@@ -85,6 +129,7 @@ module ActiveDirectory
       end
     end
     
+    # This will remove a User or UNIXUser object from the users Array.
     def remove_user(user)
       @users.delete user
       @directory.rids.delete user.rid if user.rid
@@ -92,8 +137,9 @@ module ActiveDirectory
       user.removed = true
     end
     
-    # This is to add groups who were previously removed and have their removed
-    # flag set.
+    # This is to add Group and UNIXGroup objects which were previously removed
+    # and have their removed flag set. Group and UNIXGroup objects automatically
+    # add themselves to their Container object.
     def add_group(group)
       if group.removed
         if self == group.container
@@ -112,6 +158,7 @@ module ActiveDirectory
       end
     end
     
+    # This will remove a Group or UNIXGroup object from the groups Array.
     def remove_group(group)
       # We cannot remove a group that still has a user referencing it as their
       # primary_group or unix_main_group.
@@ -133,20 +180,27 @@ module ActiveDirectory
       group.removed = true
     end
     
+    # The String representation of the Container object.
     def to_s
       "Container [#{@name},#{@directory.root}]"
     end
   end
   
+  # This class represents a standard Windows user account.
   class User
-    attr_reader :username, :container, :rid, :distinguished_name, :groups
+    attr_reader :username
+    attr_reader :container
+    attr_reader :rid
+    attr_reader :distinguished_name
+    attr_reader :groups
     attr :disabled, true
     attr :full_name, true
     attr :password, true
     attr :removed, true
     
+    # TO DO: restart here (and do attributes above).
     def initialize(username, container, primary_group, disabled = false,
-                   rid = nil)
+                   rid = nil) # :doc:
       # The RID must be unique.
       if container.directory.rids.include? rid
         raise "RID is already in use in the directory."
@@ -213,11 +267,11 @@ module ActiveDirectory
       @common_name
     end
     
-    # The @common_name is set to @username by default. The @username value
+    # The common_name is set to username by default. The username value
     # corresponds to the sAMAccountName attribute. It is possible for the cn
     # to be different than sAMAccountName however, so this allows one to set
-    # @common_name directly. Setting the @common_name also changes the
-    # @distinguished_name accordingly (which is also built automatically).
+    # common_name directly. Setting the common_name also changes the
+    # distinguished_name accordingly (which is also built automatically).
     def common_name=(cn)
       @distinguished_name = "cn=" + cn + "," + @container.name + "," +
                             @container.directory.root
