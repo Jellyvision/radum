@@ -1,26 +1,24 @@
 require 'test/unit'
-require '../active-directory'
+require '../radum'
 
 # This tests the User class.
 class TC_User < Test::Unit::TestCase
   def setup
-    @type = ActiveDirectory::GROUP_DOMAIN_LOCAL_DISTRIBUTION
-    @ad1 = ActiveDirectory::AD.new("dc=vmware,dc=local", "test1")
-    @ad2 = ActiveDirectory::AD.new("dc=vmware,dc=com", "test2")
-    @c1_ad1 = ActiveDirectory::Container.new("ou=People", @ad1)
-    @c2_ad1 = ActiveDirectory::Container.new("ou=Staff,ou=People", @ad1)
-    @c3_ad2 = ActiveDirectory::Container.new("ou=People", @ad2)
-    @g1_c1_ad1 = ActiveDirectory::Group.new("staff", @c1_ad1)
-    @g2_c2_ad1 = ActiveDirectory::Group.new("enable", @c2_ad1)
-    @g3_c3_ad2 = ActiveDirectory::Group.new("staff", @c3_ad2)
-    @g4_c1_ad1 = ActiveDirectory::Group.new("primary", @c1_ad1)
-    @g5_c3_ad2 = ActiveDirectory::Group.new("primary", @c3_ad2)
-    @ug1_c1_ad1 = ActiveDirectory::UNIXGroup.new("class", @c1_ad1, 1001)
-    @ug2_c3_ad2 = ActiveDirectory::UNIXGroup.new("class", @c3_ad2, 1001)
-    @u1_c1_ad1 = ActiveDirectory::User.new("user", @c1_ad1, @g4_c1_ad1, false,
-                                           1834)
-    @u2_c3_ad2 = ActiveDirectory::User.new("user", @c3_ad2, @g5_c3_ad2, false,
-                                           1834)
+    @type = RADUM::GROUP_DOMAIN_LOCAL_DISTRIBUTION
+    @ad1 = RADUM::AD.new("dc=vmware,dc=local", "test1")
+    @ad2 = RADUM::AD.new("dc=vmware,dc=com", "test2")
+    @c1_ad1 = RADUM::Container.new("ou=People", @ad1)
+    @c2_ad1 = RADUM::Container.new("ou=Staff,ou=People", @ad1)
+    @c3_ad2 = RADUM::Container.new("ou=People", @ad2)
+    @g1_c1_ad1 = RADUM::Group.new("staff", @c1_ad1)
+    @g2_c2_ad1 = RADUM::Group.new("enable", @c2_ad1)
+    @g3_c3_ad2 = RADUM::Group.new("staff", @c3_ad2)
+    @g4_c1_ad1 = RADUM::Group.new("primary", @c1_ad1)
+    @g5_c3_ad2 = RADUM::Group.new("primary", @c3_ad2)
+    @ug1_c1_ad1 = RADUM::UNIXGroup.new("class", @c1_ad1, 1001)
+    @ug2_c3_ad2 = RADUM::UNIXGroup.new("class", @c3_ad2, 1001)
+    @u1_c1_ad1 = RADUM::User.new("user", @c1_ad1, @g4_c1_ad1, false, 1834)
+    @u2_c3_ad2 = RADUM::User.new("user", @c3_ad2, @g5_c3_ad2, false, 1834)
   end
   
   def test_removed_flag_false
@@ -29,32 +27,31 @@ class TC_User < Test::Unit::TestCase
   
   def test_duplicate_rid_exception
     assert_raise RuntimeError do
-      ActiveDirectory::User.new("test", @c1_ad1, @g4_c1_ad1, false, 1834)
+      RADUM::User.new("test", @c1_ad1, @g4_c1_ad1, false, 1834)
     end
   end
   
   def test_primary_group_type_exception
     assert_raise RuntimeError do
-      @u1_c1_ad1.primary_group = ActiveDirectory::Group.new("broken",
-                                                            @c1_ad1, @type)
+      @u1_c1_ad1.primary_group = RADUM::Group.new("broken", @c1_ad1, @type)
     end
   end
   
   def test_equal_exception
     assert_raise RuntimeError do
-      ActiveDirectory::User.new("user", @c1_ad1, @g4_c1_ad1)
+      RADUM::User.new("user", @c1_ad1, @g4_c1_ad1)
     end
   end
   
   def test_equal_container_difference_exception
     assert_raise RuntimeError do
-      ActiveDirectory::User.new("user", @c2_ad1, @g4_c1_ad1)
+      RADUM::User.new("user", @c2_ad1, @g4_c1_ad1)
     end
   end
   
   def test_equal_name_case_exception
     assert_raise RuntimeError do
-      ActiveDirectory::User.new("User", @c1_ad1, @g4_c1_ad1)
+      RADUM::User.new("User", @c1_ad1, @g4_c1_ad1)
     end
   end
   

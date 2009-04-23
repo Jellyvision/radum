@@ -1,15 +1,15 @@
 require 'test/unit'
-require '../active-directory'
+require '../radum'
 
 # This tests the Container class.
 class TC_Ad < Test::Unit::TestCase
   def setup
-    @ad1a = ActiveDirectory::AD.new("dc=vmware,dc=local", "test1a")
-    @ad1b = ActiveDirectory::AD.new("dc=vmware, dc=local", "test1b")
-    @ad1c = ActiveDirectory::AD.new("DC=VMWARE,DC=LOCAL", "test1c")
-    @ad2 = ActiveDirectory::AD.new("dc=vmware,dc=com", "test2")
-    @c1_ad1a = ActiveDirectory::Container.new("ou=People", @ad1a)
-    @c2_ad2 = ActiveDirectory::Container.new("ou=Staff,ou=People", @ad2)
+    @ad1a = RADUM::AD.new("dc=vmware,dc=local", "test1a")
+    @ad1b = RADUM::AD.new("dc=vmware, dc=local", "test1b")
+    @ad1c = RADUM::AD.new("DC=VMWARE,DC=LOCAL", "test1c")
+    @ad2 = RADUM::AD.new("dc=vmware,dc=com", "test2")
+    @c1_ad1a = RADUM::Container.new("ou=People", @ad1a)
+    @c2_ad2 = RADUM::Container.new("ou=Staff,ou=People", @ad2)
   end
   
   def test_equal

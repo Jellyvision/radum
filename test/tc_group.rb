@@ -1,25 +1,24 @@
 require 'test/unit'
-require '../active-directory'
+require '../radum'
 
 # This tests the Group and UNIXGroup classes.
 class TC_Group < Test::Unit::TestCase
   def setup
-    @type = ActiveDirectory::GROUP_GLOBAL_SECURITY
-    @ad1 = ActiveDirectory::AD.new("dc=vmware,dc=local", "test1")
-    @ad2 = ActiveDirectory::AD.new("dc=vmware,dc=com", "test2")
-    @c1_ad1 = ActiveDirectory::Container.new("ou=People", @ad1)
-    @c2_ad1 = ActiveDirectory::Container.new("ou=Staff,ou=People", @ad1)
-    @c3_ad2 = ActiveDirectory::Container.new("ou=People", @ad2)
-    @g1_c1_ad1 = ActiveDirectory::Group.new("staff", @c1_ad1, @type, 1722)
-    @g2_c3_ad2 = ActiveDirectory::Group.new("staff", @c3_ad2, @type, 1722)
-    @g4_c1_ad1 = ActiveDirectory::Group.new("primary", @c1_ad1)
-    @g5_c3_ad2 = ActiveDirectory::Group.new("priamry", @c3_ad2)
-    @ug1_c1_ad1 = ActiveDirectory::UNIXGroup.new("class", @c1_ad1, 1001)
-    @u1_c1_ad1 = ActiveDirectory::User.new("user1", @c1_ad1, @g4_c1_ad1)
-    @u2_c3_ad2 = ActiveDirectory::User.new("user2", @c3_ad2, @g5_c3_ad2)
-    @uu1_c1_ad1 = ActiveDirectory::UNIXUser.new("user3", @c1_ad1, @g4_c1_ad1,
-                                                1000, @ug1_c1_ad1, "/bin/bash",
-                                                "/home/user")
+    @type = RADUM::GROUP_GLOBAL_SECURITY
+    @ad1 = RADUM::AD.new("dc=vmware,dc=local", "test1")
+    @ad2 = RADUM::AD.new("dc=vmware,dc=com", "test2")
+    @c1_ad1 = RADUM::Container.new("ou=People", @ad1)
+    @c2_ad1 = RADUM::Container.new("ou=Staff,ou=People", @ad1)
+    @c3_ad2 = RADUM::Container.new("ou=People", @ad2)
+    @g1_c1_ad1 = RADUM::Group.new("staff", @c1_ad1, @type, 1722)
+    @g2_c3_ad2 = RADUM::Group.new("staff", @c3_ad2, @type, 1722)
+    @g4_c1_ad1 = RADUM::Group.new("primary", @c1_ad1)
+    @g5_c3_ad2 = RADUM::Group.new("priamry", @c3_ad2)
+    @ug1_c1_ad1 = RADUM::UNIXGroup.new("class", @c1_ad1, 1001)
+    @u1_c1_ad1 = RADUM::User.new("user1", @c1_ad1, @g4_c1_ad1)
+    @u2_c3_ad2 = RADUM::User.new("user2", @c3_ad2, @g5_c3_ad2)
+    @uu1_c1_ad1 = RADUM::UNIXUser.new("user3", @c1_ad1, @g4_c1_ad1, 1000,
+                                      @ug1_c1_ad1, "/bin/bash", "/home/user")
   end
   
   def test_removed_flag_false
@@ -30,31 +29,31 @@ class TC_Group < Test::Unit::TestCase
   
   def test_duplicate_rid_exception
     assert_raise RuntimeError do
-      ActiveDirectory::Group.new("test", @c1_ad1, @type, 1722)
+      RADUM::Group.new("test", @c1_ad1, @type, 1722)
     end
   end
   
   def test_duplicate_gid_exception
     assert_raise RuntimeError do
-      ActiveDirectory::UNIXGroup.new("class", @c1_ad1, 1001)
+      RADUM::UNIXGroup.new("class", @c1_ad1, 1001)
     end
   end
   
   def test_equal_exception
     assert_raise RuntimeError do
-      ActiveDirectory::Group.new("staff", @c1_ad1)
+      RADUM::Group.new("staff", @c1_ad1)
     end
   end
   
   def test_equal_name_case_exception
     assert_raise RuntimeError do
-      ActiveDirectory::Group.new("Staff", @c1_ad1)
+      RADUM::Group.new("Staff", @c1_ad1)
     end
   end
   
   def test_equal_container_difference_exception
     assert_raise RuntimeError do
-      ActiveDirectory::Group.new("staff", @c2_ad1)
+      RADUM::Group.new("staff", @c2_ad1)
     end
   end
   

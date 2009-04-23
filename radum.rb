@@ -17,7 +17,7 @@ require 'net/ldap'
 # Author:: Shaun Rowland (mailto:rowand@shaunrowland.com)
 # Copyright:: Copyright 2009 Shaun Rowland. All rights reserved.
 # License:: BSD License included in the project LICENSE file.
-module ActiveDirectory
+module RADUM
   # Group type constants.
   #
   # These are the Fixnum representation of what should be Bignum objects in
@@ -38,20 +38,20 @@ module ActiveDirectory
   
   # This is a convenience method to return a String representation of a
   # Group's type attribute, which has the value of one of the group type
-  # ActiveDirectory constants.
-  def ActiveDirectory.group_type_to_s(type)
+  # RADUM constants.
+  def RADUM.group_type_to_s(type)
     case type
-    when ActiveDirectory::GROUP_DOMAIN_LOCAL_SECURITY
+    when RADUM::GROUP_DOMAIN_LOCAL_SECURITY
       "GROUP_DOMAIN_LOCAL_SECURITY"
-    when ActiveDirectory::GROUP_DOMAIN_LOCAL_DISTRIBUTION
+    when RADUM::GROUP_DOMAIN_LOCAL_DISTRIBUTION
       "GROUP_DOMAIN_LOCAL_DISTRIBUTION"
-    when ActiveDirectory::GROUP_GLOBAL_SECURITY
+    when RADUM::GROUP_GLOBAL_SECURITY
       "GROUP_GLOBAL_SECURITY"
-    when ActiveDirectory::GROUP_GLOBAL_DISTRIBUTION
+    when RADUM::GROUP_GLOBAL_DISTRIBUTION
       "GROUP_GLOBAL_DISTRIBUTION"
-    when ActiveDirectory::GROUP_UNIVERSAL_SECURITY
+    when RADUM::GROUP_UNIVERSAL_SECURITY
       "GROUP_UNIVERSAL_SECURITY"
-    when ActiveDirectory::GROUP_UNIVERSAL_DISTRIBUTION
+    when RADUM::GROUP_UNIVERSAL_DISTRIBUTION
       "GROUP_UNIVERSAL_DISTRIBUTION"
     else "UNKNOWN"
     end
@@ -82,9 +82,9 @@ module ActiveDirectory
     # The Container object automatically adds it self to the AD directory
     # object passed in. The name should be the LDAP path sans the AD root:
     #
-    #   ad = ActiveDirectory::AD.new('dc=example,dc=net', 'password',
-    #                                'cn=Administrator,cn=Users', '192.168.1.1')
-    #   cn = ActiveDirectory::Container.new("ou=People", ad)
+    #   ad = RADUM::AD.new('dc=example,dc=net', 'password',
+    #                      'cn=Administrator,cn=Users', '192.168.1.1')
+    #   cn = RADUM::Container.new("ou=People", ad)
     #
     # Spaces are removed from the name.
     def initialize(name, directory) # :doc:
@@ -225,8 +225,8 @@ module ActiveDirectory
       # "Distribution" most definitely. The AD group type must be "Security"
       # for primary groups. I am just going to avoid as much confusion as
       # possible unless someone were to complain.
-      unless primary_group.type == ActiveDirectory::GROUP_GLOBAL_SECURITY ||
-             primary_group.type == ActiveDirectory::GROUP_UNIVERSAL_SECURITY
+      unless primary_group.type == RADUM::GROUP_GLOBAL_SECURITY ||
+             primary_group.type == RADUM::GROUP_UNIVERSAL_SECURITY
              raise "User primary group must be of type GROUP_GLOBAL_SECURITY" +
              " or GROUP_UNIVERSAL_SECURITY."
       end
@@ -253,8 +253,8 @@ module ActiveDirectory
     end
     
     def primary_group=(group)
-      unless group.type == ActiveDirectory::GROUP_GLOBAL_SECURITY ||
-             group.type == ActiveDirectory::GROUP_UNIVERSAL_SECURITY
+      unless group.type == RADUM::GROUP_GLOBAL_SECURITY ||
+             group.type == RADUM::GROUP_UNIVERSAL_SECURITY
              raise "User primary group must be of type GROUP_GLOBAL_SECURITY" +
              " or GROUP_UNIVERSAL_SECURITY."
       end
@@ -389,8 +389,8 @@ module ActiveDirectory
     attr_reader :groups
     attr :removed, true
     
-    def initialize(name, container,
-                   type = ActiveDirectory::GROUP_GLOBAL_SECURITY, rid = nil)
+    def initialize(name, container, type = RADUM::GROUP_GLOBAL_SECURITY,
+                   rid = nil)
       # The RID must be unique.
       if container.directory.rids.include? rid
         raise "RID is already in use in the directory."
@@ -470,7 +470,7 @@ module ActiveDirectory
     end
     
     def to_s
-      "Group [(" + ActiveDirectory.group_type_to_s(@type) +
+      "Group [(" + RADUM.group_type_to_s(@type) +
       ", RID #{@rid}) #{@distinguished_name}]"
     end
   end
@@ -478,8 +478,7 @@ module ActiveDirectory
   class UNIXGroup < Group
     attr_reader :gid, :nis_domain
     
-    def initialize(name, container, gid,
-                   type = ActiveDirectory::GROUP_GLOBAL_SECURITY,
+    def initialize(name, container, gid, type = RADUM::GROUP_GLOBAL_SECURITY,
                    nis_domain = nil, rid = nil)
       # The GID must be unique.
       if container.directory.gids.include? gid
@@ -497,7 +496,7 @@ module ActiveDirectory
     end
     
     def to_s
-      "UNIXGroup [("  + ActiveDirectory.group_type_to_s(@type) + 
+      "UNIXGroup [("  + RADUM.group_type_to_s(@type) + 
       ", RID #{@rid}, GID #{@gid}) #{@distinguished_name}]"
     end
   end
@@ -536,7 +535,7 @@ module ActiveDirectory
       # primary group. If we did not do this, there would likely be a ton
       # of warning messages in the load() method. Keep in mind that containers
       # automatically add themselves to their AD object.
-      ActiveDirectory::Container.new("cn=Users", self)
+      RADUM::Container.new("cn=Users", self)
     end
     
     def find_container(name)

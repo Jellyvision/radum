@@ -1,20 +1,20 @@
 require 'test/unit'
-require '../active-directory'
+require '../radum'
 
 # This tests the Container class.
 class TC_Container < Test::Unit::TestCase
   def setup
-    @ad1 = ActiveDirectory::AD.new("dc=vmware,dc=local", "test1")
-    @ad2 = ActiveDirectory::AD.new("dc=vmware,dc=com", "test2")
-    @c1_ad1 = ActiveDirectory::Container.new("ou=People", @ad1)
-    @c2_ad1 = ActiveDirectory::Container.new("ou=Staff, ou=People", @ad1)
-    @c3_ad1 = ActiveDirectory::Container.new("cn=Test", @ad1)
-    @c4_ad2 = ActiveDirectory::Container.new("cn=Test", @ad2)
-    @g1_c1_ad1 = ActiveDirectory::Group.new("staff", @c1_ad1)
-    @g2_c4_ad2 = ActiveDirectory::Group.new("enable", @c4_ad2)
-    @g3_c3_ad1 = ActiveDirectory::Group.new("test", @c3_ad1)
-    @u1_c1_ad1 = ActiveDirectory::User.new("user", @c1_ad1, @g1_c1_ad1)
-    @u2_c4_ad2 = ActiveDirectory::User.new("user", @c4_ad2, @g2_c4_ad2)
+    @ad1 = RADUM::AD.new("dc=vmware,dc=local", "test1")
+    @ad2 = RADUM::AD.new("dc=vmware,dc=com", "test2")
+    @c1_ad1 = RADUM::Container.new("ou=People", @ad1)
+    @c2_ad1 = RADUM::Container.new("ou=Staff, ou=People", @ad1)
+    @c3_ad1 = RADUM::Container.new("cn=Test", @ad1)
+    @c4_ad2 = RADUM::Container.new("cn=Test", @ad2)
+    @g1_c1_ad1 = RADUM::Group.new("staff", @c1_ad1)
+    @g2_c4_ad2 = RADUM::Group.new("enable", @c4_ad2)
+    @g3_c3_ad1 = RADUM::Group.new("test", @c3_ad1)
+    @u1_c1_ad1 = RADUM::User.new("user", @c1_ad1, @g1_c1_ad1)
+    @u2_c4_ad2 = RADUM::User.new("user", @c4_ad2, @g2_c4_ad2)
   end
   
   def test_ad_removed_flag_false
@@ -28,19 +28,19 @@ class TC_Container < Test::Unit::TestCase
   
   def test_equal_exception
     assert_raise RuntimeError do
-      ActiveDirectory::Container.new("ou=People", @ad1)
+      RADUM::Container.new("ou=People", @ad1)
     end
   end
   
   def test_equal_case_insensitive_exception
     assert_raise RuntimeError do
-      ActiveDirectory::Container.new("ou=people", @ad1)
+      RADUM::Container.new("ou=people", @ad1)
     end
   end
   
   def test_equal_spaces_exception
     assert_raise RuntimeError do
-      ActiveDirectory::Container.new("ou=Staff,ou=People", @ad1)
+      RADUM::Container.new("ou=Staff,ou=People", @ad1)
     end
   end
   
@@ -131,10 +131,9 @@ class TC_Container < Test::Unit::TestCase
   
   def test_remove_unix_main_group_exception
     assert_raise RuntimeError do
-      foo = ActiveDirectory::UNIXGroup.new("bar", @c3_ad1, 1000)
-      ActiveDirectory::UNIXUser.new("foo", @c3_ad1, @g1_c1_ad1, 1001, foo,
-                                    "/bin/bash", "/home/foo", "test", false,
-                                    1002)
+      foo = RADUM::UNIXGroup.new("bar", @c3_ad1, 1000)
+      RADUM::UNIXUser.new("foo", @c3_ad1, @g1_c1_ad1, 1001, foo, "/bin/bash",
+                          "/home/foo", "test", false, 1002)
       @c3_ad1.remove_group foo
     end
   end
@@ -148,12 +147,9 @@ class TC_Container < Test::Unit::TestCase
   
   def test_rid_uid_gid_added_to_container_directory
     assert_block("Should have added UID and GID to directory") do
-      ActiveDirectory::UNIXUser.new("foo", @c3_ad1, @g1_c1_ad1, 1000,
-                                    ActiveDirectory::UNIXGroup.new("bar",
-                                                                   @c3_ad1,
-                                                                   1001),
-                                    "/bin/bash", "/home/foo", "test", false,
-                                    1002)
+      RADUM::UNIXUser.new("foo", @c3_ad1, @g1_c1_ad1, 1000,
+                          RADUM::UNIXGroup.new("bar", @c3_ad1, 1001),
+                          "/bin/bash", "/home/foo", "test", false, 1002)
       @ad1.uids.find { |uid| uid == 1000 } &&
       @ad1.gids.find { |gid| gid == 1001 } &&
       @ad1.rids.find { |rid| rid == 1002 }
@@ -162,10 +158,9 @@ class TC_Container < Test::Unit::TestCase
   
   def test_rid_uid_gid_removed_from_container_directory
     assert_block("Should have removed UID and GID from directory") do
-      bar = ActiveDirectory::UNIXGroup.new("bar", @c3_ad1, 1000)
-      foo = ActiveDirectory::UNIXUser.new("foo", @c3_ad1, @g1_c1_ad1, 1001, bar,
-                                          "/bin/bash", "/home/foo", "test",
-                                          false, 1002)
+      bar = RADUM::UNIXGroup.new("bar", @c3_ad1, 1000)
+      foo = RADUM::UNIXUser.new("foo", @c3_ad1, @g1_c1_ad1, 1001, bar,
+                                "/bin/bash", "/home/foo", "test", false, 1002)
       @c3_ad1.remove_user foo
       @c3_ad1.remove_group bar
       ! (@ad1.uids.find { |uid| uid == 1000 } ||
