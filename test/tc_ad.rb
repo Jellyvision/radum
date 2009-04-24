@@ -1,5 +1,5 @@
 require 'test/unit'
-require '../radum'
+require '../lib/radum'
 
 # This tests the Container class.
 class TC_Ad < Test::Unit::TestCase

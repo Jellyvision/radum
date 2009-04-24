@@ -1,5 +1,5 @@
 require 'test/unit'
-require '../radum'
+require '../lib/radum'
 
 # This tests the Group and UNIXGroup classes.
 class TC_Group < Test::Unit::TestCase

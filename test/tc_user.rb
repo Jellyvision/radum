@@ -1,5 +1,5 @@
 require 'test/unit'
-require '../radum'
+require '../lib/radum'
 
 # This tests the User class.
 class TC_User < Test::Unit::TestCase
