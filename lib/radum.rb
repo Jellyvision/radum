@@ -324,8 +324,8 @@ module RADUM
     attr :gecos, true
     
     def initialize(username, container, primary_group, uid, unix_main_group,
-                   shell, home_directory, nis_domain = nil, disabled = false,
-                   rid = nil)
+                   shell, home_directory, nis_domain = "radum",
+                   disabled = false, rid = nil)
       # The UID must be unique.
       if container.directory.uids.include? uid
         raise "UID is already in use in the directory."
@@ -479,7 +479,7 @@ module RADUM
     attr_reader :gid, :nis_domain
     
     def initialize(name, container, gid, type = RADUM::GROUP_GLOBAL_SECURITY,
-                   nis_domain = nil, rid = nil)
+                   nis_domain = "radum", rid = nil)
       # The GID must be unique.
       if container.directory.gids.include? gid
         raise "GID is already in use in the directory."
@@ -650,6 +650,7 @@ module RADUM
           rescue NoMethodError
           end
           
+          nis_domain = "radum" unless nis_domain
           rid = sid2rid_int(entry.objectSid.pop)
           
           # Note that groups add themselves to their container.
@@ -681,6 +682,7 @@ module RADUM
           rescue NoMethodError
           end
           
+          nis_domain = "radum" unless nis_domain
           rid = sid2rid_int(entry.objectSid.pop)
           primary_group = find_group_by_rid entry.primaryGroupID.pop.to_i
           disabled = entry.userAccountControl.pop.to_i == 0x202 ? true : false
