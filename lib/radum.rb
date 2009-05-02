@@ -2,9 +2,9 @@ require 'rubygems'
 gem 'ruby-net-ldap', '~> 0.0'
 require 'net/ldap'
 
-# This module provides an interface to Microsoft's Active Directory for working
-# with users and groups. The User class represents a standard Windows user
-# account. The UNIXUser class represents a Windows account that has UNIX
+# The RADUM module provides an interface to Microsoft's Active Directory for
+# working with users and groups. The User class represents a standard Windows
+# user account. The UNIXUser class represents a Windows account that has UNIX
 # attributes. Similarly, the Group class represents a standard Windows group,
 # and a UNIXGroup represents a Windows group that has UNIX attributes. This
 # module concentrates only on users and groups at this time.
@@ -14,7 +14,7 @@ require 'net/ldap'
 # these methods will fail by returning nil. Methods that fall under this
 # restriction are noted.
 #
-# Author:: Shaun Rowland (mailto:rowand@shaunrowland.com)
+# Author:: Shaun Rowland <mailto:rowand@shaunrowland.com>
 # Copyright:: Copyright 2009 Shaun Rowland. All rights reserved.
 # License:: BSD License included in the project LICENSE file.
 module RADUM
@@ -64,29 +64,31 @@ module RADUM
   USER_DISABLED = 0x202
   USER_ENABLED = 0x200
   
-  # This class represents a container which contains users and groups, such
-  # as an OU.
+  # The Container class represents a directory entry which contains users and
+  # groups, usually an orgainizational unit (OU).
   class Container
     # The String represenation of the Container's name.
     attr_reader :name
-    # The AD object this Container belongs to.
+    # The AD object the Container belongs to.
     attr_reader :directory
     # An Array of User or UNIXUser objects that are in this Container.
     attr_reader :users
     # An Array of Group or UNIXGroup objects that are in this Container.
     attr_reader :groups
     # True if the Container has been removed from the AD, false
-    # otherwise. This is set by the AD if the container is removed.
+    # otherwise. This is set by the AD if the Container is removed.
     attr :removed, true
     
-    # The Container object automatically adds it self to the AD directory
-    # object passed in. The name should be the LDAP path sans the AD root:
+    # The Container object automatically adds itself to the AD object
+    # specified. The name should be the LDAP distinguishedName attribute
+    # without the AD root path component:
     #
-    #   ad = RADUM::AD.new('dc=example,dc=net', 'password',
+    #   ad = RADUM::AD.new('dc=example,dc=com', 'password',
     #                      'cn=Administrator,cn=Users', '192.168.1.1')
     #   cn = RADUM::Container.new("ou=People", ad)
     #
-    # Spaces are removed from the name.
+    # Spaces are removed from the name. The Container must not already be
+    # in the AD or a RuntimeError is raised.
     def initialize(name, directory) # :doc:
       name.gsub!(/\s+/, "")
       
@@ -108,9 +110,14 @@ module RADUM
       @groups = []
     end
     
-    # This is to add User and UNIXUser objects which were previously removed
-    # and have their removed flag set. User and UNIXUser objects automatically
-    # add themselves to their Container object.
+    # Add User and UNIXUser objects which were previously removed and had
+    # their removed attribute set. User and UNIXUser objects automatically
+    # add themselves to their Container object, so this is only needed when
+    # adding a removed User or UNIXUser object back into the Container.
+    # A removed User or UNIXUser object must have been a member of the
+    # Container in order to be added back into it. If this is not true, a
+    # RuntimeError is raised. If successful, the User or UNIXUser object's
+    # removed attribute is set to false.
     def add_user(user)
       if user.removed
         if self == user.container
@@ -129,7 +136,8 @@ module RADUM
       end
     end
     
-    # This will remove a User or UNIXUser object from the users Array.
+    # Remove a User or UNIXUser object from the Container. This sets the
+    # User or UNIXUser object's removed attribute to true.
     def remove_user(user)
       @users.delete user
       @directory.rids.delete user.rid if user.rid
@@ -137,9 +145,14 @@ module RADUM
       user.removed = true
     end
     
-    # This is to add Group and UNIXGroup objects which were previously removed
-    # and have their removed flag set. Group and UNIXGroup objects automatically
-    # add themselves to their Container object.
+    # Add Group and UNIXGroup objects which were previously removed and had
+    # their removed attribute set. Group and UNIXGroup objects automatically
+    # add themselves to their Container object, so this is only needed when
+    # adding a removed Group or UNIXGroup object back into the Container.
+    # A removed Group or UNIXGroup object must have been a member of the
+    # Container in order to be added back into it. If this is not true, a
+    # RuntimeError is raised. If successful, the Group or UNIXGroup object's
+    # removed attribute is set to false.
     def add_group(group)
       if group.removed
         if self == group.container
@@ -158,7 +171,11 @@ module RADUM
       end
     end
     
-    # This will remove a Group or UNIXGroup object from the groups Array.
+    # Remove a Group or UNIXGroup object from the Container. This sets the
+    # Group or UNIXGroup object's removed attribute to true. A Group cannot
+    # be removed if it is still any User's primary Windows group. A UNIXGroup
+    # cannot be removed if it is any User's main UNIX group. In both cases,
+    # a RuntimeError will be raised.
     def remove_group(group)
       # We cannot remove a group that still has a user referencing it as their
       # primary_group or unix_main_group.
@@ -186,19 +203,54 @@ module RADUM
     end
   end
   
-  # This class represents a standard Windows user account.
+  # The User class represents a standard Windows user account.
   class User
+    # The User's username. This corresponds to the LDAP sAMAccountName
+    # attribute.
     attr_reader :username
+    # The Container object the User belongs to.
     attr_reader :container
+    # The RID of the User object. This is set when the user is loaded by the
+    # AD object the Container belogs to. When creating a new User object, this
+    # attribute should not be specified in the User.new method.
     attr_reader :rid
+    # The LDAP distinguishedName attribute for this User. This can be modified
+    # by setting the common name using the User.common_name= method.
     attr_reader :distinguished_name
+    # The Group or UNIXGroup objects the User is a member of. Users are logical
+    # members of their primary_group as well, but that is not added to the
+    # groups array directly. This matches the implicit membership in the
+    # primary Windows group in Active Directory.
     attr_reader :groups
+    # True if the User account is disabled. Set to false to enable a disabled
+    # User account.
     attr :disabled, true
-    attr :full_name, true
+    # The User's first name. This corresponds to the LDAP givenName attribute
+    # and is used in the LDAP displayName and name attributes. This defaults
+    # to the username when a User is created using User.new.
+    attr :first_name, true
+    # The User's middle name. This corresponds to the LDAP middleName attribute
+    # and is used in the LDAP displayName and name attributes. This defaults
+    # to "" when a User is created using User.new.
+    attr :middle_name, true
+    # The User's surname (last name). This corresponds to the LDAP sn attribute
+    # and is used in the LDAP displayName and name attributes. This defaults
+    # to "" when a User is created using User.new.
+    attr :surname, true
+    # The User's Windows password. This defaults to nil when a User is created
+    # using User.new.
     attr :password, true
+    # True if the User has been removed from the Container, false otherwise.
+    # This is set by the Container if the User is removed.
     attr :removed, true
     
-    # TO DO: restart here (and do attributes above).
+    # The User object automatically adds itself to the Container object
+    # specified. The rid should not be set directly. The rid should only be
+    # set by the AD object when loading users from Active Directory. The
+    # username (case-insensitive) and the rid must be unique in the AD object,
+    # otherwise a RuntimeError is raised. The primary_group must be of the
+    # type RADUM::GROUP_GLOBAL_SECURITY or RADUM::GROUP_UNIVERSAL_SECURITY
+    # or a RuntimeError is raised.
     def initialize(username, container, primary_group, disabled = false,
                    rid = nil) # :doc:
       # The RID must be unique.
@@ -237,7 +289,9 @@ module RADUM
       @distinguished_name = "cn=" + @common_name + "," + @container.name +
                             "," + @container.directory.root
       @groups = []
-      @full_name = username
+      @first_name = username
+      @middle_name = ""
+      @last_name = ""
       @password = nil
       # A UNIXUser adding itself the container needs to happen at the end of
       # the initializer in that class instead because the UID value is needed.
@@ -248,10 +302,22 @@ module RADUM
       @removed = false
     end
     
+    # The User's primary Windows group. This is usually the "Domain Users"
+    # Windows group. Users are not members of this group directly. They are
+    # members through their LDAP primaryGroupID attribute.
     def primary_group
       @primary_group
     end
     
+    # Set the User's primary Windows group. The primary Windows group is
+    # used by the POSIX subsystem. This is something that Windows typically
+    # ignores in general, and Users are members implicitly by their LDAP
+    # primaryGroupID attribute. The Group or UNIXGroup specified must be
+    # of the type RADUM::GROUP_GLOBAL_SECURITY or
+    # RADUM::GROUP_UNIVERSAL_SECURITY or a RuntimeError is raised. This
+    # method will automatically remove membership in the Group or UNIXGroup
+    # specified if necessary as Users are not members of the Group or UNIXGroup
+    # directly.
     def primary_group=(group)
       unless group.type == RADUM::GROUP_GLOBAL_SECURITY ||
              group.type == RADUM::GROUP_UNIVERSAL_SECURITY
@@ -263,34 +329,42 @@ module RADUM
       @primary_group = group
     end
     
+    # The common name (cn) portion of the LDAP distinguisedName attribute and
+    # the LDAP cn attribute itself.
     def common_name
       @common_name
     end
     
-    # The common_name is set to username by default. The username value
-    # corresponds to the sAMAccountName attribute. It is possible for the cn
-    # to be different than sAMAccountName however, so this allows one to set
-    # common_name directly. Setting the common_name also changes the
-    # distinguished_name accordingly (which is also built automatically).
+    # The common_name is set to the username by default. The username value
+    # corresponds to the LDAP sAMAccountName attribute. It is possible for the
+    # LDAP cn attribute to be different than sAMAccountName however, so this
+    # allows one to set the LDAP cn attribute directly. Setting the common_name
+    # also changes the distinguished_name accordingly (which is also built
+    # automatically).
     def common_name=(cn)
       @distinguished_name = "cn=" + cn + "," + @container.name + "," +
                             @container.directory.root
       @common_name = cn
     end
     
-    # The groups array this adds the group to represents the group's
-    # member AD attribute. A user is listed in the group's member AD attribute
-    # unless it is the user's Windows primary group. In that case, the user's
-    # membership is based solely on the user's primaryGroupID attribute (which
-    # contains the RID of that group - that group does not list the member in
-    # its member AD attribute, hence the logic here). This is a convenience
-    # since there is no user AD attribute that represents the Windows group
-    # memberships. The unix_main_group has the user as a member in a similar
-    # way based on the gidNumber AD attribute for the user. The group's
-    # memberUid and msSFU30PosixMember AD attributes do not list the user
-    # as a member if the group is their unix_main_group, but this module
+    # Make the User a member of the Group or UNIXGroup. This is represented
+    # in the LDAP member attribute for the Group or UNIXGroup. A User is listed
+    # in the Group or UNIXGroup LDAP member attribute unless it is the User's
+    # primary_group. In that case, the User's membership is based solely on
+    # the User's LDAP primaryGroupID attribute (which contains the RID of that
+    # Group or UNIXGroup - the Group or UNIXGroup does not list the User in its
+    # LDAP member attribute, hence the logic in the code). The unix_main_group
+    # for UNIXUsers has the UNIXUser as a member in a similar way based on the
+    # LDAP gidNumber attribute for the UNIXUser. The UNIXGroup's LDAP
+    # memberUid and msSFU30PosixMember attributes do not list the UNIXUser
+    # as a member if the UNIXGroup is their unix_main_group, but this module
     # makes sure UNIXUsers are also members of their unix_main_group from
-    # the Windows perspective.
+    # the Windows perspective. A RuntimeError is raised if the User already
+    # has this group as their primary_group or if the Group is not in the
+    # same AD.
+    #
+    # This automatically adds the User to the Group's or UNIXGroup's list of
+    # users.
     def add_group(group)
       if @container.directory == group.container.directory
         unless @primary_group == group
@@ -304,15 +378,20 @@ module RADUM
       end
     end
     
+    # Remove the User membership in the Group or UNIXGroup. This automatically
+    # removes the User form the Group's or UNIXGroup's list of users.
     def remove_group(group)
       @groups.delete group
       group.remove_user self if group.users.include? self
     end
     
+    # Determine if a User is a member of the Group or UNIXGroup. This also
+    # evaluates to true if the Group or UNIXGroup is the primary_group.
     def member_of?(group)
       @groups.include? group || @primary_group == group
     end
     
+    # The String representation of the User object.
     def to_s
       "User [(" + (@disabled ? "USER_DISABLED" : "USER_ENABLED") +
       ", RID #{@rid}) #{@username} #{@distinguished_name}]"
@@ -322,6 +401,16 @@ module RADUM
   class UNIXUser < User
     attr_reader :uid, :gid, :shell, :home_directory, :nis_domain
     attr :gecos, true
+    attr :unix_password, true
+    # Also shadow values? There are attributes for that like crazy :-)
+    # Note in the documentation that these are really only needed if
+    # one is not using Kerberos for authentication, but some of these
+    # attributes are important even if not. Default the unix_password
+    # to "*".
+    #
+    # Also, what to do about the gecos attribute? It should default to
+    # the User base class's first name, middle name, and surname values.
+    # Figure this out.
     
     def initialize(username, container, primary_group, uid, unix_main_group,
                    shell, home_directory, nis_domain = "radum",
@@ -351,6 +440,7 @@ module RADUM
       @home_directory = home_directory
       @nis_domain = nis_domain
       @gecos = username
+      @unix_password = "*"
       # The removed flag must be set to true first since we are not in the
       # container yet.
       @removed = true
@@ -477,6 +567,8 @@ module RADUM
   
   class UNIXGroup < Group
     attr_reader :gid, :nis_domain
+    attr :unix_password, true
+    # Note that the unix_password is generally "*" and defaults to that.
     
     def initialize(name, container, gid, type = RADUM::GROUP_GLOBAL_SECURITY,
                    nis_domain = "radum", rid = nil)
@@ -488,6 +580,7 @@ module RADUM
       super name, container, type, rid
       @gid = gid
       @nis_domain = nis_domain
+      @unix_password = "*"
       # The removed flag must be set to true first since we are not in the
       # container yet.
       @removed = true
