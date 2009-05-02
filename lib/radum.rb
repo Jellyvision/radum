@@ -502,33 +502,42 @@ module RADUM
   end
   
   class AD
-    attr_reader :root, :domain, :server, :port, :ldap
+    attr_reader :root, :domain, :server, :tls, :ldap
     attr :uids, true
     attr :gids, true
     attr :rids, true
     attr :containers, true
     
     def initialize(root, password, user = "cn=Administrator,cn=Users",
-                   server = "localhost", port = 389)
+                   server = "localhost", tls = false)
       @root = root.gsub(/\s+/, "")
       @domain = @root.gsub(/dc=/, "").gsub(/,/, ".")
       @password = password
       @user = user
       @server = server
-      @port = port
+      @tls = tls
       @containers = []
       @uids = []
       @gids = []
       # RIDs are in a flat namespace, so there's no need to keep track of them
       # for user or group objects specifically, just in the directory overall.
       @rids = []
+
+      if @tls
+        port = 636
+      else
+        port = 389
+      end
+      
       @ldap = Net::LDAP.new :host => @server,
-                            :port => @port,
+                            :port => port,
                             :auth => {
                                   :method => :simple,
                                   :username => @user + "," + @root,
                                   :password => @password
                             }
+      
+      @ldap.encryption :simple_tls if @tls
       
       # We add the cn=Users container by default because it is highly likely
       # that users have the Domain Users Windows group as their Windows
@@ -757,7 +766,7 @@ module RADUM
     end
     
     def to_s
-      "AD [#{@root} #{@server} #{@port}]"
+      "AD [#{@root} #{@server}" + (@tls ? " TLS" : "") + "]"
     end
     
     private
