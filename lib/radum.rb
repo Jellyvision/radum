@@ -330,8 +330,13 @@ module RADUM
     # RADUM::GROUP_UNIVERSAL_SECURITY or a RuntimeError is raised. This
     # method will automatically remove membership in the Group or UNIXGroup
     # specified if necessary as Users are not members of the Group or UNIXGroup
-    # directly.
+    # directly. The Group or UNIXGroup specified must be in the same AD object
+    # or a RuntimeError is raised.
     def primary_group=(group)
+      unless @container.directory == group.container.directory
+        raise "Group must be in the same directory."
+      end
+      
       unless group.type == RADUM::GROUP_GLOBAL_SECURITY ||
              group.type == RADUM::GROUP_UNIVERSAL_SECURITY
              raise "User primary group must be of type GROUP_GLOBAL_SECURITY" +
@@ -375,8 +380,8 @@ module RADUM
     # as a member if the UNIXGroup is their unix_main_group, but this module
     # makes sure UNIXUsers are also members of their unix_main_group from
     # the Windows perspective. A RuntimeError is raised if the User already
-    # has this group as their primary_group or if the Group is not in the
-    # same AD.
+    # has this Group or UNIXGroup as their primary_group or if the Group or
+    # UNIXGroup is not in the same AD object.
     #
     # This automatically adds the User to the Group's or UNIXGroup's list of
     # users.
@@ -510,6 +515,14 @@ module RADUM
     # shadowWarning attribute.
     attr :shadow_warning, true
     
+    # The UNIXUser object automatically adds itself to the Container object
+    # specified. The rid should not be set directly. The rid should only be
+    # set by the AD object when loading users from Active Directory. The
+    # username (case-insensitive), rid, and uid must be unique in the AD
+    # object, otherwise a RuntimeError is raised. The primary_group must be of
+    # the type RADUM::GROUP_GLOBAL_SECURITY or RADUM::GROUP_UNIVERSAL_SECURITY
+    # or a RuntimeError is raised. The unix_main_group must be an instance of
+    # UNIXGroup or a RuntimeError is raised.
     def initialize(username, container, primary_group, uid, unix_main_group,
                    shell, home_directory, nis_domain = "radum",
                    disabled = false, rid = nil)
@@ -553,10 +566,16 @@ module RADUM
       @removed = false
     end
     
+    # The UNIXUser's UNIX main group. This is where the UNIXUser's UNIX GID
+    # value comes from, which is reflected in the gid attribute.
     def unix_main_group
       @unix_main_group
     end
     
+    # Set the UNIXUser's UNIX main group. This also sets the UNIXUser's gid
+    # attribute. The group must be of the type UNIXGroup and in the same AD
+    # object or a RuntimeError is raised. This method does not automatically
+    # remove membership in the previous unix_main_group UNIXGroup.
     def unix_main_group=(group)
       if group.instance_of? UNIXGroup
         if @container.directory == group.container.directory
@@ -572,6 +591,7 @@ module RADUM
       end
     end
     
+    # The String representation of the UNIXUser object.
     def to_s
       "UNIXUser [(" + (@disabled ? "USER_DISABLED" : "USER_ENABLED") +
       ", RID #{@rid}, UID #{@uid}, GID #{@unix_main_group.gid}) #{@username} " +
