@@ -1,3 +1,74 @@
+LDAP Attribute Notes
+====================
+
+The following class attributes correspond to the stated LDAP attributes:
+
+RADUM Constants
+---------------
+
+The RADUM module group type constants correspond to the groupType attribute for
+group objects.
+
+RADUM User status constants correspond to the userAccountControl attribute for
+user objects.
+
+User Attribute        Direct LDAP Attribute         Part of LDAP Attribute
+--------------        ---------------------         ----------------------
+username              sAMAccountName                userPrincipalName (REALM)
+                      msSFU30Name (UNIX)
+
+rid                                                 objectSid
+
+distinguished_name    disginguishedName
+
+disabled              userAccontControl (boolean)
+
+first_name            givenName                     displayName
+                                                    description
+                                                    name
+
+middle_name           middleName                    displayName
+                                                    description
+
+surname               sn                            displayName
+                                                    description
+                                                    name
+
+UNIXUser Attribute    Direct LDAP Attribute         Part of LDAP Attribute
+------------------    ---------------------         ----------------------
+uid                   uidNumber
+
+gid                   gidNumber
+
+shell                 loginShell
+
+home_directory        unixHomeDirectory
+
+nis_domain            msSFU30NisDomain
+
+gecos                 gecos
+
+unix_password         unixUserPassword
+
+shadow_expire         shadowExpire (numeric)
+
+shadow_flag           shadowFlag (numeric)
+
+shadow_inactive       shadowInactive (numeric)
+
+shadow_last_change    shadowLastChange (numeric)
+
+shadow_max            shadowMax (numeric)
+
+shadow_min            shadowMin (numeric)
+
+shadow_warning        shadowWarning (numeric)
+
+More details on the shadow file fields and the above shadow attributes:
+
+username:passwd:shadow_last_change:shadow_min:shadow_max:shadow_warning:shadow_inactive:shadow_expire:shadow_flag
+
+
 Group Types
 ===========
 

@@ -17,6 +17,7 @@ require 'net/ldap'
 # Author:: Shaun Rowland <mailto:rowand@shaunrowland.com>
 # Copyright:: Copyright 2009 Shaun Rowland. All rights reserved.
 # License:: BSD License included in the project LICENSE file.
+
 module RADUM
   # Group type constants.
   #
@@ -28,7 +29,8 @@ module RADUM
   # show up as the Fixnum values below. We are going to stick with that, even
   # though it is lame. I could not pull these out as Bignum objects. Some
   # of these are small enough to be Fixnums though, so I left them as their
-  # hex values.
+  # hex values. These values correspond to the LDAP groupType attribute for
+  # group objects.
   GROUP_DOMAIN_LOCAL_SECURITY = -2147483644
   GROUP_DOMAIN_LOCAL_DISTRIBUTION = 0x4
   GROUP_GLOBAL_SECURITY = -2147483646
@@ -37,8 +39,8 @@ module RADUM
   GROUP_UNIVERSAL_DISTRIBUTION = 0x8
   
   # This is a convenience method to return a String representation of a
-  # Group's type attribute, which has the value of one of the group type
-  # RADUM constants.
+  # Group's or UNIXGroup's type attribute, which has the value of one of the
+  # group type RADUM constants.
   def RADUM.group_type_to_s(type)
     case type
     when RADUM::GROUP_DOMAIN_LOCAL_SECURITY
@@ -59,8 +61,9 @@ module RADUM
   
   # User status constants.
   #
-  # These are the userAccountControl values for users as far as I am aware
-  # from direct testing. These are small enough to be represented as Fixnums.
+  # These are the userAccountControl values for Users and UNIXUsers as far as
+  # I am aware from direct testing. These are small enough to be represented
+  # as Fixnums.
   USER_DISABLED = 0x202
   USER_ENABLED = 0x200
   
@@ -206,13 +209,15 @@ module RADUM
   # The User class represents a standard Windows user account.
   class User
     # The User's username. This corresponds to the LDAP sAMAccountName
-    # attribute.
+    # and msSFU30Name attributes. This is also used for part of the
+    # LDAP userPrincipalName attribute.
     attr_reader :username
     # The Container object the User belongs to.
     attr_reader :container
-    # The RID of the User object. This is set when the user is loaded by the
-    # AD object the Container belogs to. When creating a new User object, this
-    # attribute should not be specified in the User.new method.
+    # The RID of the User object. This corresponds to part of the LDAP
+    # objectSid attribute. This is set when the User is loaded by AD.load
+    # from the AD object the Container belogs to. This attribute should not be
+    # specified in the User.new method when creating a new User by hand.
     attr_reader :rid
     # The LDAP distinguishedName attribute for this User. This can be modified
     # by setting the common name using the User.common_name= method.
@@ -223,22 +228,30 @@ module RADUM
     # primary Windows group in Active Directory.
     attr_reader :groups
     # True if the User account is disabled. Set to false to enable a disabled
-    # User account.
+    # User account. This is a boolean representation of the LDAP
+    # userAccountControl attribute.
     attr :disabled, true
     # The User's first name. This corresponds to the LDAP givenName attribute
-    # and is used in the LDAP displayName and name attributes. This defaults
-    # to the username when a User is created using User.new.
+    # and is used in the LDAP displayName, description, and name attributes.
+    # This defaults to the username when a User is created using User.new,
+    # but is set to the correct value when a User is loaded by AD.load from the
+    # AD object the Container belnogs to.
     attr :first_name, true
     # The User's middle name. This corresponds to the LDAP middleName attribute
-    # and is used in the LDAP displayName and name attributes. This defaults
-    # to "" when a User is created using User.new.
+    # and is used in the LDAP displayName and description attributes. This
+    # defaults to nil when a User is created using User.new, but is set to the
+    # correct value when a User is loaded by AD.load from the AD object the
+    # Container belongs to.
     attr :middle_name, true
     # The User's surname (last name). This corresponds to the LDAP sn attribute
-    # and is used in the LDAP displayName and name attributes. This defaults
-    # to "" when a User is created using User.new.
+    # and is used in the LDAP displayName, description, and name attributes.
+    # This defaults to nil when a User is created using User.new, but is set to
+    # the correct value when a User is loaded by AD.load from the AD object the
+    # Container belongs to.
     attr :surname, true
     # The User's Windows password. This defaults to nil when a User is created
-    # using User.new.
+    # using User.new. This does not reflect the current User's password, but
+    # if it is set, the password will be changed.
     attr :password, true
     # True if the User has been removed from the Container, false otherwise.
     # This is set by the Container if the User is removed.
@@ -290,8 +303,8 @@ module RADUM
                             "," + @container.directory.root
       @groups = []
       @first_name = username
-      @middle_name = ""
-      @last_name = ""
+      @middle_name = nil
+      @surname = nil
       @password = nil
       # A UNIXUser adding itself the container needs to happen at the end of
       # the initializer in that class instead because the UID value is needed.
@@ -335,12 +348,14 @@ module RADUM
       @common_name
     end
     
-    # The common_name is set to the username by default. The username value
-    # corresponds to the LDAP sAMAccountName attribute. It is possible for the
-    # LDAP cn attribute to be different than sAMAccountName however, so this
-    # allows one to set the LDAP cn attribute directly. Setting the common_name
-    # also changes the distinguished_name accordingly (which is also built
-    # automatically).
+    # The common_name is set to the username by default whe a User is created
+    # using User.new, but it is set to the correct value when the User is
+    # loaded by AD.load from the AD object the Container belongs to. The
+    # username value corresponds to the LDAP sAMAccountName attribute. It is
+    # possible for the LDAP cn attribute to be different than sAMAccountName
+    # however, so this allows one to set the LDAP cn attribute directly. Setting
+    # the common_name also changes the distinguished_name accordingly (which is
+    # also built automatically).
     def common_name=(cn)
       @distinguished_name = "cn=" + cn + "," + @container.name + "," +
                             @container.directory.root
@@ -398,19 +413,102 @@ module RADUM
     end
   end
   
+  # The UNIXUser class represents a UNIX Windows user account. It is a subclass
+  # of the User class. See the User class documentation for its attributes as
+  # well.
   class UNIXUser < User
-    attr_reader :uid, :gid, :shell, :home_directory, :nis_domain
+    # The UNIXUser's UNIX UID. This corresponds to the LDAP uidNumber attribute.
+    attr_reader :uid
+    # The UNIXUser's UNIX GID. This corresponds to the LDAP gidNumber attribute.
+    # This is set by setting the UNIXUser's unix_main_group attribute with the
+    # UNIXUser.unix_main_group= method.
+    attr_reader :gid
+    # The UNIXUser's UNIX shell. This corresponds to the LDAP loginShell
+    # attribute.
+    attr :shell, true
+    # The UNIXUser's UNIX home directory. This corresponds to the LDAP
+    # unixHomeDirectory attribute.
+    attr :home_directory, true
+    # The UNIXUser's UNIX NIS domain. This corresponds to the LDAP
+    # msSFU30NisDomain attribute. This needs to be set even if NIS services
+    # are not being used. This defaults to "radum" when a UNIXUser is created
+    # using UNIXUser.new, but it is set to the correct value when the UNIXUser
+    # is loaded by AD.load from the AD object the Container belongs to.
+    attr :nis_domain, true
+    # The UNIXUser's UNIX GECOS field. This corresponds to the LDAP gecos
+    # attribute. This defaults to username when a UNIXUser is created using
+    # UNIXUser.new, but it is set to the correct value when the UNIXUser is
+    # loaded by AD.load from the AD object the Container belongs to.
     attr :gecos, true
-    attr :unix_password, true
-    # Also shadow values? There are attributes for that like crazy :-)
-    # Note in the documentation that these are really only needed if
-    # one is not using Kerberos for authentication, but some of these
-    # attributes are important even if not. Default the unix_password
-    # to "*".
+    # The UNIXUser's UNIX password field. This can be a crypt or MD5 value
+    # (or whatever your system supports potentially - Windows works with
+    # crypt and MD5 in Microsoft Identity Management for UNIX). This
+    # corresponds to the LDAP unixUserPassword attribute. The unix_password
+    # value defaults to "*" when a UNIXUser is created using UNIXUser.new,
+    # but it is set to the correct value when the UNIXUser is loaded by
+    # AD.load from the AD object the Container belongs to.
     #
-    # Also, what to do about the gecos attribute? It should default to
-    # the User base class's first name, middle name, and surname values.
-    # Figure this out.
+    # It is not necessary to set the LDAP unixUserPassword attribute if you
+    # are using Kerberos for authentication, but using LDAP (or NIS by way
+    # of LDAP in Active Directory) for user information. In those cases, it
+    # is best to set this field to "*", which is why that is the default.
+    attr :unix_password, true
+    # The UNIXUser's UNIX shadow file expire field. This is the 8th field
+    # of the /etc/shadow file. This defaults to nil when a UNIXUser is created
+    # using UNIXUser.new, but it is set to the correct value when the UNIXUser
+    # is loaded by AD.load from the AD object the Container belongs to. This
+    # only needs to be set if the shadow file information is really needed.
+    # It would not be needed most of the time. This corresponds to the LDAP
+    # shadowExpire attribute.
+    attr :shadow_expire, true
+    # The UNIXUser's UNIX shadow file reserved field. This is the 9th field
+    # of the /etc/shadow file. This defaults to nil when a UNIXUser is created
+    # using UNIXUser.new, but it is set to the correct value when the UNIXUser
+    # is loaded by AD.load from the AD object the Container belongs to. This
+    # only needs to be set if the shadow file information is really needed.
+    # It would not be needed most of the time. This corresponds to the LDAP
+    # shadowFlag attribute.
+    attr :shadow_flag, true
+    # The UNIXUser's UNIX shadow file inactive field. This is the 7th field
+    # of the /etc/shadow file. This defaults to nil when a UNIXUser is created
+    # using UNIXUser.new, but it is set to the correct value when the UNIXUser
+    # is loaded by AD.load from the AD object the Container belongs to. This
+    # only needs to be set if the shadow file information is really needed.
+    # It would not be needed most of the time. This corresponds to the LDAP
+    # shadowInactive attribute.
+    attr :shadow_inactive, true
+    # The UNIXUser's UNIX shadow file last change field. This is the 3rd field
+    # of the /etc/shadow file. This defaults to nil when a UNIXUser is created
+    # using UNIXUser.new, but it is set to the correct value when the UNIXUser
+    # is loaded by AD.load from the AD object the Container belongs to. This
+    # only needs to be set if the shadow file information is really needed.
+    # It would not be needed most of the time. This corresponds to the LDAP
+    # shadowLastChange attribute.
+    attr :shadow_last_change, true
+    # The UNIXUser's UNIX shadow file max field. This is the 5th field of
+    # the /etc/shadow file. This defaults to nil when a UNIXUser is created
+    # using UNIXUser.new, but it is set to the correct value when the UNIXUser
+    # is loaded by AD.load from the AD object the Container belongs to. This
+    # only needs to be set if the shadow file information is really needed.
+    # It would not be needed most of the time. This corresponds to the LDAP
+    # shadowMax attribute.
+    attr :shadow_max, true
+    # The UNIXUser's UNIX shadow file min field. This is the 4th field of
+    # the /etc/shadow file. This defaults to nil when a UNIXUser is created
+    # using UNIXUser.new, but it is set to the correct value when the UNIXUser
+    # is loaded by AD.load from the AD object the Container belongs to. This
+    # only needs to be set if the shadow file information is really needed.
+    # It would not be needed most of the time. This corresponds to the LDAP
+    # shadowMin attribute.
+    attr :shadow_min, true
+    # The UNIXUser's UNIX shadow file warning field. This is the 6th field of
+    # the /etc/shadow file. This defaults to nil when a UNIXUser is created
+    # using UNIXUser.new, but it is set to the correct value when the UNIXUser
+    # is loaded by AD.load from the AD object the Container belongs to. This
+    # only needs to be set if the shadow file information is really needed.
+    # It would not be needed most of the time. This corresponds to the LDAP
+    # shadowWarning attribute.
+    attr :shadow_warning, true
     
     def initialize(username, container, primary_group, uid, unix_main_group,
                    shell, home_directory, nis_domain = "radum",
@@ -441,6 +539,13 @@ module RADUM
       @nis_domain = nis_domain
       @gecos = username
       @unix_password = "*"
+      @shadow_expire = nil
+      @shadow_flag = nil
+      @shadow_inactive = nil
+      @shadow_last_change = nil
+      @shadow_max = nil
+      @shadow_min = nil
+      @shadow_warning = nil
       # The removed flag must be set to true first since we are not in the
       # container yet.
       @removed = true
@@ -773,18 +878,102 @@ module RADUM
         base = container.name + ",#{@root}"
         
         @ldap.search(:base => base, :filter => user_filter) do |entry|
+          # These are attributes that might be empty. If they are empty,
+          # a NoMethodError exception will be raised. We have to check each
+          # individually and set an initial indicator value (nil). All the
+          # other attributes should exist and do not require this level of
+          # checking.
+          first_name = nil
+          middle_name = nil
+          surname = nil
           uid = nil
           gid = nil
           nis_domain = nil
+          gecos = nil
+          unix_password = nil
+          shadow_expire = nil
+          shadow_flag = nil
+          shadow_inactive = nil
+          shadow_last_change = nil
+          shadow_max = nil
+          shadow_min = nil
+          shadow_warning = nil
+          
+          begin
+            first_name = entry.givenName.pop
+          rescue NoMethodError
+          end
+          
+          begin
+            middle_name = entry.middleName.pop
+          rescue NoMethodError
+          end
+          
+          begin
+            surname = entry.sn.pop
+          rescue NoMethodError
+          end
           
           begin
             uid = entry.uidNumber.pop.to_i
+          rescue NoMethodError
+          end
+
+          begin
             gid = entry.gidNumber.pop.to_i
+          rescue NoMethodError
+          end
+          
+          begin
             nis_domain = entry.msSFU30NisDomain.pop
           rescue NoMethodError
           end
           
-          nis_domain = "radum" unless nis_domain
+          begin
+            gecos = entry.gecos.pop
+          rescue NoMethodError
+          end
+          
+          begin
+            unix_password = entry.unixUserPassword.pop
+          rescue NoMethodError
+          end
+          
+          begin
+            shadow_expire = entry.shadowExpire.pop.to_i
+          rescue NoMethodError
+          end
+          
+          begin
+            shadow_flag = entry.shadowFlag.pop.to_i
+          rescue NoMethodError
+          end
+          
+          begin
+            shadow_inactive = entry.shadowInactive.pop.to_i
+          rescue NoMethodError
+          end
+          
+          begin
+            shadow_last_change = entry.shadowLastChange.pop.to_i
+          rescue NoMethodError
+          end
+          
+          begin
+            shadow_max = entry.shadowMax.pop.to_i
+          rescue NoMethodError
+          end
+          
+          begin
+            shadow_min = entry.shadowMin.pop.to_i
+          rescue NoMethodError
+          end
+          
+          begin
+            shadow_warning = entry.shadowWarning.pop.to_i
+          rescue NoMethodError
+          end
+          
           rid = sid2rid_int(entry.objectSid.pop)
           primary_group = find_group_by_rid entry.primaryGroupID.pop.to_i
           disabled = entry.userAccountControl.pop.to_i == 0x202 ? true : false
@@ -799,17 +988,37 @@ module RADUM
           if primary_group
             if uid && gid
               if unix_main_group = find_group_by_gid(gid)
+                nis_domain = "radum" unless nis_domain
                 user = UNIXUser.new(entry.sAMAccountName.pop, container,
                                     primary_group, uid, unix_main_group,
                                     entry.loginShell.pop,
                                     entry.unixHomeDirectory.pop, nis_domain,
                                     disabled, rid)
                 user.common_name = entry.cn.pop
+                user.first_name = first_name if first_name
+                user.middle_name = middle_name if middle_name
+                user.surname = surname if surname
+                user.gecos = gecos if gecos
+                user.unix_password = unix_password if unix_password
+                user.shadow_expire = shadow_expire if shadow_expire
+                user.shadow_flag = shadow_flag if shadow_flag
+                user.shadow_inactive = shadow_inactive if shadow_inactive
+                user.shadow_last_change = shadow_last_change if
+                                          shadow_last_change
+                user.shadow_max = shadow_max if shadow_max
+                user.shadow_min = shadow_min if shadow_min
+                user.shadow_warning = shadow_warning if shadow_warning
+              else
+                puts "Warning: Main UNIX group could not be found for: " +
+                     entry.sAMAccountName.pop
               end
             else
               user = User.new(entry.sAMAccountName.pop, container,
                               primary_group, disabled, rid)
               user.common_name = entry.cn.pop
+              user.first_name = first_name if first_name
+              user.middle_name = middle_name if middle_name
+              user.surname = surname if surname
             end
           else
             puts "Warning: Windows primary group not found for: " +
