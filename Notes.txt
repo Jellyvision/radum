@@ -68,6 +68,27 @@ More details on the shadow file fields and the above shadow attributes:
 
 username:passwd:shadow_last_change:shadow_min:shadow_max:shadow_warning:shadow_inactive:shadow_expire:shadow_flag
 
+Group Attribute       Direct LDAP Attribute       Part of LDAP Attribute
+---------------       ---------------------       ----------------------
+name                  cn                          distinguishedName
+                      msSFU30Name
+                      name
+                      sAMAccountName
+
+type                  groupType
+
+rid                                               objectSid
+
+distinguished_name    distinguishedName
+
+UNIXGroup Attribute   Direct LDAP Attribute       Part of LDAP Attribute
+-------------------   ---------------------       ----------------------
+gid                   gidNumber
+
+nis_domain            msSFU30NisDomain
+
+unix_password         unixUserPassword
+
 
 Group Types
 ===========

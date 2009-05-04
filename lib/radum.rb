@@ -2,7 +2,7 @@ require 'rubygems'
 gem 'ruby-net-ldap', '~> 0.0'
 require 'net/ldap'
 
-# The RADUM module provides an interface to Microsoft's Active Directory for
+# The RADUM module provides an interface to Microsoft Active Directory for
 # working with users and groups. The User class represents a standard Windows
 # user account. The UNIXUser class represents a Windows account that has UNIX
 # attributes. Similarly, the Group class represents a standard Windows group,
@@ -25,12 +25,12 @@ module RADUM
   # some cases as far as I am aware. In the AD Users and Groups tool, they are
   # shown as hexidecimal values, indicating they should be Bignums (well, some
   # of them obviously). However, if you try to edit the values in that tool
-  # (with advanced attribute editing enabled or with the ADSI Edit tool), these
-  # show up as the Fixnum values below. We are going to stick with that, even
+  # (with advanced attribute editing enabled or with the ADSI Edit tool) these
+  # show up as the Fixnum values here. We are going to stick with that, even
   # though it is lame. I could not pull these out as Bignum objects. Some
   # of these are small enough to be Fixnums though, so I left them as their
-  # hex values. These values correspond to the LDAP groupType attribute for
-  # group objects.
+  # hexidecimal values. These values correspond to the LDAP groupType attribute
+  # for group objects.
   GROUP_DOMAIN_LOCAL_SECURITY = -2147483644
   GROUP_DOMAIN_LOCAL_DISTRIBUTION = 0x4
   GROUP_GLOBAL_SECURITY = -2147483646
@@ -39,8 +39,8 @@ module RADUM
   GROUP_UNIVERSAL_DISTRIBUTION = 0x8
   
   # This is a convenience method to return a String representation of a
-  # Group's or UNIXGroup's type attribute, which has the value of one of the
-  # group type RADUM constants.
+  # Group or UNIXGroup object's type attribute, which has the value of one of
+  # the RADUM group type constants.
   def RADUM.group_type_to_s(type)
     case type
     when RADUM::GROUP_DOMAIN_LOCAL_SECURITY
@@ -70,7 +70,9 @@ module RADUM
   # The Container class represents a directory entry which contains users and
   # groups, usually an orgainizational unit (OU).
   class Container
-    # The String represenation of the Container's name.
+    # The String represenation of the Container object's name. The name should
+    # be the LDAP distinguishedName attribute without the AD root path
+    # component.
     attr_reader :name
     # The AD object the Container belongs to.
     attr_reader :directory
@@ -175,10 +177,10 @@ module RADUM
     end
     
     # Remove a Group or UNIXGroup object from the Container. This sets the
-    # Group or UNIXGroup object's removed attribute to true. A Group cannot
-    # be removed if it is still any User's primary Windows group. A UNIXGroup
-    # cannot be removed if it is any User's main UNIX group. In both cases,
-    # a RuntimeError will be raised.
+    # Group or UNIXGroup object's removed attribute to true. A Group or
+    # UNIXGroup cannot be removed if it is still any User object's primary
+    # Windows group. A UNIXGroup cannot be removed if it is any User object's
+    # main UNIX group. In both cases, a RuntimeError will be raised.
     def remove_group(group)
       # We cannot remove a group that still has a user referencing it as their
       # primary_group or unix_main_group.
@@ -208,53 +210,59 @@ module RADUM
   
   # The User class represents a standard Windows user account.
   class User
-    # The User's username. This corresponds to the LDAP sAMAccountName
-    # and msSFU30Name attributes. This is also used for part of the
-    # LDAP userPrincipalName attribute.
+    # The User or UNIXUser object username. This corresponds to the LDAP
+    # sAMAccountName and msSFU30Name attributes. This is also used for part of
+    # the LDAP userPrincipalName attribute. This does not contain any LDAP path
+    # components, unlike the Container objet's name attribute (because
+    # Containers can be different types of objects, like a cn=name or ou=name).
     attr_reader :username
-    # The Container object the User belongs to.
+    # The Container object the User or UNIXUser belongs to.
     attr_reader :container
-    # The RID of the User object. This corresponds to part of the LDAP
-    # objectSid attribute. This is set when the User is loaded by AD.load
-    # from the AD object the Container belogs to. This attribute should not be
-    # specified in the User.new method when creating a new User by hand.
+    # The RID of the User or UNIXUser object. This corresponds to part of the
+    # LDAP objectSid attribute. This is set when the User or UNIXUser is loaded
+    # by AD.load from the AD object the Container belogs to. This attribute
+    # should not be specified in the User.new method when creating a new User
+    # or UNIXUser by hand.
     attr_reader :rid
-    # The LDAP distinguishedName attribute for this User. This can be modified
-    # by setting the common name using the User.common_name= method.
+    # The LDAP distinguishedName attribute for this User or UNIXUser. This can
+    # be modified by setting the common name using the User.common_name= method.
     attr_reader :distinguished_name
-    # The Group or UNIXGroup objects the User is a member of. Users are logical
-    # members of their primary_group as well, but that is not added to the
-    # groups array directly. This matches the implicit membership in the
-    # primary Windows group in Active Directory.
+    # The Group or UNIXGroup objects the User or UNIXUser is a member of. Users
+    # and UNIXUsers are logical members of their primary_group as well, but that
+    # is not added to the groups array directly. This matches the implicit
+    # membership in the primary Windows group in Active Directory.
     attr_reader :groups
-    # True if the User account is disabled. Set to false to enable a disabled
-    # User account. This is a boolean representation of the LDAP
-    # userAccountControl attribute.
+    # True if the User or UNIXUser account is disabled. Set to false to enable
+    # a disabled User or UNIXUser account. This is a boolean representation of
+    # the LDAP userAccountControl attribute.
     attr :disabled, true
-    # The User's first name. This corresponds to the LDAP givenName attribute
-    # and is used in the LDAP displayName, description, and name attributes.
-    # This defaults to the username when a User is created using User.new,
-    # but is set to the correct value when a User is loaded by AD.load from the
-    # AD object the Container belnogs to.
+    # The User or UNIXUser first name. This corresponds to the LDAP givenName
+    # attribute and is used in the LDAP displayName, description, and name
+    # attributes. This defaults to the username when a User or UNIXUser is
+    # created using User.new or UNIXUser.new, but is set to the correct value
+    # when a User or UNIXUser is loaded by AD.load from the AD object the
+    # Container belongs to.
     attr :first_name, true
-    # The User's middle name. This corresponds to the LDAP middleName attribute
-    # and is used in the LDAP displayName and description attributes. This
-    # defaults to nil when a User is created using User.new, but is set to the
-    # correct value when a User is loaded by AD.load from the AD object the
-    # Container belongs to.
+    # The User or UNIXUser middle name. This corresponds to the LDAP middleName
+    # attribute and is used in the LDAP displayName and description attributes.
+    # This defaults to nil when a User or UNIXUser is created using User.new
+    # or UNIXUser.new, but is set to the correct value when a User or UNIXUser
+    # is loaded by AD.load from the AD object the Container belongs to.
     attr :middle_name, true
-    # The User's surname (last name). This corresponds to the LDAP sn attribute
-    # and is used in the LDAP displayName, description, and name attributes.
-    # This defaults to nil when a User is created using User.new, but is set to
-    # the correct value when a User is loaded by AD.load from the AD object the
-    # Container belongs to.
+    # The User or UNIXUser surname (last name). This corresponds to the LDAP sn
+    # attribute and is used in the LDAP displayName, description, and name
+    # attributes. This defaults to nil when a User or UNIXUser is created using
+    # User.new or UNIXUser.new, but is set to the correct value when a User or
+    # UNIXUser is loaded by AD.load from the AD object the Container belongs to.
     attr :surname, true
-    # The User's Windows password. This defaults to nil when a User is created
-    # using User.new. This does not reflect the current User's password, but
-    # if it is set, the password will be changed.
+    # The User or UNIXUser Windows password. This defaults to nil when a User
+    # of UNIXUser is created using User.new or UNIXUser.new. This does not
+    # reflect the current User or UNIXUser password, but if it is set, the
+    # password will be changed.
     attr :password, true
-    # True if the User has been removed from the Container, false otherwise.
-    # This is set by the Container if the User is removed.
+    # True if the User or UNIXUser has been removed from the Container, false
+    # otherwise. This is set by the Container if the User or UNIXUser is
+    # removed.
     attr :removed, true
     
     # The User object automatically adds itself to the Container object
@@ -315,23 +323,23 @@ module RADUM
       @removed = false
     end
     
-    # The User's primary Windows group. This is usually the "Domain Users"
+    # The User primary Windows group. This is usually the "Domain Users"
     # Windows group. Users are not members of this group directly. They are
     # members through their LDAP primaryGroupID attribute.
     def primary_group
       @primary_group
     end
     
-    # Set the User's primary Windows group. The primary Windows group is
-    # used by the POSIX subsystem. This is something that Windows typically
-    # ignores in general, and Users are members implicitly by their LDAP
-    # primaryGroupID attribute. The Group or UNIXGroup specified must be
-    # of the type RADUM::GROUP_GLOBAL_SECURITY or
+    # Set the User or UNIXUser primary Windows group. The primary Windows group
+    # is used by the POSIX subsystem. This is something that Windows typically
+    # ignores in general, and Users or UNIXUsers are members implicitly by
+    # their LDAP primaryGroupID attribute. The Group or UNIXGroup specified
+    # must be of the type RADUM::GROUP_GLOBAL_SECURITY or
     # RADUM::GROUP_UNIVERSAL_SECURITY or a RuntimeError is raised. This
     # method will automatically remove membership in the Group or UNIXGroup
-    # specified if necessary as Users are not members of the Group or UNIXGroup
-    # directly. The Group or UNIXGroup specified must be in the same AD object
-    # or a RuntimeError is raised.
+    # specified if necessary as Users or UNIXUsers are not members of the Group
+    # or UNIXGroup directly. The Group or UNIXGroup specified must be in the
+    # same AD object or a RuntimeError is raised.
     def primary_group=(group)
       unless @container.directory == group.container.directory
         raise "Group must be in the same directory."
@@ -353,38 +361,41 @@ module RADUM
       @common_name
     end
     
-    # The common_name is set to the username by default whe a User is created
-    # using User.new, but it is set to the correct value when the User is
-    # loaded by AD.load from the AD object the Container belongs to. The
-    # username value corresponds to the LDAP sAMAccountName attribute. It is
-    # possible for the LDAP cn attribute to be different than sAMAccountName
-    # however, so this allows one to set the LDAP cn attribute directly. Setting
-    # the common_name also changes the distinguished_name accordingly (which is
-    # also built automatically).
+    # The common_name is set to the username by default whe a User or UNIXUser
+    # is created using User.new or UNIXUser.new, but it is set to the correct
+    # value when the User or UNIXUser is loaded by AD.load from the AD object
+    # the Container belongs to. The username value corresponds to the LDAP
+    # sAMAccountName and and msSFU30Name attributes. It is possible for the
+    # LDAP cn attribute to be different than sAMAccountName and msSFU30Name
+    # however, so this allows one to set the LDAP cn attribute directly.
+    # Setting the common_name also changes the distinguished_name accordingly
+    # (which is also built automatically).
     def common_name=(cn)
       @distinguished_name = "cn=" + cn + "," + @container.name + "," +
                             @container.directory.root
       @common_name = cn
     end
     
-    # Make the User a member of the Group or UNIXGroup. This is represented
-    # in the LDAP member attribute for the Group or UNIXGroup. A User is listed
-    # in the Group or UNIXGroup LDAP member attribute unless it is the User's
-    # primary_group. In that case, the User's membership is based solely on
-    # the User's LDAP primaryGroupID attribute (which contains the RID of that
-    # Group or UNIXGroup - the Group or UNIXGroup does not list the User in its
-    # LDAP member attribute, hence the logic in the code). The unix_main_group
-    # for UNIXUsers has the UNIXUser as a member in a similar way based on the
-    # LDAP gidNumber attribute for the UNIXUser. The UNIXGroup's LDAP
-    # memberUid and msSFU30PosixMember attributes do not list the UNIXUser
-    # as a member if the UNIXGroup is their unix_main_group, but this module
-    # makes sure UNIXUsers are also members of their unix_main_group from
-    # the Windows perspective. A RuntimeError is raised if the User already
-    # has this Group or UNIXGroup as their primary_group or if the Group or
-    # UNIXGroup is not in the same AD object.
+    # Make the User or UNIXUser a member of the Group or UNIXGroup. This is
+    # represented in the LDAP member attribute for the Group or UNIXGroup. A
+    # User or UNIXUser is listed in the Group or UNIXGroup LDAP member attribute
+    # unless it is the User or UNIXUser object's primary_group. In that case,
+    # the User or UNIXUser object's membership is based solely on the User or
+    # UNIXUser object's LDAP primaryGroupID attribute (which contains the RID
+    # of that Group or UNIXGroup - the Group or UNIXGroup does not list the
+    # User or UNIXUser in its LDAP member attribute, hence the logic in the
+    # code). The unix_main_group for UNIXUsers has the UNIXUser as a member in
+    # a similar way based on the LDAP gidNumber attribute for the UNIXUser. The
+    # UNIXGroup object's LDAP memberUid and msSFU30PosixMember attributes do
+    # not list the UNIXUser as a member if the UNIXGroup is their
+    # unix_main_group, but this module makes sure UNIXUsers are also members of
+    # their unix_main_group from the Windows perspective. A RuntimeError is
+    # raised if the User or UNIXUser already has this Group or UNIXGroup as
+    # their primary_group or if the Group or UNIXGroup is not in the same AD
+    # object.
     #
-    # This automatically adds the User to the Group's or UNIXGroup's list of
-    # users.
+    # This automatically adds the User or UNIXUser to the Group or UNIXGroup
+    # object's list of users.
     def add_group(group)
       if @container.directory == group.container.directory
         unless @primary_group == group
@@ -398,15 +409,17 @@ module RADUM
       end
     end
     
-    # Remove the User membership in the Group or UNIXGroup. This automatically
-    # removes the User form the Group's or UNIXGroup's list of users.
+    # Remove the User or UNIXUser membership in the Group or UNIXGroup. This
+    # automatically removes the User or UNIXUser from the Group or UNIXGroup
+    # object's list of users.
     def remove_group(group)
       @groups.delete group
       group.remove_user self if group.users.include? self
     end
     
-    # Determine if a User is a member of the Group or UNIXGroup. This also
-    # evaluates to true if the Group or UNIXGroup is the primary_group.
+    # Determine if a User or UNIXUser is a member of the Group or UNIXGroup.
+    # This also evaluates to true if the Group or UNIXGroup is the
+    # User or UNIXUser object's primary_group.
     def member_of?(group)
       @groups.include? group || @primary_group == group
     end
@@ -422,30 +435,30 @@ module RADUM
   # of the User class. See the User class documentation for its attributes as
   # well.
   class UNIXUser < User
-    # The UNIXUser's UNIX UID. This corresponds to the LDAP uidNumber attribute.
+    # The UNIXUser UNIX UID. This corresponds to the LDAP uidNumber attribute.
     attr_reader :uid
-    # The UNIXUser's UNIX GID. This corresponds to the LDAP gidNumber attribute.
-    # This is set by setting the UNIXUser's unix_main_group attribute with the
+    # The UNIXUser UNIX GID. This corresponds to the LDAP gidNumber attribute.
+    # This is set by setting the UNIXUser unix_main_group attribute with the
     # UNIXUser.unix_main_group= method.
     attr_reader :gid
-    # The UNIXUser's UNIX shell. This corresponds to the LDAP loginShell
+    # The UNIXUser UNIX shell. This corresponds to the LDAP loginShell
     # attribute.
     attr :shell, true
-    # The UNIXUser's UNIX home directory. This corresponds to the LDAP
+    # The UNIXUser UNIX home directory. This corresponds to the LDAP
     # unixHomeDirectory attribute.
     attr :home_directory, true
-    # The UNIXUser's UNIX NIS domain. This corresponds to the LDAP
+    # The UNIXUser UNIX NIS domain. This corresponds to the LDAP
     # msSFU30NisDomain attribute. This needs to be set even if NIS services
     # are not being used. This defaults to "radum" when a UNIXUser is created
     # using UNIXUser.new, but it is set to the correct value when the UNIXUser
     # is loaded by AD.load from the AD object the Container belongs to.
     attr :nis_domain, true
-    # The UNIXUser's UNIX GECOS field. This corresponds to the LDAP gecos
+    # The UNIXUser UNIX GECOS field. This corresponds to the LDAP gecos
     # attribute. This defaults to username when a UNIXUser is created using
     # UNIXUser.new, but it is set to the correct value when the UNIXUser is
     # loaded by AD.load from the AD object the Container belongs to.
     attr :gecos, true
-    # The UNIXUser's UNIX password field. This can be a crypt or MD5 value
+    # The UNIXUser UNIX password field. This can be a crypt or MD5 value
     # (or whatever your system supports potentially - Windows works with
     # crypt and MD5 in Microsoft Identity Management for UNIX). This
     # corresponds to the LDAP unixUserPassword attribute. The unix_password
@@ -458,7 +471,7 @@ module RADUM
     # of LDAP in Active Directory) for user information. In those cases, it
     # is best to set this field to "*", which is why that is the default.
     attr :unix_password, true
-    # The UNIXUser's UNIX shadow file expire field. This is the 8th field
+    # The UNIXUser UNIX shadow file expire field. This is the 8th field
     # of the /etc/shadow file. This defaults to nil when a UNIXUser is created
     # using UNIXUser.new, but it is set to the correct value when the UNIXUser
     # is loaded by AD.load from the AD object the Container belongs to. This
@@ -466,7 +479,7 @@ module RADUM
     # It would not be needed most of the time. This corresponds to the LDAP
     # shadowExpire attribute.
     attr :shadow_expire, true
-    # The UNIXUser's UNIX shadow file reserved field. This is the 9th field
+    # The UNIXUser UNIX shadow file reserved field. This is the 9th field
     # of the /etc/shadow file. This defaults to nil when a UNIXUser is created
     # using UNIXUser.new, but it is set to the correct value when the UNIXUser
     # is loaded by AD.load from the AD object the Container belongs to. This
@@ -474,7 +487,7 @@ module RADUM
     # It would not be needed most of the time. This corresponds to the LDAP
     # shadowFlag attribute.
     attr :shadow_flag, true
-    # The UNIXUser's UNIX shadow file inactive field. This is the 7th field
+    # The UNIXUser UNIX shadow file inactive field. This is the 7th field
     # of the /etc/shadow file. This defaults to nil when a UNIXUser is created
     # using UNIXUser.new, but it is set to the correct value when the UNIXUser
     # is loaded by AD.load from the AD object the Container belongs to. This
@@ -482,7 +495,7 @@ module RADUM
     # It would not be needed most of the time. This corresponds to the LDAP
     # shadowInactive attribute.
     attr :shadow_inactive, true
-    # The UNIXUser's UNIX shadow file last change field. This is the 3rd field
+    # The UNIXUser UNIX shadow file last change field. This is the 3rd field
     # of the /etc/shadow file. This defaults to nil when a UNIXUser is created
     # using UNIXUser.new, but it is set to the correct value when the UNIXUser
     # is loaded by AD.load from the AD object the Container belongs to. This
@@ -490,7 +503,7 @@ module RADUM
     # It would not be needed most of the time. This corresponds to the LDAP
     # shadowLastChange attribute.
     attr :shadow_last_change, true
-    # The UNIXUser's UNIX shadow file max field. This is the 5th field of
+    # The UNIXUser UNIX shadow file max field. This is the 5th field of
     # the /etc/shadow file. This defaults to nil when a UNIXUser is created
     # using UNIXUser.new, but it is set to the correct value when the UNIXUser
     # is loaded by AD.load from the AD object the Container belongs to. This
@@ -498,7 +511,7 @@ module RADUM
     # It would not be needed most of the time. This corresponds to the LDAP
     # shadowMax attribute.
     attr :shadow_max, true
-    # The UNIXUser's UNIX shadow file min field. This is the 4th field of
+    # The UNIXUser UNIX shadow file min field. This is the 4th field of
     # the /etc/shadow file. This defaults to nil when a UNIXUser is created
     # using UNIXUser.new, but it is set to the correct value when the UNIXUser
     # is loaded by AD.load from the AD object the Container belongs to. This
@@ -506,7 +519,7 @@ module RADUM
     # It would not be needed most of the time. This corresponds to the LDAP
     # shadowMin attribute.
     attr :shadow_min, true
-    # The UNIXUser's UNIX shadow file warning field. This is the 6th field of
+    # The UNIXUser UNIX shadow file warning field. This is the 6th field of
     # the /etc/shadow file. This defaults to nil when a UNIXUser is created
     # using UNIXUser.new, but it is set to the correct value when the UNIXUser
     # is loaded by AD.load from the AD object the Container belongs to. This
@@ -566,13 +579,13 @@ module RADUM
       @removed = false
     end
     
-    # The UNIXUser's UNIX main group. This is where the UNIXUser's UNIX GID
+    # The UNIXUser UNIX main group. This is where the UNIXUser UNIX GID
     # value comes from, which is reflected in the gid attribute.
     def unix_main_group
       @unix_main_group
     end
     
-    # Set the UNIXUser's UNIX main group. This also sets the UNIXUser's gid
+    # Set the UNIXUser UNIX main group. This also sets the UNIXUser gid
     # attribute. The group must be of the type UNIXGroup and in the same AD
     # object or a RuntimeError is raised. This method does not automatically
     # remove membership in the previous unix_main_group UNIXGroup.
@@ -599,11 +612,45 @@ module RADUM
     end
   end
   
+  # The Group class represents a standard Windows group.
   class Group
-    attr_reader :name, :container, :type, :rid, :distinguished_name, :users
+    # The String representation of the Group or UNIXGroup name. This is similar
+    # to a User or UNIXUser username in that it does not contain any LDAP path
+    # components. This corresponds to the LDAP cn, msSFU30Name, name, and
+    # sAMAccountName attributes.
+    attr_reader :name
+    # The Container object the Group or UNIXGroup belongs to.
+    attr_reader :container
+    # The RADUM group type of the Group or UNIXGroup. This corresponds to the
+    # LDAP groupType attribute. This defaults to RADUM::GROUP_GLOBAL_SECURITY
+    # when a Group or UNIXGroup is created using Group.new or UNIXGroup.new,
+    # but it is set to the correct value when a Group or UNIXGroup is loaded by
+    # AD.load from the AD object the Container belongs to.
+    attr_reader :type
+    # The RID of the Group or UNIXGroup object. This correponds to part of the
+    # LDAP objectSid attribute. This is set when the Group or UNIXGroup is
+    # loaded by AD.load from the AD object the Container belongs to. This
+    # attribute should not be specified in the Group.new or UNIXGroup.new
+    # methods when creating a new Group or UNIXGroup by hand.
+    attr_reader :rid
+    # The LDAP distinguishedName attribute for this Group or UNIXGroup.
+    attr_reader :distinguished_name
+    # The User or UNIXUser objects that are members of the Group or UNIXGroup.
+    # Users or UNIXUsers are not members of the Group or UNIXGroup if the Group
+    # or UNIXGroup is their primary Windows group in Active Directory.
+    attr_reader :users
+    # The Group or UNIXGroup objects that are members of the Group or UNIXGroup.
     attr_reader :groups
+    # True if the Group or UNIXGroup has been removed from the Container, false
+    # otherwise. This is set by the Container if the Group is removed.
     attr :removed, true
     
+    # The Group object automatically adds itself to the Container object
+    # specified. The rid should not be set directly. The rid should only be
+    # set by the AD object when loading groups from Active Directory. The name
+    # (case-insensitive) and the rid must be unique in the AD object, otherwise
+    # a RuntimeError is raised. The type must be one of the RADUM group type
+    # constants.
     def initialize(name, container, type = RADUM::GROUP_GLOBAL_SECURITY,
                    rid = nil)
       # The RID must be unique.
@@ -635,17 +682,25 @@ module RADUM
       @removed = false
     end
     
-    # The users array this adds the user to represents the group's
-    # member AD attribute. A user is listed in the group's member AD attribute
-    # unless it is the user's Windows primary group. In that case, the user's
-    # membership is based solely on the user's primaryGroupID attribute (which
-    # contains the RID of that group - that group does not list the member in
-    # its member AD attribute, hence the logic here). The unix_main_group has
-    # the user as a member in a similar way based on the gidNumber AD attribute
-    # for the user. The group's memberUid and msSFU30PosixMember AD attributes
-    # do not list the user as a member if the group is their unix_main_group,
-    # but this module makes sure UNIXUsers are also members of their
-    # unix_main_group from the Windows perspective.
+    # Make the User or UNIXUser a member of the Group or UNIXGroup. This
+    # represents the LDAP member attribute for the Group or UNIXGroup. A User
+    # or UNIXUser is listed in the Group or UNIXGroup object's LDAP member
+    # attribute unless it is their primary_group. In that case, the User or
+    # UNIXUser object's LDAP primaryGroupID attribute is used (which contains
+    # the RID of that Group or UNIXGroup - the Group or UNIXGroup does not list
+    # the User or UNIXUser in its LDAP member attribute, hence the logic in the
+    # code). The unix_main_group for UNIXUsers has the UNIXUser as a member in a
+    # similar way based on the LDAP gidNumber attribute for the UNIXUser. The
+    # UNIXGroup object's LDAP memberUid and msSFU30PosixMember attributes do
+    # not list the UNIXUser as a member of the UNIXGroup is their
+    # unix_main_group, but this module makes sure the UNIXUsers are also
+    # members of their unix_main_group from the Windows perspective. A
+    # RuntimeError is raised if the User or UNIXUser already has this Group or
+    # UNIXGroup as their primary_group or if the Group or UNIXGroup is not in
+    # the same AD object.
+    #
+    # This automatically adds the Group or UNIXGroup to the User or UNIXUser
+    # object's list of groups.
     def add_user(user)
       if @container.directory == user.container.directory
         unless self == user.primary_group
@@ -659,15 +714,24 @@ module RADUM
       end
     end
     
+    # Remove the User or UNIXUser membership in the Group or UNIXGroup. This
+    # automatically removes the Group or UNIXGroup from the User or UNIXUser
+    # object's list of groups.
     def remove_user(user)
       @users.delete user
       user.remove_group self if user.groups.include? self
     end
     
+    # Determine if the Group or UNIXGroup is a member of the Group or UNIXGroup.
     def member_of?(group)
       @groups.include? group
     end
     
+    # Make the Group or UNIXGroup a member of the Group or UNIXGroup. This
+    # represents the LDAP member attribute for the Group or UNIXGroup. A
+    # RuntimeError is raised if the Group or UNIXGroup is the same as the
+    # current Group or UNIXGroup (cannot be a member of itself) or the Group
+    # or UNIXGroup is not in the same AD object.
     def add_group(group)
       unless @container.directory == group.container.directory
         raise "Group must be in the same directory."
@@ -680,21 +744,52 @@ module RADUM
       @groups.push group unless @groups.include? group
     end
     
+    # Remove the Group or UNIXGroup membership in the Group or UNIXGroup.
     def remove_group(group)
       @groups.delete group
     end
     
+    # The String representation of the Group object.
     def to_s
       "Group [(" + RADUM.group_type_to_s(@type) +
       ", RID #{@rid}) #{@distinguished_name}]"
     end
   end
   
+  # The UNIXGroup class represents a UNIX Windows group. It is a subclass of
+  # the Group class. See the Group class documentation for its attributes as
+  # well.
   class UNIXGroup < Group
-    attr_reader :gid, :nis_domain
+    # The UNIXGroup UNIX GID. This corresponds to the LDAP gidNumber
+    # attribute.
+    attr_reader :gid
+    # The UNIXGroup UNIX NIS domain. This corresponds to the LDAP
+    # msSFU30NisDomain attribute. This needs to be set even if NIS services
+    # are not being used. This defaults to "radum" when a UNIXGroup is created
+    # using UNIXGroup.new, but it is set to the correct value when the UNIXGroup
+    # is loaded by AD.load from the AD object the Container belongs to.
+    attr :nis_domain, true
+    # The UNIXGroup UNIX password field. This can be a crypt or MD5 value
+    # (or whatever your system supports potentially - Windows works with crypt
+    # and MD5 in Microsoft Identity Management for UNIX). This corresponds to
+    # the LDAP unixUserPassword attribute. The unix_password value defaults
+    # to "*" when a UNIXGroup is created using UNIXGroup.new, but it is set
+    # to the correct value when the UNIXGroup is loaded by AD.load from the AD
+    # object the Container belongs to.
+    #
+    # It is not necessary to set the LDAP unixUserPassword attribute if you
+    # are using Kerberos for authentication, but using LDAP (or NIS by way of
+    # LDAP in Active Directory) for user information. In that case, it is best
+    # to set this field to "*", which is why that is the default. Additionally,
+    # most of the time UNIX groups do not have a password.
     attr :unix_password, true
-    # Note that the unix_password is generally "*" and defaults to that.
     
+    # The UNIXGroup object automatically adds itself to the Container object
+    # specified. The rid shold not be set directly. The rid should only be
+    # set by the AD object when loading groups from Active Directory. The name
+    # (case-insensitive), rid, and gid must be unique in the AD object,
+    # otherwise a RuntimeError is raised. The type must be one of the RADUM
+    # group type constants.
     def initialize(name, container, gid, type = RADUM::GROUP_GLOBAL_SECURITY,
                    nis_domain = "radum", rid = nil)
       # The GID must be unique.
@@ -713,19 +808,80 @@ module RADUM
       @removed = false
     end
     
+    # The String representation of the UNIXGroup object.
     def to_s
       "UNIXGroup [("  + RADUM.group_type_to_s(@type) + 
       ", RID #{@rid}, GID #{@gid}) #{@distinguished_name}]"
     end
   end
   
+  # The AD class represents the Active Directory. All opeartions that involve
+  # communication between the User, UNIXUser, Group, and UNIXGroup classes are
+  # handled by the AD object. The AD object should be the first object created,
+  # generally followed by Container objects. The Container object requires an
+  # AD object. All other objects require a Container object. Generally, methods
+  # prefixed with "load_" pull data out of the Active Directory and methods
+  # prefixed with "sync_" push data to the Active Directory as required.
   class AD
-    attr_reader :root, :domain, :server, :tls, :ldap
+    # The root of the Active Directory. This is a String representing an LDAP
+    # path, such as "dc=example,dc=com".
+    attr_reader :root
+    # The domain name of the Active Directory. This is calculated from the root
+    # attribute.
+    attr_reader :domain
+    # The Active Directory user used to connect to the Active Directory. This
+    # is specified using an LDAP path to the user account, without the root
+    # component, such as "cn=Administrator,cn=Users". This defaults to
+    # "cn=Administrator,cn=Users" when an AD is created using AD.new.
+    attr_reader :user
+    # The server hostname or IP address of the Active Directory server. This
+    # defaults to "localhost" when an AD is created using AD.new.
+    attr_reader :server
+    # True if using TLS, otherwise false. This defaults to false when an AD
+    # is created using AD.new.
+    attr_reader :tls
+    # The array of UID values from UNIXUser objects in the AD object. This is
+    # automatically managed by the other objects and should not be modified
+    # directly.
     attr :uids, true
+    # The array of GID values from UNIXGroup objects in the AD object. This is
+    # automatically managed by the other objects and should not be modified
+    # directly.
     attr :gids, true
+    # The array of RID values for User, UNIXUser, Group, and UNIXGroup objects
+    # in the AD object. This is automatically managed by the other objects and
+    # should not be modified directly.
     attr :rids, true
+    # The array of Containers in the AD object. This is automatically managed
+    # by the Container and AD objects and should not be modified directly
+    # except for using the methods of those classes.
     attr :containers, true
     
+    # Create a new AD object to represent an Active Directory environment.
+    # The root is a String representation of an LDAP path, such as
+    # "dc=example,dc=com". The password is used in conjunction with the
+    # specified user, which defaults to Administrator
+    # ("cn=Administrator,cn=Users"), to authenticate when a connection is
+    # is actually utilized in data processing ("load_" and "sync_" prefixed
+    # methods). The server is a String representing either the hostname or IP
+    # address of the Active Directory server, which defaults to "localhost".
+    # The tls paramemter is a boolen indicating if TLS should be used for the
+    # connection. It defaults to false. If TLS is specified, the connection
+    # port will be set to 636, otherwise the port will be set to 389. It is
+    # possible to change the port for nonstandard configurations after the
+    # AD object is created using the AD.port= method. It is not possible to
+    # change the TLS communication flag after AD creation. An example of
+    # creating an AD object follows:
+    #
+    #   ad = RADUM::AD.new('dc=example,dc=com', 'password',
+    #                      'cn=Administrator,cn=Users', '192.168.1.1')
+    #
+    # A Container object for "cn=Users" is automatically created and added to
+    # the AD when an AD object is created. This is meant to be a convenience
+    # because most (if not all) User and UNIXUser objects will have the
+    # "Domain Users" Windows group as their primary Windows group. It is
+    # possible to remove this Container if absolutely necessary, but it should
+    # not be an issue.
     def initialize(root, password, user = "cn=Administrator,cn=Users",
                    server = "localhost", tls = false)
       @root = root.gsub(/\s+/, "")
@@ -742,13 +898,13 @@ module RADUM
       @rids = []
 
       if @tls
-        port = 636
+        @port = 636
       else
-        port = 389
+        @port = 389
       end
       
       @ldap = Net::LDAP.new :host => @server,
-                            :port => port,
+                            :port => @port,
                             :auth => {
                                   :method => :simple,
                                   :username => @user + "," + @root,
@@ -765,6 +921,21 @@ module RADUM
       RADUM::Container.new("cn=Users", self)
     end
     
+    # The port number used to communicate with the Active Directory server.
+    def port
+      @port
+    end
+    
+    # Set the port number used to communicate with the Active Directory server.
+    # This defaults to 389 for non-TLS and 636 for TLS, but can be set here for
+    # nonstandard configurations.
+    def port=(port)
+      @port = port
+      @ldap.port = port
+    end
+    
+    # Find a Container in the AD by name. The search is case-insensitive. The
+    # Container is returned if found, otherwise nil is returned.
     def find_container(name)
       @containers.find do |container|
         # This relies on the fact that a container name must be unique in a
@@ -773,8 +944,12 @@ module RADUM
       end
     end
     
-    # This is to add containers who were previously removed and have their
-    # removed flag set.
+    # Add Container objects which were previously removed and had their removed
+    # attribute set. Containers automatically add themselves to their AD object,
+    # so this is only needed when adding a removed Container object back into
+    # the AD. A Container must have been a member of the AD in order to be
+    # added back into it. If this is not true, a RuntimeError is raised. If
+    # successful, the Container object's removed attribute is set to false.
     def add_container(container)
       if container.removed
         if self == container.directory
@@ -788,11 +963,15 @@ module RADUM
       end
     end
     
+    # Remove a Container from the AD. This sets the Container object's removed
+    # attribute to true.
     def remove_container(container)
       @containers.delete container
       container.removed = true
     end
     
+    # Returns an Array of all User and UNIXUser objects in all Containers
+    # in the AD.
     def users
       all_users = []
       
@@ -805,7 +984,9 @@ module RADUM
       all_users
     end
     
-    # Users are only stored in containers, which are only stored here.
+    # Find a User or UNIXUser in the AD by username. The search is
+    # case-insensitive. The User or UNIXUser is returned if found, otherwise
+    # nil is returned.
     def find_user(username)
       @containers.each do |container|
         found = container.users.find do |user|
@@ -817,10 +998,54 @@ module RADUM
         return found if found
       end
       
-      return false
+      return nil
     end
     
-    # Groups are only stored in containers, which are only stored here.
+    # Find a User or UNIXUser in the AD by RID. The User or UNIXUser is
+    # returned if found, otherwise nil is returned.
+    def find_user_by_rid(rid)
+      @containers.each do |container|
+        found = container.users.find do |user|
+          user.rid == rid
+        end
+        
+        return found if found
+      end
+      
+      return nil
+    end
+    
+    # Find a UNIXUser in the AD by UID. The UNIXUser is returned if found,
+    # otherwise nil is returned.
+    def find_user_by_uid(uid)
+      @containers.each do |container|
+        found = container.users.find do |user|
+          user.uid == uid if user.instance_of? UNIXUser
+        end
+        
+        return found if found
+      end
+      
+      return nil
+    end
+    
+    # Returns an Array of all Group and UNIXGroup objects in all Containers
+    # in the AD.
+    def groups
+      all_groups = []
+      
+      @containers.each do |container|
+        container.groups.each do |group|
+          all_groups.push group
+        end
+      end
+      
+      all_groups
+    end
+    
+    # Find a Group or UNIXGroup in the AD by name. The search is
+    # case-insensitive. The Group or UNIXGroup is returned if found, otherwise
+    # nil is returned.
     def find_group(name)
       @containers.each do |container|
         found = container.groups.find do |group|
@@ -832,9 +1057,11 @@ module RADUM
         return found if found
       end
       
-      return false
+      return nil
     end
     
+    # Find a Group or UNIXGroup in the AD by RID. The Group or UNIXGroup is
+    # returned if found, otherwise nil is returned.
     def find_group_by_rid(rid)
       @containers.each do |container|
         found = container.groups.find do |group|
@@ -844,9 +1071,11 @@ module RADUM
         return found if found
       end
       
-      return false
+      return nil
     end
     
+    # Find a UNIXGroup in the AD by GID. The UNIXGroup is returned if found,
+    # otherwise nil is returned.
     def find_group_by_gid(gid)
       @containers.each do |container|
         found = container.groups.find do |group|
@@ -856,9 +1085,20 @@ module RADUM
         return found if found
       end
       
-      return false
+      return nil
     end
     
+    # Load all user and group objects in Active Directory that are in the AD
+    # object's Containers. This automatically creates User, UNIXUser, Group,
+    # and UNIXGroup objects as needed and sets all of their attributes
+    # correctly. This can be used to initialize a program using the RADUM 
+    # module for account management work.
+    #
+    # Users are not created if their primary Windows group is not found
+    # during the load. UNIXUsers are not created if their main UNIX group
+    # is not found during the load. Warning messages are printed in each
+    # case. Make sure all required Containers are in the AD before loading
+    # data from Active Directory to avoid this problem.
     def load
       # Find all the groups first. We might need one to represent the main
       # group of a UNIX user.
@@ -868,22 +1108,38 @@ module RADUM
         base = container.name + ",#{@root}"
         
         @ldap.search(:base => base, :filter => group_filter) do |entry|
+          # These are attributes that might be empty. If they are empty,
+          # a NoMethodError exception will be raised. We have to check each
+          # individually and set an initial indicator value (nil). All the
+          # other attributes should exist and do not require this level of
+          # checking.
           gid = nil
           nis_domain = nil
+          unix_password = nil
           
           begin
             gid = entry.gidNumber.pop.to_i
+          rescue NoMethodError
+          end
+          
+          begin
             nis_domain = entry.msSFU30NisDomain.pop
           rescue NoMethodError
           end
           
-          nis_domain = "radum" unless nis_domain
+          begin
+            unix_password = entry.unixUserPassword.pop
+          rescue NoMethodError
+          end
+          
           rid = sid2rid_int(entry.objectSid.pop)
           
           # Note that groups add themselves to their container.
           if gid
-            UNIXGroup.new(entry.name.pop, container, gid,
-                          entry.groupType.pop.to_i, nis_domain, rid)
+            nis_domain = "radum" unless nis_domain
+            group = UNIXGroup.new(entry.name.pop, container, gid,
+                                  entry.groupType.pop.to_i, nis_domain, rid)
+            group.unix_password = unix_password if unix_password
           else
             Group.new(entry.name.pop, container, entry.groupType.pop.to_i, rid)
           end 
@@ -1079,20 +1335,27 @@ module RADUM
       end
     end
     
+    # Returns true if two AD objects are equal, otherwise false. Equality is
+    # established by the two AD objects having the same root attribute
+    # (case-insensitive).
     def ==(other)
       @root.downcase == other.root.downcase
     end
     
+    # Returns true if two AD objects are equal as defined by the AD.== method.
     def eql?(other)
       self == other
     end
     
+    # The String representation of the AD object.
     def to_s
       "AD [#{@root} #{@server}" + (@tls ? " TLS" : "") + "]"
     end
     
     private
     
+    # Unpack a RID from the SID value in the LDAP objectSid attribute for a
+    # user or group in Active Directory.
     def sid2rid_int(sid)
       sid.unpack("H2H2nNV*").pop.to_i
     end
