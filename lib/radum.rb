@@ -82,7 +82,7 @@ module RADUM
     attr_reader :groups
     # True if the Container has been removed from the AD, false
     # otherwise. This is set by the AD if the Container is removed.
-    attr :removed, true
+    attr_accessor :removed
     
     # The Container object automatically adds itself to the AD object
     # specified. The name should be the LDAP distinguishedName attribute
@@ -232,38 +232,17 @@ module RADUM
     # is not added to the groups array directly. This matches the implicit
     # membership in the primary Windows group in Active Directory.
     attr_reader :groups
-    # True if the User or UNIXUser account is disabled. Set to false to enable
-    # a disabled User or UNIXUser account. This is a boolean representation of
-    # the LDAP userAccountControl attribute.
-    attr :disabled, true
-    # The User or UNIXUser first name. This corresponds to the LDAP givenName
-    # attribute and is used in the LDAP displayName, description, and name
-    # attributes. This defaults to the username when a User or UNIXUser is
-    # created using User.new or UNIXUser.new, but is set to the correct value
-    # when a User or UNIXUser is loaded by AD.load from the AD object the
-    # Container belongs to.
-    attr :first_name, true
-    # The User or UNIXUser middle name. This corresponds to the LDAP middleName
-    # attribute and is used in the LDAP displayName and description attributes.
-    # This defaults to nil when a User or UNIXUser is created using User.new
-    # or UNIXUser.new, but is set to the correct value when a User or UNIXUser
-    # is loaded by AD.load from the AD object the Container belongs to.
-    attr :middle_name, true
-    # The User or UNIXUser surname (last name). This corresponds to the LDAP sn
-    # attribute and is used in the LDAP displayName, description, and name
-    # attributes. This defaults to nil when a User or UNIXUser is created using
-    # User.new or UNIXUser.new, but is set to the correct value when a User or
-    # UNIXUser is loaded by AD.load from the AD object the Container belongs to.
-    attr :surname, true
-    # The User or UNIXUser Windows password. This defaults to nil when a User
-    # of UNIXUser is created using User.new or UNIXUser.new. This does not
-    # reflect the current User or UNIXUser password, but if it is set, the
-    # password will be changed.
-    attr :password, true
+    # True if the User or UNIXUser has been loaded from Active Directory,
+    # false if created manually.
+    attr_reader :loaded
+    # True if the User or UNIXUser has been modified. This is true for manually
+    # created User or UNIXUser objects and false for initially loaded User and
+    # UNIXUser objects.
+    attr_reader :modified
     # True if the User or UNIXUser has been removed from the Container, false
     # otherwise. This is set by the Container if the User or UNIXUser is
     # removed.
-    attr :removed, true
+    attr_accessor :removed
     
     # The User object automatically adds itself to the Container object
     # specified. The rid should not be set directly. The rid should only be
@@ -321,6 +300,91 @@ module RADUM
       @removed = true
       @container.add_user self unless instance_of? UNIXUser
       @removed = false
+      @modified = true
+      @loaded = false
+    end
+    
+    # True if the User or UNIXUser account is disabled, false otherwise.
+    # This is a boolean representation of the LDAP userAccountControl attribute.
+    def disabled?
+      @disabled
+    end
+    
+    # Disable a User or UNIXUser account.
+    def disable
+      unless @disabled
+        @disabled = true
+        @modified = true
+      end
+    end
+    
+    # Enable a User or UNIXUser account.
+    def enable
+      if @disabled
+        @disabled = false
+        @modified = true
+      end
+    end
+    
+    # The User or UNIXUser first name.
+    def first_name
+      @first_name
+    end
+    
+    # Set the User or UNIXUser first name. This corresponds to the LDAP
+    # givenName attribute and is used in the LDAP displayName, description,
+    # and name attributes. This defaults to the username when a User or
+    # UNIXUser is created using User.new or UNIXUser.new, but is set to the
+    # correct value when a User or UNIXUser is loaded by AD.load from the AD
+    # object the Container belongs to.
+    def first_name=(first_name)
+      @fisrt_name = first_name
+      @modified = true
+    end
+    
+    # The User or UNIXUser middle name.
+    def middle_name
+      @middle_name
+    end
+    
+    # Set the User or UNIXUser middle name. This corresponds to the LDAP
+    # middleName attribute and is used in the LDAP displayName and description
+    # attributes. This defaults to nil when a User or UNIXUser is created using
+    # User.new or UNIXUser.new, but is set to the correct value when a User or
+    # UNIXUser is loaded by AD.load from the AD object the Container belongs to.
+    def middle_name=(middle_name)
+      @middle_name = middle_name
+      @modified = true
+    end
+    
+    # The User or UNIXUser surname (last name).
+    def surname
+      @surname
+    end
+    
+    # Set the User or UNIXUser surname (last name). This corresponds to the
+    # LDAP sn attribute and is used in the LDAP displayName, description, and
+    # name attributes. This defaults to nil when a User or UNIXUser is created
+    # using User.new or UNIXUser.new, but is set to the correct value when a
+    # User or UNIXUser is loaded by AD.load from the AD object the Container
+    # belongs to.
+    def surname=(surname)
+      @surname = surname
+      @modified = true
+    end
+    
+    # The User or UNIXUser Windows password.
+    def password
+      @password
+    end
+    
+    # Set the User or UNIXUser Windows password. This defaults to nil when a
+    # User or UNIXUser is created using User.new or UNIXUser.new. This does not
+    # reflect the current User or UNIXUser password, but if it is set, the
+    # password will be changed.
+    def password=(password)
+      @password = password
+      @modified = true
     end
     
     # The User primary Windows group. This is usually the "Domain Users"
@@ -353,6 +417,7 @@ module RADUM
       
       remove_group group
       @primary_group = group
+      @modified = true
     end
     
     # The common name (cn) portion of the LDAP distinguisedName attribute and
@@ -374,6 +439,7 @@ module RADUM
       @distinguished_name = "cn=" + cn + "," + @container.name + "," +
                             @container.directory.root
       @common_name = cn
+      @modified = true
     end
     
     # Make the User or UNIXUser a member of the Group or UNIXGroup. This is
@@ -424,6 +490,16 @@ module RADUM
       @groups.include? group || @primary_group == group
     end
     
+    # Set the loaded flag. Calling this only has an effect once. This is only
+    # callled by AD.load when a User or UNIXUser is initially loaded.
+    def loaded
+      # This allows the modified attribute to be hidden.
+      unless @loaded
+        @loaded = true
+        @modified = false
+      end
+    end
+    
     # The String representation of the User object.
     def to_s
       "User [(" + (@disabled ? "USER_DISABLED" : "USER_ENABLED") +
@@ -441,92 +517,6 @@ module RADUM
     # This is set by setting the UNIXUser unix_main_group attribute with the
     # UNIXUser.unix_main_group= method.
     attr_reader :gid
-    # The UNIXUser UNIX shell. This corresponds to the LDAP loginShell
-    # attribute.
-    attr :shell, true
-    # The UNIXUser UNIX home directory. This corresponds to the LDAP
-    # unixHomeDirectory attribute.
-    attr :home_directory, true
-    # The UNIXUser UNIX NIS domain. This corresponds to the LDAP
-    # msSFU30NisDomain attribute. This needs to be set even if NIS services
-    # are not being used. This defaults to "radum" when a UNIXUser is created
-    # using UNIXUser.new, but it is set to the correct value when the UNIXUser
-    # is loaded by AD.load from the AD object the Container belongs to.
-    attr :nis_domain, true
-    # The UNIXUser UNIX GECOS field. This corresponds to the LDAP gecos
-    # attribute. This defaults to username when a UNIXUser is created using
-    # UNIXUser.new, but it is set to the correct value when the UNIXUser is
-    # loaded by AD.load from the AD object the Container belongs to.
-    attr :gecos, true
-    # The UNIXUser UNIX password field. This can be a crypt or MD5 value
-    # (or whatever your system supports potentially - Windows works with
-    # crypt and MD5 in Microsoft Identity Management for UNIX). This
-    # corresponds to the LDAP unixUserPassword attribute. The unix_password
-    # value defaults to "*" when a UNIXUser is created using UNIXUser.new,
-    # but it is set to the correct value when the UNIXUser is loaded by
-    # AD.load from the AD object the Container belongs to.
-    #
-    # It is not necessary to set the LDAP unixUserPassword attribute if you
-    # are using Kerberos for authentication, but using LDAP (or NIS by way
-    # of LDAP in Active Directory) for user information. In those cases, it
-    # is best to set this field to "*", which is why that is the default.
-    attr :unix_password, true
-    # The UNIXUser UNIX shadow file expire field. This is the 8th field
-    # of the /etc/shadow file. This defaults to nil when a UNIXUser is created
-    # using UNIXUser.new, but it is set to the correct value when the UNIXUser
-    # is loaded by AD.load from the AD object the Container belongs to. This
-    # only needs to be set if the shadow file information is really needed.
-    # It would not be needed most of the time. This corresponds to the LDAP
-    # shadowExpire attribute.
-    attr :shadow_expire, true
-    # The UNIXUser UNIX shadow file reserved field. This is the 9th field
-    # of the /etc/shadow file. This defaults to nil when a UNIXUser is created
-    # using UNIXUser.new, but it is set to the correct value when the UNIXUser
-    # is loaded by AD.load from the AD object the Container belongs to. This
-    # only needs to be set if the shadow file information is really needed.
-    # It would not be needed most of the time. This corresponds to the LDAP
-    # shadowFlag attribute.
-    attr :shadow_flag, true
-    # The UNIXUser UNIX shadow file inactive field. This is the 7th field
-    # of the /etc/shadow file. This defaults to nil when a UNIXUser is created
-    # using UNIXUser.new, but it is set to the correct value when the UNIXUser
-    # is loaded by AD.load from the AD object the Container belongs to. This
-    # only needs to be set if the shadow file information is really needed.
-    # It would not be needed most of the time. This corresponds to the LDAP
-    # shadowInactive attribute.
-    attr :shadow_inactive, true
-    # The UNIXUser UNIX shadow file last change field. This is the 3rd field
-    # of the /etc/shadow file. This defaults to nil when a UNIXUser is created
-    # using UNIXUser.new, but it is set to the correct value when the UNIXUser
-    # is loaded by AD.load from the AD object the Container belongs to. This
-    # only needs to be set if the shadow file information is really needed.
-    # It would not be needed most of the time. This corresponds to the LDAP
-    # shadowLastChange attribute.
-    attr :shadow_last_change, true
-    # The UNIXUser UNIX shadow file max field. This is the 5th field of
-    # the /etc/shadow file. This defaults to nil when a UNIXUser is created
-    # using UNIXUser.new, but it is set to the correct value when the UNIXUser
-    # is loaded by AD.load from the AD object the Container belongs to. This
-    # only needs to be set if the shadow file information is really needed.
-    # It would not be needed most of the time. This corresponds to the LDAP
-    # shadowMax attribute.
-    attr :shadow_max, true
-    # The UNIXUser UNIX shadow file min field. This is the 4th field of
-    # the /etc/shadow file. This defaults to nil when a UNIXUser is created
-    # using UNIXUser.new, but it is set to the correct value when the UNIXUser
-    # is loaded by AD.load from the AD object the Container belongs to. This
-    # only needs to be set if the shadow file information is really needed.
-    # It would not be needed most of the time. This corresponds to the LDAP
-    # shadowMin attribute.
-    attr :shadow_min, true
-    # The UNIXUser UNIX shadow file warning field. This is the 6th field of
-    # the /etc/shadow file. This defaults to nil when a UNIXUser is created
-    # using UNIXUser.new, but it is set to the correct value when the UNIXUser
-    # is loaded by AD.load from the AD object the Container belongs to. This
-    # only needs to be set if the shadow file information is really needed.
-    # It would not be needed most of the time. This corresponds to the LDAP
-    # shadowWarning attribute.
-    attr :shadow_warning, true
     
     # The UNIXUser object automatically adds itself to the Container object
     # specified. The rid should not be set directly. The rid should only be
@@ -579,6 +569,200 @@ module RADUM
       @removed = false
     end
     
+    # The UNIXUser UNIX shell.
+    def shell
+      @shell
+    end
+    
+    # Set the UNIXUser UNIX shell. This corresponds to the LDAP loginShell
+    # attribute.
+    def shell=(shell)
+      @shell = shell
+      @modified = true
+    end
+    
+    # The UNIXUser UNIX home directory.
+    def home_directory
+      @home_directory
+    end
+    
+    # Set the UNIXUser UNIX home directory. This corresponds to the LDAP
+    # unixHomeDirectory attribute.
+    def home_directory=(home_directory)
+      @home_directory = home_directory
+      @modified = true
+    end
+    
+    # The UNIXUser UNIX NIS domain.
+    def nis_domain
+      @nis_domain
+    end
+    
+    # Set the UNIXUser UNIX NIS domain. This corresponds to the LDAP
+    # msSFU30NisDomain attribute. This needs to be set even if NIS services
+    # are not being used. This defaults to "radum" when a UNIXUser is created
+    # using UNIXUser.new, but it is set to the correct value when the UNIXUser
+    # is loaded by AD.load from the AD object the Container belongs to.
+    def nis_domain=(nis_domain)
+      @nis_domain = nis_domain
+      @modified = true
+    end
+    
+    # The UNIXUser UNIX GECOS field.
+    def gecos
+      @gecos
+    end
+    
+    # Set the UNIXUser UNIX GECOS field. This corresponds to the LDAP gecos
+    # attribute. This defaults to username when a UNIXUser is created using
+    # UNIXUser.new, but it is set to the correct value when the UNIXUser is
+    # loaded by AD.load from the AD object the Container belongs to.
+    def gecos=(gecos)
+      @gecos = gecos
+      @modified = true
+    end
+    
+    # The UNIXUser UNIX password field.
+    def unix_password
+      @unix_password
+    end
+    
+    # Set the UNIXUser UNIX password field. This can be a crypt or MD5 value
+    # (or whatever your system supports potentially - Windows works with
+    # crypt and MD5 in Microsoft Identity Management for UNIX). This
+    # corresponds to the LDAP unixUserPassword attribute. The unix_password
+    # value defaults to "*" when a UNIXUser is created using UNIXUser.new,
+    # but it is set to the correct value when the UNIXUser is loaded by
+    # AD.load from the AD object the Container belongs to.
+    #
+    # It is not necessary to set the LDAP unixUserPassword attribute if you
+    # are using Kerberos for authentication, but using LDAP (or NIS by way of
+    # LDAP in Active Directory) for user information. In those cases, it is
+    # best to set this field to "*", which is why that is the default.
+    def unix_password=(unix_password)
+      @unix_password = unix_password
+      @modified = true
+    end
+    
+    # The UNIXUser UNIX shadow file expire field.
+    def shadow_expire
+      @shadow_expire
+    end
+    
+    # Set the UNIXUser UNIX shadow file expire field. This is the 8th field
+    # of the /etc/shadow file. This defaults to nil when a UNIXUser is created
+    # using UNIXUser.new, but it is set to the correct value when the UNIXUser
+    # is loaded by AD.load from the AD object the Container belongs to. This
+    # only needs to be set if the shadow file information is really needed.
+    # It would not be needed most of the time. This corresponds to the LDAP
+    # shadowExpire attribute.
+    def shadow_expire=(shadow_expire)
+      @shadow_expire = shadow_expire
+      @modified = true
+    end
+    
+    # The UNIXUser UNIX shadow file reserved field.
+    def shadow_flag
+      @shadow_flag
+    end
+    
+    # Set the UNIXUser UNIX shadow file reserved field. This is the 9th field
+    # of the /etc/shadow file. This defaults to nil when a UNIXUser is created
+    # using UNIXUser.new, but it is set to the correct value when the UNIXUser
+    # is loaded by AD.load from the AD object the Container belongs to. This
+    # only needs to be set if the shadow file information is really needed.
+    # It would not be needed most of the time. This corresponds to the LDAP
+    # shadowFlag attribute.
+    def shadow_flag=(shadow_flag)
+      @shadow_flag = shadow_flag
+      @modified = true
+    end
+    
+    # The UNIXUser UNIX shadow file inactive field.
+    def shadow_inactive
+      @shadow_inactive
+    end
+    
+    # Set the UNIXUser UNIX shadow file inactive field. This is the 7th field
+    # of the /etc/shadow file. This defaults to nil when a UNIXUser is created
+    # using UNIXUser.new, but it is set to the correct value when the UNIXUser
+    # is loaded by AD.load from the AD object the Container belongs to. This
+    # only needs to be set if the shadow file information is really needed.
+    # It would not be needed most of the time. This corresponds to the LDAP
+    # shadowInactive attribute.
+    def shadow_inactive=(shadow_inactive)
+      @shadow_inactive = shadow_inactive
+      @modified = true
+    end
+    
+    # The UNIXUser UNIX shadow file last change field.
+    def shadow_last_change
+      @shadow_last_change
+    end
+    
+    # Set the UNIXUser UNIX shadow file last change field. This is the 3rd field
+    # of the /etc/shadow file. This defaults to nil when a UNIXUser is created
+    # using UNIXUser.new, but it is set to the correct value when the UNIXUser
+    # is loaded by AD.load from the AD object the Container belongs to. This
+    # only needs to be set if the shadow file information is really needed.
+    # It would not be needed most of the time. This corresponds to the LDAP
+    # shadowLastChange attribute.
+    def shadow_last_change=(shadow_last_change)
+      @shadow_last_change = shadow_last_change
+      @modified = true
+    end
+    
+    # The UNIXUser UNIX shadow file max field.
+    def shadow_max
+      @shadow_max
+    end
+    
+    # Set the UNIXUser UNIX shadow file max field. This is the 5th field of
+    # the /etc/shadow file. This defaults to nil when a UNIXUser is created
+    # using UNIXUser.new, but it is set to the correct value when the UNIXUser
+    # is loaded by AD.load from the AD object the Container belongs to. This
+    # only needs to be set if the shadow file information is really needed.
+    # It would not be needed most of the time. This corresponds to the LDAP
+    # shadowMax attribute.
+    def shadow_max=(shadow_max)
+      @shadow_max = shadow_max
+      @modified = true
+    end
+    
+    # The UNIXUser UNIX shadow file min field.
+    def shadow_min
+      @shadow_min
+    end
+    
+    # Set the UNIXUser UNIX shadow file min field. This is the 4th field of
+    # the /etc/shadow file. This defaults to nil when a UNIXUser is created
+    # using UNIXUser.new, but it is set to the correct value when the UNIXUser
+    # is loaded by AD.load from the AD object the Container belongs to. This
+    # only needs to be set if the shadow file information is really needed.
+    # It would not be needed most of the time. This corresponds to the LDAP
+    # shadowMin attribute.
+    def shadow_min=(shadow_min)
+      @shadow_min = shadow_min
+      @modified = true
+    end
+    
+    # The UNIXUser UNIX shadow file warning field.
+    def shadow_warning
+      @shadow_warning
+    end
+    
+    # Set the UNIXUser UNIX shadow file warning field. This is the 6th field of
+    # the /etc/shadow file. This defaults to nil when a UNIXUser is created
+    # using UNIXUser.new, but it is set to the correct value when the UNIXUser
+    # is loaded by AD.load from the AD object the Container belongs to. This
+    # only needs to be set if the shadow file information is really needed.
+    # It would not be needed most of the time. This corresponds to the LDAP
+    # shadowWarning attribute.
+    def shadow_warning=(shadow_warning)
+      @shadow_warning = shadow_warning
+      @modified = true
+    end
+    
     # The UNIXUser UNIX main group. This is where the UNIXUser UNIX GID
     # value comes from, which is reflected in the gid attribute.
     def unix_main_group
@@ -596,6 +780,7 @@ module RADUM
           @gid = group.gid
           @container.add_group group
           add_group group
+          @modified = true
         else
           raise "UNIXUser unix_main_group must be in the same directory."
         end
@@ -641,9 +826,16 @@ module RADUM
     attr_reader :users
     # The Group or UNIXGroup objects that are members of the Group or UNIXGroup.
     attr_reader :groups
+    # True if the Group or UNIXGroup has been loaded from Active Directory,
+    # false if created manually.
+    attr_reader :loaded
+    # True if the Group or UNIXGroup has been modified. This is true for
+    # manually created Group or UNIXGroup objects and false for initially
+    # loaded Group and UNIXGroup objects.
+    attr_reader :modified
     # True if the Group or UNIXGroup has been removed from the Container, false
     # otherwise. This is set by the Container if the Group is removed.
-    attr :removed, true
+    attr_accessor :removed
     
     # The Group object automatically adds itself to the Container object
     # specified. The rid should not be set directly. The rid should only be
@@ -680,6 +872,8 @@ module RADUM
       @removed = true
       @container.add_group self unless instance_of? UNIXGroup
       @removed = false
+      @modified = true
+      @loaded = false
     end
     
     # Make the User or UNIXUser a member of the Group or UNIXGroup. This
@@ -706,6 +900,7 @@ module RADUM
         unless self == user.primary_group
           @users.push user unless @users.include? user
           user.add_group self unless user.groups.include? self
+          @modified = true
         else
           raise "Group is already the User's primary_group."
         end
@@ -720,6 +915,7 @@ module RADUM
     def remove_user(user)
       @users.delete user
       user.remove_group self if user.groups.include? self
+      @modified = true
     end
     
     # Determine if the Group or UNIXGroup is a member of the Group or UNIXGroup.
@@ -742,11 +938,23 @@ module RADUM
       end
       
       @groups.push group unless @groups.include? group
+      @modified = true
     end
     
     # Remove the Group or UNIXGroup membership in the Group or UNIXGroup.
     def remove_group(group)
       @groups.delete group
+      @modified = true
+    end
+    
+    # Set the loaded flag. Calling this only has an effect once. This is only
+    # callled by AD.load when a Group or UNIXGroup is initially loaded.
+    def loaded
+      # This allows the modified attribute to be hidden.
+      unless @loaded
+        @loaded = true
+        @modified = false
+      end
     end
     
     # The String representation of the Group object.
@@ -763,26 +971,6 @@ module RADUM
     # The UNIXGroup UNIX GID. This corresponds to the LDAP gidNumber
     # attribute.
     attr_reader :gid
-    # The UNIXGroup UNIX NIS domain. This corresponds to the LDAP
-    # msSFU30NisDomain attribute. This needs to be set even if NIS services
-    # are not being used. This defaults to "radum" when a UNIXGroup is created
-    # using UNIXGroup.new, but it is set to the correct value when the UNIXGroup
-    # is loaded by AD.load from the AD object the Container belongs to.
-    attr :nis_domain, true
-    # The UNIXGroup UNIX password field. This can be a crypt or MD5 value
-    # (or whatever your system supports potentially - Windows works with crypt
-    # and MD5 in Microsoft Identity Management for UNIX). This corresponds to
-    # the LDAP unixUserPassword attribute. The unix_password value defaults
-    # to "*" when a UNIXGroup is created using UNIXGroup.new, but it is set
-    # to the correct value when the UNIXGroup is loaded by AD.load from the AD
-    # object the Container belongs to.
-    #
-    # It is not necessary to set the LDAP unixUserPassword attribute if you
-    # are using Kerberos for authentication, but using LDAP (or NIS by way of
-    # LDAP in Active Directory) for user information. In that case, it is best
-    # to set this field to "*", which is why that is the default. Additionally,
-    # most of the time UNIX groups do not have a password.
-    attr :unix_password, true
     
     # The UNIXGroup object automatically adds itself to the Container object
     # specified. The rid shold not be set directly. The rid should only be
@@ -806,6 +994,44 @@ module RADUM
       @removed = true
       @container.add_group self
       @removed = false
+    end
+    
+    # The UNIXGroup UNIX NIS domain.
+    def nis_domain
+      @nis_domain
+    end
+    
+    # Set the UNIXGroup UNIX NIS domain. This corresponds to the LDAP
+    # msSFU30NisDomain attribute. This needs to be set even if NIS services
+    # are not being used. This defaults to "radum" when a UNIXGroup is created
+    # using UNIXGroup.new, but it is set to the correct value when the UNIXGroup
+    # is loaded by AD.load from the AD object the Container belongs to.
+    def nis_domain=(nis_domain)
+      @nis_domain = nis_domain
+      @modified = true
+    end
+    
+    # The UNIXGroup UNIX password field.
+    def unix_password
+      @unix_password
+    end
+    
+    # Set the UNIXGroup UNIX password field. This can be a crypt or MD5 value
+    # (or whatever your system supports potentially - Windows works with crypt
+    # and MD5 in Microsoft Identity Management for UNIX). This corresponds to
+    # the LDAP unixUserPassword attribute. The unix_password value defaults
+    # to "*" when a UNIXGroup is created using UNIXGroup.new, but it is set
+    # to the correct value when the UNIXGroup is loaded by AD.load from the AD
+    # object the Container belongs to.
+    #
+    # It is not necessary to set the LDAP unixUserPassword attribute if you
+    # are using Kerberos for authentication, but using LDAP (or NIS by way of
+    # LDAP in Active Directory) for user information. In that case, it is best
+    # to set this field to "*", which is why that is the default. Additionally,
+    # most of the time UNIX groups do not have a password.
+    def unix_password=(unix_password)
+      @unix_password = unix_password
+      @modified = true
     end
     
     # The String representation of the UNIXGroup object.
@@ -843,19 +1069,19 @@ module RADUM
     # The array of UID values from UNIXUser objects in the AD object. This is
     # automatically managed by the other objects and should not be modified
     # directly.
-    attr :uids, true
+    attr_accessor :uids
     # The array of GID values from UNIXGroup objects in the AD object. This is
     # automatically managed by the other objects and should not be modified
     # directly.
-    attr :gids, true
+    attr_accessor :gids
     # The array of RID values for User, UNIXUser, Group, and UNIXGroup objects
     # in the AD object. This is automatically managed by the other objects and
     # should not be modified directly.
-    attr :rids, true
+    attr_accessor :rids
     # The array of Containers in the AD object. This is automatically managed
     # by the Container and AD objects and should not be modified directly
     # except for using the methods of those classes.
-    attr :containers, true
+    attr_accessor :containers
     
     # Create a new AD object to represent an Active Directory environment.
     # The root is a String representation of an LDAP path, such as
@@ -1331,6 +1557,19 @@ module RADUM
             rescue NoMethodError
             end
           end
+        end
+      end
+      
+      # Set all users and groups as loaded. This has to be done last to make
+      # sure the modified attribute is correct. The modified attribute needs
+      # to be false, and it is hidden from direct access by the loaded method.
+      @containers.each do |container|
+        container.groups.each do |group|
+          group.loaded
+        end
+        
+        container.users.each do |user|
+          user.loaded
         end
       end
     end
