@@ -1642,7 +1642,47 @@ module RADUM
     # unset attributes will be removed, and modified attributes will be
     # updated automatically.
     def sync
-      
+      @containers.each do |container|
+        container.groups.each do |group|
+          # New groups are considered modified, as well as groups that were
+          # loaded but then had some attribute changed. Obviously, that's all
+          # we care about with respect to syncing.
+          next unless group.modified
+          base = "cn=#{group.name}," + container.name + ",#{@root}"
+          group_filter = Net::LDAP::Filter.eq("objectclass", "group")
+          # The return value will be false explicitly if the search fails,
+          # otherwise it will be an array of entries. Therefore it is important
+          # to check for false explicitly for a failure. A failure indicates
+          # that the group needs to be created.
+          found = @ldap.search(:base => base, :filter => group_filter)
+          
+          if found == false
+            puts "#{group.name} not found - creating..."
+            # Create the new group.
+            dn = group.distinguished_name
+            
+            # Note that all the attributes need to be strings in this hash.
+            attr = {
+              :cn => group.name,
+              :groupType => group.type.to_s,
+              :name => group.name,
+              # All groups are of the objectclasses "top" and "group".
+              :objectclass => ["top", "group"],
+              :sAMAccountName => group.name
+            }
+            
+            @ldap.add(:dn => dn, :attributes => attr)
+            
+            unless @ldap.get_operation_result.code == 0
+              puts "SYNC ERROR: " + @ldap.get_operation_result.message
+            end
+          else
+            puts "#{group.name} found"
+          end
+          
+          puts "#{group.name} modified: #{group.modified}\n\n"
+        end
+      end
     end
     
     # Returns true if two AD objects are equal, otherwise false. Equality is
