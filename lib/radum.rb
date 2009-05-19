@@ -1574,6 +1574,77 @@ module RADUM
       end
     end
     
+    # Load the next free UID value from the Active Directory. This is a
+    # convenience method that allows one to find the next free UID value.
+    # This method returns the next free UID value found while searching
+    # from the AD root. A return value of 0 indicates no UIDs were found.
+    def load_next_uid
+      all_uids = []
+      base = "#{@root}"
+      user_filter = Net::LDAP::Filter.eq("objectclass", "user")
+      
+      @ldap.search(:base => base, :filter => user_filter) do |entry|
+        begin
+          uid = entry.uidNumber.pop.to_i
+          all_uids.push uid
+        rescue NoMethodError
+        end
+      end
+      
+      all_uids.sort!
+      next_uid = 0
+      
+      all_uids.each do |uid|
+        if next_uid == 0 || next_uid + 1 == uid
+          next_uid = uid
+        else
+          break
+        end
+      end
+      
+      next_uid + 1
+    end
+    
+    # Load the next free GID value from the Active Directory. This is a
+    # convenince method that allows one to find the next free GID value.
+    # This method returns the next free GID value found while searching
+    # from the AD root. A return value of 0 indicates no GIDs were found.
+    def load_next_gid
+      all_gids = []
+      base = "#{@root}"
+      group_filter = Net::LDAP::Filter.eq("objectclass", "group")
+      
+      @ldap.search(:base => base, :filter => group_filter) do |entry|
+        begin
+          gid = entry.gidNumber.pop.to_i
+          all_gids.push gid
+        rescue NoMethodError
+        end
+      end
+      
+      all_gids.sort!
+      next_gid = 0
+      
+      all_gids.each do |gid|
+        if next_gid == 0 || next_gid + 1 == gid
+          next_gid = gid
+        else
+          break
+        end
+      end
+      
+      next_gid + 1
+    end
+    
+    # Synchronize all modified Users, UNIXUsers, Groups, and UNIXGroups to
+    # Active Directory. This will create entries as needed after checking to
+    # make sure they do not already exist. New attributes will be added,
+    # unset attributes will be removed, and modified attributes will be
+    # updated automatically.
+    def sync
+      
+    end
+    
     # Returns true if two AD objects are equal, otherwise false. Equality is
     # established by the two AD objects having the same root attribute
     # (case-insensitive).
