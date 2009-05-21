@@ -1,7 +1,6 @@
 require 'rubygems'
 gem 'ruby-net-ldap', '~> 0.0'
 require 'net/ldap'
-require 'nkf'
 
 # The RADUM module provides an interface to Microsoft Active Directory for
 # working with users and groups. The User class represents a standard Windows
@@ -1075,9 +1074,6 @@ module RADUM
     # The server hostname or IP address of the Active Directory server. This
     # defaults to "localhost" when an AD is created using AD.new.
     attr_reader :server
-    # True if using TLS, otherwise false. This defaults to false when an AD
-    # is created using AD.new.
-    attr_reader :tls
     # The array of UID values from UNIXUser objects in the AD object. This is
     # automatically managed by the other objects and should not be modified
     # directly.
@@ -1103,13 +1099,9 @@ module RADUM
     # is actually utilized in data processing ("load_" and "sync_" prefixed
     # methods). The server is a String representing either the hostname or IP
     # address of the Active Directory server, which defaults to "localhost".
-    # The tls paramemter is a boolen indicating if TLS should be used for the
-    # connection. It defaults to false. If TLS is specified, the connection
-    # port will be set to 636, otherwise the port will be set to 389. It is
-    # possible to change the port for nonstandard configurations after the
-    # AD object is created using the AD.port= method. It is not possible to
-    # change the TLS communication flag after AD creation. An example of
-    # creating an AD object follows:
+    # This module requires TLS to create user accounts in Active Directory
+    # properly, so you will need to make sure you have a certificate server
+    # so that you can connect with SSL on port 636.
     #
     #   ad = RADUM::AD.new('dc=example,dc=com', 'password',
     #                      'cn=Administrator,cn=Users', '192.168.1.1')
@@ -1121,35 +1113,28 @@ module RADUM
     # possible to remove this Container if absolutely necessary, but it should
     # not be an issue.
     def initialize(root, password, user = "cn=Administrator,cn=Users",
-                   server = "localhost", tls = false)
+                   server = "localhost")
       @root = root.gsub(/\s+/, "")
       @domain = @root.gsub(/dc=/, "").gsub(/,/, ".")
       @password = password
       @user = user
       @server = server
-      @tls = tls
       @containers = []
       @uids = []
       @gids = []
       # RIDs are in a flat namespace, so there's no need to keep track of them
       # for user or group objects specifically, just in the directory overall.
       @rids = []
+      @port = 636
 
-      if @tls
-        @port = 636
-      else
-        @port = 389
-      end
-      
       @ldap = Net::LDAP.new :host => @server,
                             :port => @port,
+                            :encryption => :simple_tls,
                             :auth => {
                                   :method => :simple,
                                   :username => @user + "," + @root,
                                   :password => @password
                             }
-      
-      @ldap.encryption :simple_tls if @tls
       
       # We add the cn=Users container by default because it is highly likely
       # that users have the Domain Users Windows group as their Windows
@@ -1165,8 +1150,8 @@ module RADUM
     end
     
     # Set the port number used to communicate with the Active Directory server.
-    # This defaults to 389 for non-TLS and 636 for TLS, but can be set here for
-    # nonstandard configurations.
+    # This defaults to 636 for TLS in order to create user accounts properly,
+    # but can be set here for nonstandard configurations.
     def port=(port)
       @port = port
       @ldap.port = port
@@ -1687,7 +1672,7 @@ module RADUM
     
     # The String representation of the AD object.
     def to_s
-      "AD [#{@root} #{@server}" + (@tls ? " TLS" : "") + "]"
+      "AD [#{@root} #{@server}:#{@port}]"
     end
     
     private
@@ -1696,6 +1681,15 @@ module RADUM
     # user or group in Active Directory.
     def sid2rid_int(sid)
       sid.unpack("H2H2nNV*").pop.to_i
+    end
+    
+    # Convert a string to UTF-16LE. For ASCII characters, the result should be
+    # each character followed by a NULL, so this is very easy. Windows expects
+    # a UTF-16LE string for the unicodePwd attribute. Note that the password
+    # Active Directory is expecting for the unicodePwd attribute has to be
+    # explicitly quoted.
+    def str2utf16le(str)
+      ('"' + str + '"').gsub(/./) { |c| "#{c}\000" }
     end
     
     # Create a Group or UNIXGroup in Active Directory. The Group or UNIXGroup
@@ -1856,7 +1850,7 @@ module RADUM
             :displayName => display_name,
             :description => description,
             :name => name,
-            #:userPrincipalName => realm,
+            :userPrincipalName => realm,
             #:userPassword => "n3wU$3R@1"
             #:unicodePwd => NKF.nkf('-w16m0', '"n3wU$3R@1"'),
             #:pwdLastSet => 0.to_s,
@@ -1877,6 +1871,26 @@ module RADUM
             puts "SYNC ERROR: " + @ldap.get_operation_result.message
             puts "  Error code: " + @ldap.get_operation_result.code.to_s
           end
+          
+          # Modify the attributes for the user password and userAccountControl
+          # value to enable the account.
+          #
+          # NOTE: HANDLE THE CASE WHERE THERE IS NO PASSWORD. Also note in the
+          # documentation the user will be forced to change their password on
+          # the first login.
+          ops = [
+             [:replace, :unicodePwd, str2utf16le(user.password)],
+             [:replace, :userAccountControl, (UF_NORMAL_ACCOUNT +
+                                             UF_PASSWORD_EXPIRED).to_s],
+           ]
+           
+           puts ops.to_yaml
+           @ldap.modify :dn => user.distinguished_name, :operations => ops
+           
+           unless @ldap.get_operation_result.code == 0
+             puts "SYNC ERROR: " + @ldap.get_operation_result.message
+             puts "  Error code: " + @ldap.get_operation_result.code.to_s
+           end
         else
           puts "SYNC WARNING: #{user.username} already exists. Not created."
         end
