@@ -1,6 +1,7 @@
 require 'rubygems'
 gem 'ruby-net-ldap', '~> 0.0'
 require 'net/ldap'
+require 'nkf'
 
 # The RADUM module provides an interface to Microsoft Active Directory for
 # working with users and groups. The User class represents a standard Windows
@@ -37,6 +38,14 @@ module RADUM
   GROUP_GLOBAL_DISTRIBUTION = 0x2
   GROUP_UNIVERSAL_SECURITY = -2147483640
   GROUP_UNIVERSAL_DISTRIBUTION = 0x8
+  
+  # Some useful constants from lmaccess.h for use with creating user accounts.
+  UF_ACCOUNTDISABLE = 0x0002;
+  UF_PASSWD_NOTREQD = 0x0020;
+  UF_PASSWD_CANT_CHANGE = 0x0040;
+  UF_NORMAL_ACCOUNT = 0x0200;
+  UF_DONT_EXPIRE_PASSWD = 0x10000;
+  UF_PASSWORD_EXPIRED = 0x800000;
   
   # This is a convenience method to return a String representation of a
   # Group or UNIXGroup object's type attribute, which has the value of one of
@@ -232,9 +241,6 @@ module RADUM
     # is not added to the groups array directly. This matches the implicit
     # membership in the primary Windows group in Active Directory.
     attr_reader :groups
-    # True if the User or UNIXUser has been loaded from Active Directory,
-    # false if created manually.
-    attr_reader :loaded
     # True if the User or UNIXUser has been modified. This is true for manually
     # created User or UNIXUser objects and false for initially loaded User and
     # UNIXUser objects.
@@ -498,6 +504,11 @@ module RADUM
         @loaded = true
         @modified = false
       end
+    end
+    
+    # Check if the User or UNIXUser was loaded from Active Directory.
+    def loaded?
+      @loaded
     end
     
     # The String representation of the User object.
@@ -826,9 +837,6 @@ module RADUM
     attr_reader :users
     # The Group or UNIXGroup objects that are members of the Group or UNIXGroup.
     attr_reader :groups
-    # True if the Group or UNIXGroup has been loaded from Active Directory,
-    # false if created manually.
-    attr_reader :loaded
     # True if the Group or UNIXGroup has been modified. This is true for
     # manually created Group or UNIXGroup objects and false for initially
     # loaded Group and UNIXGroup objects.
@@ -955,6 +963,11 @@ module RADUM
         @loaded = true
         @modified = false
       end
+    end
+    
+    # Check if the Group or UNIXGroup was loaded from Active Directory.
+    def loaded?
+      @loaded
     end
     
     # The String representation of the Group object.
@@ -1642,45 +1655,21 @@ module RADUM
     # unset attributes will be removed, and modified attributes will be
     # updated automatically.
     def sync
+      # First, make sure any groups that need to be created are added to Active
+      # Directory.
       @containers.each do |container|
         container.groups.each do |group|
-          # New groups are considered modified, as well as groups that were
-          # loaded but then had some attribute changed. Obviously, that's all
-          # we care about with respect to syncing.
-          next unless group.modified
-          base = "cn=#{group.name}," + container.name + ",#{@root}"
-          group_filter = Net::LDAP::Filter.eq("objectclass", "group")
-          # The return value will be false explicitly if the search fails,
-          # otherwise it will be an array of entries. Therefore it is important
-          # to check for false explicitly for a failure. A failure indicates
-          # that the group needs to be created.
-          found = @ldap.search(:base => base, :filter => group_filter)
-          
-          if found == false
-            puts "#{group.name} not found - creating..."
-            # Create the new group.
-            dn = group.distinguished_name
-            
-            # Note that all the attributes need to be strings in this hash.
-            attr = {
-              :cn => group.name,
-              :groupType => group.type.to_s,
-              :name => group.name,
-              # All groups are of the objectclasses "top" and "group".
-              :objectclass => ["top", "group"],
-              :sAMAccountName => group.name
-            }
-            
-            @ldap.add(:dn => dn, :attributes => attr)
-            
-            unless @ldap.get_operation_result.code == 0
-              puts "SYNC ERROR: " + @ldap.get_operation_result.message
-            end
-          else
-            puts "#{group.name} found"
-          end
-          
-          puts "#{group.name} modified: #{group.modified}\n\n"
+          # This method checks if the group actually needs to be created or not.
+          create_group group
+        end
+      end
+      
+      # Second, make sure any users that need to be created are added to Active
+      # Directory.
+      @containers.each do |container|
+        container.users.each do |user|
+          # This method checks if the user actually needs to be created or not.
+          create_user user
         end
       end
     end
@@ -1708,6 +1697,191 @@ module RADUM
     # user or group in Active Directory.
     def sid2rid_int(sid)
       sid.unpack("H2H2nNV*").pop.to_i
+    end
+    
+    # Create a Group or UNIXGroup in Active Directory. The Group or UNIXGroup
+    # must have its loaded attribute set to false, which indicates it was
+    # manually created. This method checks that, so it is not necessary to
+    # worry about checking first. This method also makes sure the group is not
+    # already in Active Directory, in case someone created a group that would
+    # match one that already exists. Therefore, any Group or UNIXGroup can be
+    # passed into this method.
+    def create_group(group)
+      unless group.loaded?
+        group_filter = Net::LDAP::Filter.eq("objectclass", "group")
+        # The return value will be false explicitly if the search fails,
+        # otherwise it will be an array of entries. Therefore it is important
+        # to check for false explicitly for a failure. A failure indicates
+        # that the group needs to be created.
+        found = @ldap.search(:base => group.distinguished_name,
+                             :filter => group_filter, :return_result => false)
+        
+        # The group should not already exist of course. This is to make sure
+        # it is not already there in the case it was manually created but
+        # matches a group that already exists.
+        if found == false
+          puts "#{group.name} not found - creating..."
+          
+          # Note that all the attributes need to be strings in this hash.
+          attr = {
+            :cn => group.name,
+            :groupType => group.type.to_s,
+            :name => group.name,
+            # All groups are of the objectclasses "top" and "group".
+            :objectclass => [ "top", "group" ],
+            :sAMAccountName => group.name
+          }
+          
+          attr.merge!({
+            :gidNumber => group.gid.to_s,
+            :msSFU30Name => group.name,
+            :msSFU30NisDomain => group.nis_domain,
+            :unixUserPassword => group.unix_password
+          }) if group.instance_of? UNIXGroup
+          
+          @ldap.add(:dn => group.distinguished_name, :attributes => attr)
+          
+          unless @ldap.get_operation_result.code == 0
+            puts "SYNC ERROR: " + @ldap.get_operation_result.message
+          end
+        else
+          puts "SYNC WARNING: #{group.name} already exist. Not created."
+        end
+      end
+    end
+    
+    # Create a User or UNIXUser in Active Directory. The User or UNIXUser
+    # must have its loaded attribute set to false, which indicates it was
+    # manually created. This method checks that, so it is not necessary to
+    # worry about checking first. This method also makes sure the user is not
+    # already in Active Directory, in case someone created a user that would
+    # match one that already exists. Therefore, any User or UNIXUser can be
+    # passed into this method.
+    def create_user(user)
+      unless user.loaded?
+        user_filter = Net::LDAP::Filter.eq("objectclass", "user")
+        # The return value will be false explicitly if the search fails,
+        # otherwise it will be an array of entries. Therefore it is important
+        # to check for false explicitly for a failure. A failure indicates
+        # that the group needs to be created.
+        found = @ldap.search(:base => user.distinguished_name,
+                             :filter => user_filter, :return_result => false)
+        
+        # The user should not already exist of course. This is to make sure
+        # it is not already there.
+        if found == false
+          # We need the RID of the user's primary Windows group. If the primary
+          # Windows group has true for its loaded attribute, it knows its RID
+          # already. If not, we need to search Active Directory to find it
+          # because it might have been created.
+          rid = user.primary_group.rid
+          
+          unless user.primary_group.loaded
+            group_filter = Net::LDAP::Filter.eq("objectclass", "group")
+            
+            @ldap.search(:base => user.primary_group.distinguished_name,
+                         :filter => group_filter) do |entry|
+              rid = sid2rid_int(entry.objectSid.pop)
+            end
+          end
+          
+          if rid.nil?
+            puts "SYNC ERROR: RID of #{user.primary_group.name} not found."
+            return
+          end
+          
+          puts "#{user.username} not found - creating..."
+          
+          # Note that all the attributes need to be strings in this hash.
+          # What in the heck do we do about the Windows password?
+          attr = {
+            :cn => user.common_name,
+            #:badPasswordTime => 0.to_s,
+            #:badPwdCount => 0.to_s,
+            #:codePage => 0.to_s,
+            #:countryCode => 0.to_s,
+            #:dSCorePropagationData => 0.to_s,
+            #:instanceType => 4.to_s,
+            #:distinguishedName => user.distinguished_name,
+            # All users are of the objectclasses "top", "person",
+            # "orgainizationalPerson", and "user".
+            :objectclass => [ "top", "person", "organizationalPerson", "user" ],
+            #:primaryGroupID => rid.to_s,
+            #:pwdLastSet => 128872710726572500.to_s,
+            :sAMAccountName => user.username,
+            #:sAMAccountType => 805306368.to_s,
+            :userAccountControl => (UF_NORMAL_ACCOUNT + UF_PASSWD_NOTREQD +
+                                    UF_PASSWORD_EXPIRED +
+                                    UF_ACCOUNTDISABLE).to_s
+          }
+          
+          display_name = description = name = ""
+          
+          # These are optional attributes.
+          unless user.first_name.nil?
+            attr.merge!({ :givenName => user.first_name })
+            display_name += "#{user.first_name}"
+            description += "#{user.first_name}"
+            name += "#{user.first_name}"
+          end
+          
+          unless user.middle_name.nil?
+            attr.merge!({ :middleName => user.middle_name })
+            display_name += " #{user.middle_name}"
+            description += " #{user.middle_name}"
+          end
+          
+          unless user.surname.nil?
+            attr.merge!({ :sn => user.surname })
+            display_name += " #{user.surname}"
+            description += " #{user.surname}"
+            name += " #{user.surname}"
+          end
+          
+          # We should set these to something in case they were not set.
+          if display_name == ""
+            display_name = user.username
+          end
+          
+          if description == ""
+            description = user.username
+          end
+          
+          if name == ""
+            name = user.username
+          end
+          
+          realm = user.username + "@#{@domain}"
+          
+          attr.merge!({
+            :displayName => display_name,
+            :description => description,
+            :name => name,
+            #:userPrincipalName => realm,
+            #:userPassword => "n3wU$3R@1"
+            #:unicodePwd => NKF.nkf('-w16m0', '"n3wU$3R@1"'),
+            #:pwdLastSet => 0.to_s,
+            #:lockoutTime => 0.to_s
+          })
+          
+          #attr.merge!({
+          #  :msSFU30Name => user.username,
+          #  :msSFU30NisDomain => user.nis_domain,
+          #  :unixUserPassword => user.unix_password
+          #}) if user.instance_of? UNIXUser
+          
+          puts attr.to_yaml
+          puts user.distinguished_name
+          @ldap.add(:dn => user.distinguished_name, :attributes => attr)
+          
+          unless @ldap.get_operation_result.code == 0
+            puts "SYNC ERROR: " + @ldap.get_operation_result.message
+            puts "  Error code: " + @ldap.get_operation_result.code.to_s
+          end
+        else
+          puts "SYNC WARNING: #{user.username} already exists. Not created."
+        end
+      end
     end
   end
 end
