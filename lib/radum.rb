@@ -52,17 +52,17 @@ module RADUM
   # the RADUM group type constants.
   def RADUM.group_type_to_s(type)
     case type
-    when RADUM::GROUP_DOMAIN_LOCAL_SECURITY
+    when GROUP_DOMAIN_LOCAL_SECURITY
       "GROUP_DOMAIN_LOCAL_SECURITY"
-    when RADUM::GROUP_DOMAIN_LOCAL_DISTRIBUTION
+    when GROUP_DOMAIN_LOCAL_DISTRIBUTION
       "GROUP_DOMAIN_LOCAL_DISTRIBUTION"
-    when RADUM::GROUP_GLOBAL_SECURITY
+    when GROUP_GLOBAL_SECURITY
       "GROUP_GLOBAL_SECURITY"
-    when RADUM::GROUP_GLOBAL_DISTRIBUTION
+    when GROUP_GLOBAL_DISTRIBUTION
       "GROUP_GLOBAL_DISTRIBUTION"
-    when RADUM::GROUP_UNIVERSAL_SECURITY
+    when GROUP_UNIVERSAL_SECURITY
       "GROUP_UNIVERSAL_SECURITY"
-    when RADUM::GROUP_UNIVERSAL_DISTRIBUTION
+    when GROUP_UNIVERSAL_DISTRIBUTION
       "GROUP_UNIVERSAL_DISTRIBUTION"
     else "UNKNOWN"
     end
@@ -283,8 +283,8 @@ module RADUM
       # "Distribution" most definitely. The AD group type must be "Security"
       # for primary groups. I am just going to avoid as much confusion as
       # possible unless someone were to complain.
-      unless primary_group.type == RADUM::GROUP_GLOBAL_SECURITY ||
-             primary_group.type == RADUM::GROUP_UNIVERSAL_SECURITY
+      unless primary_group.type == GROUP_GLOBAL_SECURITY ||
+             primary_group.type == GROUP_UNIVERSAL_SECURITY
              raise "User primary group must be of type GROUP_GLOBAL_SECURITY" +
              " or GROUP_UNIVERSAL_SECURITY."
       end
@@ -415,8 +415,8 @@ module RADUM
         raise "Group must be in the same directory."
       end
       
-      unless group.type == RADUM::GROUP_GLOBAL_SECURITY ||
-             group.type == RADUM::GROUP_UNIVERSAL_SECURITY
+      unless group.type == GROUP_GLOBAL_SECURITY ||
+             group.type == GROUP_UNIVERSAL_SECURITY
              raise "User primary group must be of type GROUP_GLOBAL_SECURITY" +
              " or GROUP_UNIVERSAL_SECURITY."
       end
@@ -851,8 +851,7 @@ module RADUM
     # (case-insensitive) and the rid must be unique in the AD object, otherwise
     # a RuntimeError is raised. The type must be one of the RADUM group type
     # constants.
-    def initialize(name, container, type = RADUM::GROUP_GLOBAL_SECURITY,
-                   rid = nil)
+    def initialize(name, container, type = GROUP_GLOBAL_SECURITY, rid = nil)
       # The RID must be unique.
       if container.directory.rids.include? rid
         raise "RID is already in use in the directory."
@@ -991,7 +990,7 @@ module RADUM
     # (case-insensitive), rid, and gid must be unique in the AD object,
     # otherwise a RuntimeError is raised. The type must be one of the RADUM
     # group type constants.
-    def initialize(name, container, gid, type = RADUM::GROUP_GLOBAL_SECURITY,
+    def initialize(name, container, gid, type = GROUP_GLOBAL_SECURITY,
                    nis_domain = "radum", rid = nil)
       # The GID must be unique.
       if container.directory.gids.include? gid
@@ -1157,7 +1156,7 @@ module RADUM
       # primary group. If we did not do this, there would likely be a ton
       # of warning messages in the load() method. Keep in mind that containers
       # automatically add themselves to their AD object.
-      RADUM::Container.new("cn=Users", self)
+      Container.new("cn=Users", self)
     end
     
     # The port number used to communicate with the Active Directory server.
