@@ -1705,7 +1705,7 @@ module RADUM
     # Active Directory is expecting for the unicodePwd attribute has to be
     # explicitly quoted.
     def str2utf16le(str)
-      ('"' + str + '"').gsub(/./) { |c| "#{c}\000" }
+      ('"' + str + '"').gsub(/./) { |c| "#{c}\0" }
     end
     
     # Check the LDAP operation result code for an error message.
