@@ -43,8 +43,9 @@ module RADUM
   UF_PASSWD_NOTREQD = 0x0020;
   UF_PASSWD_CANT_CHANGE = 0x0040;
   UF_NORMAL_ACCOUNT = 0x0200;
-  UF_DONT_EXPIRE_PASSWD = 0x10000;
-  UF_PASSWORD_EXPIRED = 0x800000;
+  # I don't think these are working - I am sure the last one doesn't work.
+  #UF_DONT_EXPIRE_PASSWD = 0x10000;
+  #UF_PASSWORD_EXPIRED = 0x800000;
   
   # This is a convenience method to return a String representation of a
   # Group or UNIXGroup object's type attribute, which has the value of one of
@@ -66,14 +67,6 @@ module RADUM
     else "UNKNOWN"
     end
   end
-  
-  # User status constants.
-  #
-  # These are the userAccountControl values for Users and UNIXUsers as far as
-  # I am aware from direct testing. These are small enough to be represented
-  # as Fixnums.
-  USER_DISABLED = 0x202
-  USER_ENABLED = 0x200
   
   # The Container class represents a directory entry which contains users and
   # groups, usually an orgainizational unit (OU).
@@ -255,7 +248,14 @@ module RADUM
     # username (case-insensitive) and the rid must be unique in the AD object,
     # otherwise a RuntimeError is raised. The primary_group must be of the
     # type RADUM::GROUP_GLOBAL_SECURITY or RADUM::GROUP_UNIVERSAL_SECURITY
-    # or a RuntimeError is raised.
+    # or a RuntimeError is raised. Note that a User will be forced to change
+    # their Windows password on their first login unless this is changed by
+    # calling the toggle_must_change_password method. If no password is set
+    # for the User, a random password will be generated. The random password
+    # will probably meet Group Policy password security requirements, but it
+    # is suggested that a password be set to ensure this is the case, otherwise
+    # setting the User password during Active Directory creation might fail,
+    # which results in a disabled user account that has no password.
     def initialize(username, container, primary_group, disabled = false,
                    rid = nil) # :doc:
       # The RID must be unique.
@@ -298,6 +298,7 @@ module RADUM
       @middle_name = nil
       @surname = nil
       @password = nil
+      @must_change_password = true
       # A UNIXUser adding itself the container needs to happen at the end of
       # the initializer in that class instead because the UID value is needed.
       # The removed flag must be set to true first since we are not in the
@@ -389,6 +390,20 @@ module RADUM
     # password will be changed.
     def password=(password)
       @password = password
+      @modified = true
+    end
+    
+    # Check if the User or UNIXUser has to change their Windows password on
+    # their first login. Returns true if this is the case, false otherwise.
+    def must_change_password?
+      @must_change_password
+    end
+    
+    # Toggle if the User or UNIXUser must change their password on their first
+    # login. Note that the default value is to force a password change on the
+    # first login.
+    def toggle_must_change_password
+      @must_change_password = !@must_change_password
       @modified = true
     end
     
@@ -1475,7 +1490,8 @@ module RADUM
           
           rid = sid2rid_int(entry.objectSid.pop)
           primary_group = find_group_by_rid entry.primaryGroupID.pop.to_i
-          disabled = entry.userAccountControl.pop.to_i == 0x202 ? true : false
+          disabled = entry.userAccountControl.pop.to_i ==
+                            UF_NORMAL_ACCOUNT + UF_ACCOUNTDISABLE ? true : false
           
           # Note that users add themselves to their container. We have to have
           # found the primary_group already, or we can't make the user. The
@@ -1680,7 +1696,7 @@ module RADUM
     # Unpack a RID from the SID value in the LDAP objectSid attribute for a
     # user or group in Active Directory.
     def sid2rid_int(sid)
-      sid.unpack("H2H2nNV*").pop.to_i
+      sid.unpack("qV*").pop.to_i
     end
     
     # Convert a string to UTF-16LE. For ASCII characters, the result should be
@@ -1690,6 +1706,14 @@ module RADUM
     # explicitly quoted.
     def str2utf16le(str)
       ('"' + str + '"').gsub(/./) { |c| "#{c}\000" }
+    end
+    
+    # Check the LDAP operation result code for an error message.
+    def check_ldap_result
+      unless @ldap.get_operation_result.code == 0
+        puts "LDAP ERROR: " + @ldap.get_operation_result.message
+        puts "[Error code: " + @ldap.get_operation_result.code.to_s + "]"
+      end
     end
     
     # Create a Group or UNIXGroup in Active Directory. The Group or UNIXGroup
@@ -1732,13 +1756,10 @@ module RADUM
             :unixUserPassword => group.unix_password
           }) if group.instance_of? UNIXGroup
           
-          @ldap.add(:dn => group.distinguished_name, :attributes => attr)
-          
-          unless @ldap.get_operation_result.code == 0
-            puts "SYNC ERROR: " + @ldap.get_operation_result.message
-          end
+          @ldap.add :dn => group.distinguished_name, :attributes => attr
+          check_ldap_result
         else
-          puts "SYNC WARNING: #{group.name} already exist. Not created."
+          puts "SYNC WARNING: #{group.name} already exists. Not created."
         end
       end
     end
@@ -1769,6 +1790,8 @@ module RADUM
           # because it might have been created.
           rid = user.primary_group.rid
           
+          # If the group was loaded, we don't need to search for the group's
+          # RID as the step above would have the right value.
           unless user.primary_group.loaded
             group_filter = Net::LDAP::Filter.eq("objectclass", "group")
             
@@ -1789,22 +1812,11 @@ module RADUM
           # What in the heck do we do about the Windows password?
           attr = {
             :cn => user.common_name,
-            #:badPasswordTime => 0.to_s,
-            #:badPwdCount => 0.to_s,
-            #:codePage => 0.to_s,
-            #:countryCode => 0.to_s,
-            #:dSCorePropagationData => 0.to_s,
-            #:instanceType => 4.to_s,
-            #:distinguishedName => user.distinguished_name,
             # All users are of the objectclasses "top", "person",
             # "orgainizationalPerson", and "user".
             :objectclass => [ "top", "person", "organizationalPerson", "user" ],
-            #:primaryGroupID => rid.to_s,
-            #:pwdLastSet => 128872710726572500.to_s,
             :sAMAccountName => user.username,
-            #:sAMAccountType => 805306368.to_s,
             :userAccountControl => (UF_NORMAL_ACCOUNT + UF_PASSWD_NOTREQD +
-                                    UF_PASSWORD_EXPIRED +
                                     UF_ACCOUNTDISABLE).to_s
           }
           
@@ -1851,26 +1863,54 @@ module RADUM
             :description => description,
             :name => name,
             :userPrincipalName => realm,
-            #:userPassword => "n3wU$3R@1"
-            #:unicodePwd => NKF.nkf('-w16m0', '"n3wU$3R@1"'),
-            #:pwdLastSet => 0.to_s,
-            #:lockoutTime => 0.to_s
           })
           
-          #attr.merge!({
-          #  :msSFU30Name => user.username,
-          #  :msSFU30NisDomain => user.nis_domain,
-          #  :unixUserPassword => user.unix_password
-          #}) if user.instance_of? UNIXUser
+          attr.merge!({
+            :gecos => user.gecos,
+            :gidNumber => user.unix_main_group.gid.to_s,
+            :loginShell => user.shell,
+            :msSFU30Name => user.username,
+            :msSFU30NisDomain => user.nis_domain,
+            :uidNumber => user.uid.to_s,
+            :unixHomeDirectory => user.home_directory,
+            :unixUserPassword => user.unix_password
+          }) if user.instance_of? UNIXUser
+          
+          # The shadow file attributes are all optional, so we need to check
+          # each one. The other UNIX attributes above are set to something
+          # by default.
+          unless user.shadow_expire.nil?
+            attr.merge!({ :shadowExpire => user.shadow_expire.to_s })
+          end
+          
+          unless user.shadow_flag.nil?
+            attr.merge!({ :shadowFlag => user.shadow_flag.to_s })
+          end
+          
+          unless user.shadow_inactive.nil?
+            attr.merge!({ :shadowInactive => user.shadow_inactive.to_s })
+          end
+          
+          unless user.shadow_last_change.nil?
+            attr.merge!({ :shadowLastChange => user.shadow_last_change.to_s })
+          end
+          
+          unless user.shadow_max.nil?
+            attr.merge!({ :shadowMax => user.shadow_max.to_s })
+          end
+          
+          unless user.shadow_min.nil?
+            attr.merge!({ :shadowMin => user.shadow_min.to_s })
+          end
+          
+          unless user.shadow_warning.nil?
+            attr.merge!({ :shadowWarning => user.shadow_warning.to_s })
+          end
           
           puts attr.to_yaml
           puts user.distinguished_name
-          @ldap.add(:dn => user.distinguished_name, :attributes => attr)
-          
-          unless @ldap.get_operation_result.code == 0
-            puts "SYNC ERROR: " + @ldap.get_operation_result.message
-            puts "  Error code: " + @ldap.get_operation_result.code.to_s
-          end
+          @ldap.add :dn => user.distinguished_name, :attributes => attr
+          check_ldap_result
           
           # Modify the attributes for the user password and userAccountControl
           # value to enable the account.
@@ -1878,19 +1918,56 @@ module RADUM
           # NOTE: HANDLE THE CASE WHERE THERE IS NO PASSWORD. Also note in the
           # documentation the user will be forced to change their password on
           # the first login.
+          user_status = UF_NORMAL_ACCOUNT
+          user_status += UF_ACCOUNTDISABLE if user.disabled?
+          
           ops = [
              [:replace, :unicodePwd, str2utf16le(user.password)],
-             [:replace, :userAccountControl, (UF_NORMAL_ACCOUNT +
-                                             UF_PASSWORD_EXPIRED).to_s],
+             [:replace, :userAccountControl, user_status.to_s]
            ]
            
            puts ops.to_yaml
            @ldap.modify :dn => user.distinguished_name, :operations => ops
+           check_ldap_result
            
-           unless @ldap.get_operation_result.code == 0
-             puts "SYNC ERROR: " + @ldap.get_operation_result.message
-             puts "  Error code: " + @ldap.get_operation_result.code.to_s
+           # If the user has to change their password, it must be done below
+           # and not in the previous step that set their password because it
+           # will ignore the additional flag (which I've commented out near
+           # the top of this file because it does not work now). This works.
+           if user.must_change_password?
+             ops = [
+               [:replace, :pwdLastSet, 0.to_s]
+             ]
+             
+             puts ops.to_yaml
+             @ldap.modify :dn => user.distinguished_name, :operations => ops
+             check_ldap_result
            end
+           
+           # The user already has the primary Windows group as Domain Users
+           # based on the default actions above. If the user has a different
+           # primary Windows group, it is necessary to add the user to that
+           # group first (as a member in the member attribute for the group)
+           # before attempting to set their primaryGroupID attribute or Active
+           # Directory will refuse to do it.
+           unless rid == find_group("Domain Users").rid
+             ops = [
+               [:add, :member, user.distinguished_name]
+             ]
+             
+             puts ops.to_yaml
+             @ldap.modify :dn => user.primary_group.distinguished_name,
+                          :operations => ops
+             check_ldap_result
+             
+             ops = [
+               [:replace, :primaryGroupID, rid.to_s]
+             ]
+             
+             puts ops.to_yaml
+             @ldap.modify :dn => user.distinguished_name, :operations => ops
+             check_ldap_result
+          end
         else
           puts "SYNC WARNING: #{user.username} already exists. Not created."
         end
