@@ -25,9 +25,27 @@ module RADUM
     #   cn = RADUM::Container.new("ou=People", ad)
     #
     # Spaces are removed from the name. The Container must not already be
-    # in the AD or a RuntimeError is raised.
+    # in the AD or a RuntimeError is raised. Note that you can create Container
+    # objects for an actual container in Active Directory or an organizational
+    # unit (referred to here as a "container" since it logically contains
+    # objects and this is a higher level representation). Only specify
+    # Containers that are really containers (cn=Foo) or organizational units
+    # (ou=Foo). Also note that orgainizational units can hold containers, but
+    # containers cannot hold organizational units. Therefore ou=foo,cn=bar is
+    # invalid, but cn=foo,ou=bar is valid. A RuntimeError is raised if this
+    # rule is violated. Lastly, Container objects are in a conceptually flat
+    # namespace. In other words, cn=foo,ou=bar is its own Container object.
+    # It is not represented as a child of the ou=bar organizational unit.
+    # This has been accounted for when synchronizing so that things work.
+    # For example, the cn=foo,ou=bar Container object will cause the ou=bar
+    # organizational unit to be created first, if necessary, before the cn=bar
+    # container is created. It's magic.
     def initialize(name, directory) # :doc:
       name.gsub!(/\s+/, "")
+      
+      if name =~ /[Oo][Uu]=.*[Cc][Nn]=/
+        raise "Container CN objects cannot contain OU objects."
+      end
       
       # The container name (like a user) must be unique (case-insensitive).
       # We would not want someone accidently making two equal containers

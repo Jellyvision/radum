@@ -652,7 +652,16 @@ module RADUM
     # unset attributes will be removed, and modified attributes will be
     # updated automatically.
     def sync
-      # First, make sure any groups that need to be created are added to Active
+      # First, create any containers or organizational units that do not already
+      # exist.
+      @containers.each do |container|
+        # This method only creates containers that do not already exist. Since
+        # containers are not loaded directly at first, their status is directly
+        # tested in the method.
+        create_container container
+      end
+      
+      # Second, make sure any groups that need to be created are added to Active
       # Directory.
       @containers.each do |container|
         container.groups.each do |group|
@@ -661,7 +670,7 @@ module RADUM
         end
       end
       
-      # Second, make sure any users that need to be created are added to Active
+      # Third, make sure any users that need to be created are added to Active
       # Directory.
       @containers.each do |container|
         container.users.each do |user|
@@ -713,6 +722,68 @@ module RADUM
       end
     end
     
+    # Create a Container in Active Directory. Each Container is searched for
+    # directly and created if it does not already exist. This method also
+    # automatically creates parent containers as required. This is safe to
+    # do, even if one of those was also passed to this method later (since it
+    # would then be found).
+    def create_container(container)
+      distinguished_name = @root
+      # This depends on the fact that the Container name had all spaces stripped
+      # out in the initialize() method of the Container class.
+      container.name.split(/,/).reverse.each do |current_name|
+        # We have to keep track of the current path so that we have a
+        # distinguished name to work wtih.
+        distinguished_name = "#{current_name},#{distinguished_name}"
+        
+        if current_name =~ /^[Oo][Uu]=/
+          type = "organizationalUnit"
+        elsif current_name =~ /^[Cc][Nn]=/
+          type = "container"
+        else
+          puts "SYNC ERROR: " + container.name + " ( #{current_name}) - " +
+               "unknown Container type."
+          return
+        end
+        
+        container_filter = Net::LDAP::Filter.eq("objectclass", type)
+        # The return value will be false explicitly if the search fails,
+        # otherwise it will be an array of entries. Therefore it is important
+        # to check for false explicitly for a failure. A failure indicates
+        # that the container needs to be created.
+        found = @ldap.search(:base => distinguished_name,
+                             :filter => container_filter,
+                             :return_result => false)
+        
+        if found == false
+          puts "#{distinguished_name} not found - creating..."
+          
+          # Note that all the attributes need to be strings in the attr hash.
+          if type == "organizationalUnit"
+            attr = {
+              :name => current_name.split(/,/)[0].gsub(/[Oo][Uu]=/, ""),
+              :objectclass => ["top", "organizationalUnit"]
+            }
+          elsif type == "container"
+            name = current_name.split(/,/)[0].gsub(/[Cc][Nn]=/, "")
+            
+            attr = {
+              :cn => name,
+              :name => name,
+              :objectclass => ["top", "container"]
+            }
+          else
+            puts "SYNC ERROR: " + container.name + " ( #{current_name}) - " +
+                 "unknown Container type."
+            return
+          end
+          
+          @ldap.add :dn => distinguished_name, :attributes => attr
+          check_ldap_result
+        end
+      end
+    end
+    
     # Create a Group or UNIXGroup in Active Directory. The Group or UNIXGroup
     # must have its loaded attribute set to false, which indicates it was
     # manually created. This method checks that, so it is not necessary to
@@ -742,7 +813,7 @@ module RADUM
             :groupType => group.type.to_s,
             :name => group.name,
             # All groups are of the objectclasses "top" and "group".
-            :objectclass => [ "top", "group" ],
+            :objectclass => ["top", "group"],
             :sAMAccountName => group.name
           }
           
@@ -774,7 +845,7 @@ module RADUM
         # The return value will be false explicitly if the search fails,
         # otherwise it will be an array of entries. Therefore it is important
         # to check for false explicitly for a failure. A failure indicates
-        # that the group needs to be created.
+        # that the user needs to be created.
         found = @ldap.search(:base => user.distinguished_name,
                              :filter => user_filter, :return_result => false)
         
@@ -806,12 +877,11 @@ module RADUM
           puts "#{user.username} not found - creating..."
           
           # Note that all the attributes need to be strings in this hash.
-          # What in the heck do we do about the Windows password?
           attr = {
             :cn => user.common_name,
             # All users are of the objectclasses "top", "person",
             # "orgainizationalPerson", and "user".
-            :objectclass => [ "top", "person", "organizationalPerson", "user" ],
+            :objectclass => ["top", "person", "organizationalPerson", "user"],
             :sAMAccountName => user.username,
             :userAccountControl => (UF_NORMAL_ACCOUNT + UF_PASSWD_NOTREQD +
                                     UF_ACCOUNTDISABLE).to_s

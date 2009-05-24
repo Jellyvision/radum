@@ -168,4 +168,10 @@ class TC_Container < Test::Unit::TestCase
          @ad1.rids.find { |rid| rid == 1002 })
     end
   end
+  
+  def test_container_with_organizational_unit_exception
+    assert_raise RuntimeError do
+      RADUM::Container.new("ou=foo,cn=bar", @ad1)
+    end
+  end
 end
