@@ -1,4 +1,4 @@
-#!/usr/bin/ruby
+#!/usr/bin/ruby -I ../lib
 
 # Tests are automatically run just by requiring these.
 require 'tc_container'
