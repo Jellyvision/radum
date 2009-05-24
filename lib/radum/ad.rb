@@ -5,10 +5,9 @@
 # and a UNIXGroup represents a Windows group that has UNIX attributes. This
 # module concentrates only on users and groups at this time.
 #
-# This is a pure Ruby implementation, but when possible it utilizes the
-# Windows command line to create users and groups as needed. On UNIX systems
-# these methods will fail by returning nil. Methods that fall under this
-# restriction are noted.
+# This is a pure Ruby implementation. Windows command line tools are not
+# used in any way, so this will work from other platforms such as Mac OS X
+# and Linux in addition to Windows.
 #
 # Author:: Shaun Rowland <mailto:rowand@shaunrowland.com>
 # Copyright:: Copyright 2009 Shaun Rowland. All rights reserved.
@@ -69,8 +68,8 @@ module RADUM
   # handled by the AD object. The AD object should be the first object created,
   # generally followed by Container objects. The Container object requires an
   # AD object. All other objects require a Container object. Generally, methods
-  # prefixed with "load_" pull data out of the Active Directory and methods
-  # prefixed with "sync_" push data to the Active Directory as required.
+  # prefixed with "load" pull data out of the Active Directory and methods
+  # prefixed with "sync" push data to the Active Directory as required.
   class AD
     # The root of the Active Directory. This is a String representing an LDAP
     # path, such as "dc=example,dc=com".
@@ -108,7 +107,7 @@ module RADUM
     # "dc=example,dc=com". The password is used in conjunction with the
     # specified user, which defaults to Administrator
     # ("cn=Administrator,cn=Users"), to authenticate when a connection is
-    # is actually utilized in data processing ("load_" and "sync_" prefixed
+    # is actually utilized in data processing ("load" and "sync" prefixed
     # methods). The server is a String representing either the hostname or IP
     # address of the Active Directory server, which defaults to "localhost".
     # This module requires TLS to create user accounts in Active Directory
