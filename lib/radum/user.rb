@@ -23,10 +23,6 @@ module RADUM
     # is not added to the groups array directly. This matches the implicit
     # membership in the primary Windows group in Active Directory.
     attr_reader :groups
-    # True if the User or UNIXUser has been modified. This is true for manually
-    # created User or UNIXUser objects and false for initially loaded User and
-    # UNIXUser objects.
-    attr_reader :modified
     # True if the User or UNIXUser has been removed from the Container, false
     # otherwise. This is set by the Container if the User or UNIXUser is
     # removed.
@@ -302,7 +298,7 @@ module RADUM
     
     # Set the loaded flag. Calling this only has an effect once. This is only
     # callled by AD.load when a User or UNIXUser is initially loaded.
-    def loaded
+    def set_loaded
       # This allows the modified attribute to be hidden.
       unless @loaded
         @loaded = true
@@ -313,6 +309,24 @@ module RADUM
     # Check if the User or UNIXUser was loaded from Active Directory.
     def loaded?
       @loaded
+    end
+    
+    # True if the User or UNIXUser has been modified. This is true for manually
+    # created User or UNIXUser objects and false for initially loaded User and
+    # UNIXUser objects.
+    def modified?
+      @modified
+    end
+    
+    # Set the RID only if it has not already been set. This is used by the AD
+    # class when doing synchronization. Once there is a RID value, it can be
+    # set. This is not meant for general use. It will only set the rid attribute
+    # if it has not already been set.
+    def set_rid(rid)
+      if @rid.nil?
+        @rid = rid
+        @container.directory.rids.push rid
+      end
     end
     
     # The String representation of the User object.

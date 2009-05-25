@@ -28,10 +28,6 @@ module RADUM
     attr_reader :users
     # The Group or UNIXGroup objects that are members of the Group or UNIXGroup.
     attr_reader :groups
-    # True if the Group or UNIXGroup has been modified. This is true for
-    # manually created Group or UNIXGroup objects and false for initially
-    # loaded Group and UNIXGroup objects.
-    attr_reader :modified
     # True if the Group or UNIXGroup has been removed from the Container, false
     # otherwise. This is set by the Container if the Group is removed.
     attr_accessor :removed
@@ -147,7 +143,7 @@ module RADUM
     
     # Set the loaded flag. Calling this only has an effect once. This is only
     # callled by AD.load when a Group or UNIXGroup is initially loaded.
-    def loaded
+    def set_loaded
       # This allows the modified attribute to be hidden.
       unless @loaded
         @loaded = true
@@ -158,6 +154,24 @@ module RADUM
     # Check if the Group or UNIXGroup was loaded from Active Directory.
     def loaded?
       @loaded
+    end
+    
+    # True if the Group or UNIXGroup has been modified. This is true for
+    # manually created Group or UNIXGroup objects and false for initially
+    # loaded Group and UNIXGroup objects.
+    def modified?
+      @modified
+    end
+    
+    # Set the RID only if it has not already been set. This is used by the AD
+    # class when doing synchronization. Once there is a RID value, it can be
+    # set. This is not meant for general use. It will only set the rid attribute
+    # if it has not already been set.
+    def set_rid(rid)
+      if @rid.nil?
+        @rid = rid
+        @container.directory.rids.push rid
+      end
     end
     
     # The String representation of the Group object.

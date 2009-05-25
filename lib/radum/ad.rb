@@ -342,40 +342,16 @@ module RADUM
         base = container.name + ",#{@root}"
         
         @ldap.search(:base => base, :filter => group_filter) do |entry|
-          # These are attributes that might be empty. If they are empty,
-          # a NoMethodError exception will be raised. We have to check each
-          # individually and set an initial indicator value (nil). All the
-          # other attributes should exist and do not require this level of
-          # checking.
-          gid = nil
-          nis_domain = nil
-          unix_password = nil
-          
-          begin
-            gid = entry.gidNumber.pop.to_i
-          rescue NoMethodError
-          end
-          
-          begin
-            nis_domain = entry.msSFU30NisDomain.pop
-          rescue NoMethodError
-          end
-          
-          begin
-            unix_password = entry.unixUserPassword.pop
-          rescue NoMethodError
-          end
-          
-          rid = sid2rid_int(entry.objectSid.pop)
+          attr = group_ldap_entry_attr entry
           
           # Note that groups add themselves to their container.
-          if gid
-            nis_domain = "radum" unless nis_domain
-            group = UNIXGroup.new(entry.name.pop, container, gid,
-                                  entry.groupType.pop.to_i, nis_domain, rid)
-            group.unix_password = unix_password if unix_password
+          if attr[:gid]
+            attr[:nis_domain] = "radum" unless attr[:nis_domain]
+            group = UNIXGroup.new(attr[:name], container, attr[:gid],
+                                  attr[:type], attr[:nis_domain], attr[:rid])
+            group.unix_password = attr[:unix_password] if attr[:unix_password]
           else
-            Group.new(entry.name.pop, container, entry.groupType.pop.to_i, rid)
+            Group.new(attr[:name], container, attr[:type], attr[:rid])
           end 
         end
       end
@@ -388,106 +364,7 @@ module RADUM
         base = container.name + ",#{@root}"
         
         @ldap.search(:base => base, :filter => user_filter) do |entry|
-          # These are attributes that might be empty. If they are empty,
-          # a NoMethodError exception will be raised. We have to check each
-          # individually and set an initial indicator value (nil). All the
-          # other attributes should exist and do not require this level of
-          # checking.
-          first_name = nil
-          middle_name = nil
-          surname = nil
-          uid = nil
-          gid = nil
-          nis_domain = nil
-          gecos = nil
-          unix_password = nil
-          shadow_expire = nil
-          shadow_flag = nil
-          shadow_inactive = nil
-          shadow_last_change = nil
-          shadow_max = nil
-          shadow_min = nil
-          shadow_warning = nil
-          
-          begin
-            first_name = entry.givenName.pop
-          rescue NoMethodError
-          end
-          
-          begin
-            middle_name = entry.middleName.pop
-          rescue NoMethodError
-          end
-          
-          begin
-            surname = entry.sn.pop
-          rescue NoMethodError
-          end
-          
-          begin
-            uid = entry.uidNumber.pop.to_i
-          rescue NoMethodError
-          end
-
-          begin
-            gid = entry.gidNumber.pop.to_i
-          rescue NoMethodError
-          end
-          
-          begin
-            nis_domain = entry.msSFU30NisDomain.pop
-          rescue NoMethodError
-          end
-          
-          begin
-            gecos = entry.gecos.pop
-          rescue NoMethodError
-          end
-          
-          begin
-            unix_password = entry.unixUserPassword.pop
-          rescue NoMethodError
-          end
-          
-          begin
-            shadow_expire = entry.shadowExpire.pop.to_i
-          rescue NoMethodError
-          end
-          
-          begin
-            shadow_flag = entry.shadowFlag.pop.to_i
-          rescue NoMethodError
-          end
-          
-          begin
-            shadow_inactive = entry.shadowInactive.pop.to_i
-          rescue NoMethodError
-          end
-          
-          begin
-            shadow_last_change = entry.shadowLastChange.pop.to_i
-          rescue NoMethodError
-          end
-          
-          begin
-            shadow_max = entry.shadowMax.pop.to_i
-          rescue NoMethodError
-          end
-          
-          begin
-            shadow_min = entry.shadowMin.pop.to_i
-          rescue NoMethodError
-          end
-          
-          begin
-            shadow_warning = entry.shadowWarning.pop.to_i
-          rescue NoMethodError
-          end
-          
-          rid = sid2rid_int(entry.objectSid.pop)
-          primary_group = find_group_by_rid entry.primaryGroupID.pop.to_i
-          disabled = entry.userAccountControl.pop.to_i ==
-                            UF_NORMAL_ACCOUNT + UF_ACCOUNTDISABLE ? true : false
+          attr = user_ldap_entry_attr entry
           
           # Note that users add themselves to their container. We have to have
           # found the primary_group already, or we can't make the user. The
@@ -496,44 +373,51 @@ module RADUM
           # it defines is defined nowhere else however. We will print a warning
           # for any users skipped. This is why the AD object automatically
           # adds a cn=Users container.
-          if primary_group
-            if uid && gid
-              if unix_main_group = find_group_by_gid(gid)
-                nis_domain = "radum" unless nis_domain
-                user = UNIXUser.new(entry.sAMAccountName.pop, container,
-                                    primary_group, uid, unix_main_group,
-                                    entry.loginShell.pop,
-                                    entry.unixHomeDirectory.pop, nis_domain,
-                                    disabled, rid)
-                user.common_name = entry.cn.pop
-                user.first_name = first_name if first_name
-                user.middle_name = middle_name if middle_name
-                user.surname = surname if surname
-                user.gecos = gecos if gecos
-                user.unix_password = unix_password if unix_password
-                user.shadow_expire = shadow_expire if shadow_expire
-                user.shadow_flag = shadow_flag if shadow_flag
-                user.shadow_inactive = shadow_inactive if shadow_inactive
-                user.shadow_last_change = shadow_last_change if
-                                          shadow_last_change
-                user.shadow_max = shadow_max if shadow_max
-                user.shadow_min = shadow_min if shadow_min
-                user.shadow_warning = shadow_warning if shadow_warning
+          if attr[:primary_group]
+            if attr[:uid] && attr[:gid]
+              if unix_main_group = find_group_by_gid(attr[:gid])
+                attr[:nis_domain] = "radum" unless attr[:nis_domain]
+                user = UNIXUser.new(attr[:username], container,
+                                    attr[:primary_group], attr[:uid],
+                                    unix_main_group, attr[:shell],
+                                    attr[:home_directory],
+                                    attr[:nis_domain], attr[:disabled?],
+                                    attr[:rid])
+                user.common_name = attr[:common_name]
+                user.first_name = attr[:first_name] if attr[:first_name]
+                user.middle_name = attr[:middle_name] if attr[:middle_name]
+                user.surname = attr[:surname] if attr[:surname]
+                user.gecos = attr[:gecos] if attr[:gecos]
+                user.unix_password = attr[:unix_password] if
+                                     attr[:unix_password]
+                user.shadow_expire = attr[:shadow_expire] if
+                                     attr[:shadow_expire]
+                user.shadow_flag = attr[:shadow_flag] if attr[:shadow_flag]
+                user.shadow_inactive = attr[:shadow_inactive] if
+                                       attr[:shadow_inactive]
+                user.shadow_last_change = attr[:shadow_last_change] if
+                                          attr[:shadow_last_change]
+                user.shadow_max = attr[:shadow_max] if attr[:shadow_max]
+                user.shadow_min = attr[:shadow_min] if attr[:shadow_min]
+                user.shadow_warning = attr[:shadow_warning] if
+                                      attr[:shadow_warning]
               else
                 puts "Warning: Main UNIX group could not be found for: " +
-                     entry.sAMAccountName.pop
+                     attr[:username]
+                puts "Not loading #{attr[:username]}."
               end
             else
-              user = User.new(entry.sAMAccountName.pop, container,
-                              primary_group, disabled, rid)
-              user.common_name = entry.cn.pop
-              user.first_name = first_name if first_name
-              user.middle_name = middle_name if middle_name
-              user.surname = surname if surname
+              user = User.new(attr[:username], container, attr[:primary_group],
+                              attr[:disabled?], attr[:rid])
+              user.common_name = attr[:common_name]
+              user.first_name = attr[:first_name] if attr[:first_name]
+              user.middle_name = attr[:middle_name] if attr[:middle_name]
+              user.surname = attr[:surname] if attr[:surname]
             end
           else
             puts "Warning: Windows primary group not found for: " +
-                 entry.sAMAccountName.pop
+                 attr[:username]
+            puts "Not loading #{attr[:username]}."
           end
         end
       end
@@ -574,11 +458,11 @@ module RADUM
       # to be false, and it is hidden from direct access by the loaded method.
       @containers.each do |container|
         container.groups.each do |group|
-          group.loaded
+          group.set_loaded
         end
         
         container.users.each do |user|
-          user.loaded
+          user.set_loaded
         end
       end
     end
@@ -662,20 +546,36 @@ module RADUM
       
       # Second, make sure any groups that need to be created are added to Active
       # Directory.
-      @containers.each do |container|
-        container.groups.each do |group|
-          # This method checks if the group actually needs to be created or not.
-          create_group group
-        end
+      groups.each do |group|
+        # This method checks if the group actually needs to be created or not.
+        create_group group
       end
       
       # Third, make sure any users that need to be created are added to Active
       # Directory.
-      @containers.each do |container|
-        container.users.each do |user|
-          # This method checks if the user actually needs to be created or not.
-          create_user user
-        end
+      users.each do |user|
+        # This method checks if the user actually needs to be created or not.
+        create_user user
+      end
+      
+      # Fourth, update any modified attributes on each group.
+      groups.each do |group|
+        # This method figures out what attributes need to be updated when
+        # compared to Active Directory. All objects should exist in Active
+        # Directory at this point, but the method handles cases where the
+        # object is not in Active Directory by skipping the update in that
+        # case.
+        update_group group
+      end
+            
+      # Fifth, update any modified attributs on each user.
+      users.each do |user|
+        # This method figures out what attributes need to be updated when
+        # compared to Active Directory. All objects should exist in Active
+        # Directory at this point, but the method handles cases where the
+        # object is not in Active Directory by skipping the update in that
+        # case.
+        update_user user
       end
     end
     
@@ -711,6 +611,163 @@ module RADUM
     # explicitly quoted.
     def str2utf16le(str)
       ('"' + str + '"').gsub(/./) { |c| "#{c}\0" }
+    end
+    
+    # Return a hash with an Active Directory group's base LDAP attributes. The
+    # key is the RADUM group attribute name and the value is the computed value
+    # from the group's attributes in Active Directory.
+    def group_ldap_entry_attr(entry)
+      attr = {}
+      # These are attributes that might be empty. If they are empty,
+      # a NoMethodError exception will be raised. We have to check each
+      # individually and set an initial indicator value (nil). All the
+      # other attributes should exist and do not require this level of
+      # checking.
+      attr[:gid] = nil
+      attr[:nis_domain] = nil
+      attr[:unix_password] = nil
+      
+      begin
+        attr[:gid] = entry.gidNumber.pop.to_i
+      rescue NoMethodError
+      end
+      
+      begin
+        attr[:nis_domain] = entry.msSFU30NisDomain.pop
+      rescue NoMethodError
+      end
+      
+      begin
+        attr[:unix_password] = entry.unixUserPassword.pop
+      rescue NoMethodError
+      end
+      
+      attr[:name] = entry.name.pop
+      attr[:rid] = sid2rid_int(entry.objectSid.pop)
+      attr[:type] = entry.groupType.pop.to_i
+      return attr
+    end
+    
+    # Return a hash with an Active Directory user's base LDAP attributes. The
+    # key is the RADUM user attribute name and the value is the computed value
+    # from the user's attributes in Active Directory.
+    def user_ldap_entry_attr(entry)
+      attr = {}
+      # These are attributes that might be empty. If they are empty,
+      # a NoMethodError exception will be raised. We have to check each
+      # individually and set an initial indicator value (nil). All the
+      # other attributes should exist and do not require this level of
+      # checking.
+      attr[:first_name] = nil
+      attr[:middle_name] = nil
+      attr[:surname] = nil
+      attr[:uid] = nil
+      attr[:gid] = nil
+      attr[:nis_domain] = nil
+      attr[:gecos] = nil
+      attr[:unix_password] = nil
+      attr[:shadow_expire] = nil
+      attr[:shadow_flag] = nil
+      attr[:shadow_inactive] = nil
+      attr[:shadow_last_change] = nil
+      attr[:shadow_max] = nil
+      attr[:shadow_min] = nil
+      attr[:shadow_warning] = nil
+      attr[:shell] = nil
+      attr[:home_directory] = nil
+      
+      begin
+        attr[:first_name] = entry.givenName.pop
+      rescue NoMethodError
+      end
+      
+      begin
+        attr[:middle_name] = entry.middleName.pop
+      rescue NoMethodError
+      end
+      
+      begin
+        attr[:surname] = entry.sn.pop
+      rescue NoMethodError
+      end
+      
+      begin
+        attr[:uid] = entry.uidNumber.pop.to_i
+      rescue NoMethodError
+      end
+
+      begin
+        attr[:gid] = entry.gidNumber.pop.to_i
+      rescue NoMethodError
+      end
+      
+      begin
+        attr[:nis_domain] = entry.msSFU30NisDomain.pop
+      rescue NoMethodError
+      end
+      
+      begin
+        attr[:gecos] = entry.gecos.pop
+      rescue NoMethodError
+      end
+      
+      begin
+        attr[:unix_password] = entry.unixUserPassword.pop
+      rescue NoMethodError
+      end
+      
+      begin
+        attr[:shadow_expire] = entry.shadowExpire.pop.to_i
+      rescue NoMethodError
+      end
+      
+      begin
+        attr[:shadow_flag] = entry.shadowFlag.pop.to_i
+      rescue NoMethodError
+      end
+      
+      begin
+        attr[:shadow_inactive] = entry.shadowInactive.pop.to_i
+      rescue NoMethodError
+      end
+      
+      begin
+        attr[:shadow_last_change] = entry.shadowLastChange.pop.to_i
+      rescue NoMethodError
+      end
+      
+      begin
+        attr[:shadow_max] = entry.shadowMax.pop.to_i
+      rescue NoMethodError
+      end
+      
+      begin
+        attr[:shadow_min] = entry.shadowMin.pop.to_i
+      rescue NoMethodError
+      end
+      
+      begin
+        attr[:shadow_warning] = entry.shadowWarning.pop.to_i
+      rescue NoMethodError
+      end
+      
+      begin
+        attr[:shell] = entry.loginShell.pop
+      rescue NoMethodError
+      end
+      
+      begin
+        attr[:home_directory] = entry.unixHomeDirectory.pop
+      rescue NoMethodError
+      end
+      
+      attr[:common_name] = entry.cn.pop
+      attr[:disabled?] = entry.userAccountControl.pop.to_i ==
+                         UF_NORMAL_ACCOUNT + UF_ACCOUNTDISABLE ? true : false
+      attr[:primary_group] = find_group_by_rid entry.primaryGroupID.pop.to_i
+      attr[:rid] = sid2rid_int(entry.objectSid.pop)
+      attr[:username] = entry.sAMAccountName.pop
+      return attr
     end
     
     # Check the LDAP operation result code for an error message.
@@ -825,9 +882,29 @@ module RADUM
           
           @ldap.add :dn => group.distinguished_name, :attributes => attr
           check_ldap_result
+          # At this point, we need to pull the RID value back out and set it
+          # because it is needed later.
+          entry = @ldap.search(:base => group.distinguished_name,
+                               :filter => group_filter).pop
+          group.set_rid sid2rid_int(entry.objectSid.pop)
         else
           puts "SYNC WARNING: #{group.name} already exists. Not created."
         end
+      end
+    end
+    
+    # Update a Group or UNIXGroup in Active Directory. This method automatically
+    # determines which attributes to update. The Group or UNIXGroup object must
+    # exist in Active Directory or this method does nothing. This is checked, so
+    # it is safe to pass any Group or UNIXGroup object to this method.
+    def update_group(group)
+      if group.modified?
+        puts "Updating #{group.class} #{group.name}..."
+        group_filter = Net::LDAP::Filter.eq("objectclass", "group")
+        entry = @ldap.search(:base => group.distinguished_name,
+                             :filter => group_filter).pop
+        attr = group_ldap_entry_attr entry
+        puts attr.to_yaml
       end
     end
     
@@ -859,7 +936,7 @@ module RADUM
           
           # If the group was loaded, we don't need to search for the group's
           # RID as the step above would have the right value.
-          unless user.primary_group.loaded
+          unless user.primary_group.loaded?
             group_filter = Net::LDAP::Filter.eq("objectclass", "group")
             
             @ldap.search(:base => user.primary_group.distinguished_name,
@@ -946,31 +1023,31 @@ module RADUM
           # each one. The other UNIX attributes above are set to something
           # by default.
           unless user.shadow_expire.nil?
-            attr.merge!({ :shadowExpire => user.shadow_expire.to_s })
+            attr.merge!({:shadowExpire => user.shadow_expire.to_s})
           end
           
           unless user.shadow_flag.nil?
-            attr.merge!({ :shadowFlag => user.shadow_flag.to_s })
+            attr.merge!({:shadowFlag => user.shadow_flag.to_s})
           end
           
           unless user.shadow_inactive.nil?
-            attr.merge!({ :shadowInactive => user.shadow_inactive.to_s })
+            attr.merge!({:shadowInactive => user.shadow_inactive.to_s})
           end
           
           unless user.shadow_last_change.nil?
-            attr.merge!({ :shadowLastChange => user.shadow_last_change.to_s })
+            attr.merge!({:shadowLastChange => user.shadow_last_change.to_s})
           end
           
           unless user.shadow_max.nil?
-            attr.merge!({ :shadowMax => user.shadow_max.to_s })
+            attr.merge!({:shadowMax => user.shadow_max.to_s})
           end
           
           unless user.shadow_min.nil?
-            attr.merge!({ :shadowMin => user.shadow_min.to_s })
+            attr.merge!({:shadowMin => user.shadow_min.to_s})
           end
           
           unless user.shadow_warning.nil?
-            attr.merge!({ :shadowWarning => user.shadow_warning.to_s })
+            attr.merge!({:shadowWarning => user.shadow_warning.to_s})
           end
           
           puts attr.to_yaml
@@ -995,6 +1072,11 @@ module RADUM
            puts ops.to_yaml
            @ldap.modify :dn => user.distinguished_name, :operations => ops
            check_ldap_result
+           
+           # Set the user's password to nil. When a password has a value, that
+           # means we need to set it, otherwise it should be nil. We just
+           # set it, so we don't want the update set to try and set it again.
+           user.password = nil
            
            # If the user has to change their password, it must be done below
            # and not in the previous step that set their password because it
@@ -1033,9 +1115,100 @@ module RADUM
              puts ops.to_yaml
              @ldap.modify :dn => user.distinguished_name, :operations => ops
              check_ldap_result
+             # At this point, we need to pull the RID value back out and set it
+             # because it is needed later. Actually, it isn't for users, but
+             # I am pretending it is just as important because I am tracking
+             # RIDs anyway (they are in a flat namespace).
+             entry = @ldap.search(:base => user.distinguished_name,
+                                  :filter => user_filter).pop
+             user.set_rid sid2rid_int(entry.objectSid.pop)
           end
         else
           puts "SYNC WARNING: #{user.username} already exists. Not created."
+        end
+      end
+    end
+    
+    # Update a User or UNIXUser in Active Directory. This method automatically
+    # determines which attributes to update. The User or UNIXUser object must
+    # exist in Active Directory or this method does nothing. This is checked, so
+    # it is safe to pass any User or UNIXUser object to this method.
+    def update_user(user)
+      if user.modified?
+        puts "Updating #{user.class} #{user.username}..."
+        user_filter = Net::LDAP::Filter.eq("objectclass", "user")
+        entry = @ldap.search(:base => user.distinguished_name,
+                             :filter => user_filter).pop
+        attr = user_ldap_entry_attr entry
+        ops = []
+        
+        attr.keys.each do |key|
+          ad_value = attr[key]
+          obj_value = user.send(key)
+          puts "#{key}: #{ad_value} =? #{obj_value}"
+          
+          if ad_value != obj_value
+            case key
+            when :disabled?
+              # Set userAccountControl...
+              puts "skipping :disabled?"
+            when :first_name
+              ops.push [:replace, :givenName, obj_value]
+            when :middle_name
+              ops.push [:replace, :middleName, obj_value]
+            when :surname
+              ops.push [:replace, :sn, obj_value]
+            when :primary_group
+              # Do the primary group change logic, then:
+              #ops.push [:replace, :primaryGroupID, obj_value.rid.to_s]
+              puts "skipping :primary_group"
+            when :common_name
+              ops.push [:replace, :cn, obj_value]
+            when :shell
+              ops.push [:replace, :loginShell, obj_value]
+            when :home_directory
+              ops.push [:replace, :unixHomeDirectory, obj_value]
+            when :nis_domain
+              ops.push [:replace, :msSFU30NisDomain, obj_value]
+            when :gecos
+              ops.push [:replace, :gecos, obj_value]
+            when :unix_password
+              ops.push [:replace, :unixUserPassword, obj_value]
+            when :shadow_expire
+              ops.push [:replace, :shadowExpire, obj_value.to_s]
+            when :shadow_flag
+              ops.push [:replace, :shadowFlag, obj_value.to_s]
+            when :shadow_inactive
+              ops.push [:replace, :shadowInactive, obj_value.to_s]
+            when :shadow_last_change
+              ops.push [:replace, :shadowLastChange, obj_value.to_s]
+            when :shadow_max
+              ops.push [:replace, :shadowMax, obj_value.to_s]
+            when :shadow_min
+              ops.push [:replace, :shadowMin, obj_value.to_s]
+            when :shadow_warning
+              ops.push [:replace, :shadowWarning, obj_value.to_s]
+            when :gid
+              ops.push [:replace, :gidNumber, obj_value.to_s]
+            end
+          end
+        end
+        
+        # If the password is set, change the user's password. Otherwise this
+        # will be nil.
+        unless user.password.nil?
+          # Change the password logic here.
+          puts "skipping :password"
+        end
+        
+        unless ops.empty?
+          puts ops.to_yaml
+          @ldap.modify :dn => user.distinguished_name, :operations => ops
+          check_ldap_result
+          # At this point the user is the equivalent as a loaded user. Calling
+          # this flags that fact as well as setting the hidden modified
+          # attribute to false since we are up to date now.
+          user.set_loaded
         end
       end
     end
