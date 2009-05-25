@@ -931,6 +931,10 @@ module RADUM
           entry = @ldap.search(:base => group.distinguished_name,
                                :filter => group_filter).pop
           group.set_rid sid2rid_int(entry.objectSid.pop)
+          # Note: unlike a user, the group cannot be considered loaded at this
+          # point because we have not handled any group memberships that might
+          # have been set. Users at this poing in the create_user() method
+          # can be considered loaded. Just noting this for my own reference.
         else
           puts "SYNC WARNING: #{group.name} already exists. Not created."
         end
@@ -1211,6 +1215,7 @@ module RADUM
               @ldap.modify :dn => user.primary_group.distinguished_name,
                            :operations => [[:add, :member,
                                             user.distinguished_name]]
+              check_ldap_result
               ops.push [:replace, :primaryGroupID, user.primary_group.rid.to_s]
             when :common_name
               ops.push [:replace, :cn, obj_value]
