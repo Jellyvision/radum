@@ -613,6 +613,50 @@ module RADUM
       ('"' + str + '"').gsub(/./) { |c| "#{c}\0" }
     end
     
+    # Return a random number character as a string.
+    def random_number
+      srand
+      (rand 10).to_s
+    end
+    
+    # Return a random lowercase letter as a string.
+    def random_lowercase
+      srand
+      sprintf "%c", ((rand 26) + 97)
+    end
+    
+    # Return a random uppercase letter as a string.
+    def random_uppercase
+      random_lowercase.swapcase
+    end
+    
+    # Return a random symbol as a string.
+    def random_symbol
+      srand
+      
+      case rand 4
+      when 0
+        code = rand(15) + 33
+      when 1
+        code = rand(7) + 58
+      when 2
+        code = rand(6) + 91
+      when 3
+        code = rand(4) + 123
+      end
+      
+      sprintf "%c", code
+    end
+    
+    # Return a random 8 character password as a string. There is a formula to
+    # try and avoid any problems with Active Directory password requirements.
+    # If you don't like this, supply your own password for User and UNIXUser
+    # objects.
+    def random_password
+      random_lowercase + random_number + random_lowercase + random_uppercase +
+      random_symbol + random_number + random_uppercase + random_symbol
+    end
+    
     # Return a hash with an Active Directory group's base LDAP attributes. The
     # key is the RADUM group attribute name and the value is the computed value
     # from the group's attributes in Active Directory.
@@ -1057,71 +1101,76 @@ module RADUM
           
           # Modify the attributes for the user password and userAccountControl
           # value to enable the account.
-          #
-          # NOTE: HANDLE THE CASE WHERE THERE IS NO PASSWORD. Also note in the
-          # documentation the user will be forced to change their password on
-          # the first login.
           user_status = UF_NORMAL_ACCOUNT
           user_status += UF_ACCOUNTDISABLE if user.disabled?
           
+          if user.password.nil?
+            user.password = random_password
+            puts "Generated password #{user.password} for #{user.username}."
+          end
+          
           ops = [
-             [:replace, :unicodePwd, str2utf16le(user.password)],
-             [:replace, :userAccountControl, user_status.to_s]
-           ]
-           
-           puts ops.to_yaml
-           @ldap.modify :dn => user.distinguished_name, :operations => ops
-           check_ldap_result
-           
-           # Set the user's password to nil. When a password has a value, that
-           # means we need to set it, otherwise it should be nil. We just
-           # set it, so we don't want the update set to try and set it again.
-           user.password = nil
-           
-           # If the user has to change their password, it must be done below
-           # and not in the previous step that set their password because it
-           # will ignore the additional flag (which I've commented out near
-           # the top of this file because it does not work now). This works.
-           if user.must_change_password?
-             ops = [
-               [:replace, :pwdLastSet, 0.to_s]
-             ]
-             
-             puts ops.to_yaml
-             @ldap.modify :dn => user.distinguished_name, :operations => ops
-             check_ldap_result
-           end
-           
-           # The user already has the primary Windows group as Domain Users
-           # based on the default actions above. If the user has a different
-           # primary Windows group, it is necessary to add the user to that
-           # group first (as a member in the member attribute for the group)
-           # before attempting to set their primaryGroupID attribute or Active
-           # Directory will refuse to do it.
-           unless rid == find_group("Domain Users").rid
-             ops = [
-               [:add, :member, user.distinguished_name]
-             ]
-             
-             puts ops.to_yaml
-             @ldap.modify :dn => user.primary_group.distinguished_name,
-                          :operations => ops
-             check_ldap_result
-             
-             ops = [
-               [:replace, :primaryGroupID, rid.to_s]
-             ]
-             
-             puts ops.to_yaml
-             @ldap.modify :dn => user.distinguished_name, :operations => ops
-             check_ldap_result
-             # At this point, we need to pull the RID value back out and set it
-             # because it is needed later. Actually, it isn't for users, but
-             # I am pretending it is just as important because I am tracking
-             # RIDs anyway (they are in a flat namespace).
-             entry = @ldap.search(:base => user.distinguished_name,
-                                  :filter => user_filter).pop
-             user.set_rid sid2rid_int(entry.objectSid.pop)
+            [:replace, :unicodePwd, str2utf16le(user.password)],
+            [:replace, :userAccountControl, user_status.to_s]
+          ]
+          
+          puts ops.to_yaml
+          @ldap.modify :dn => user.distinguished_name, :operations => ops
+          check_ldap_result
+          
+          # Set the user's password to nil. When a password has a value, that
+          # means we need to set it, otherwise it should be nil. We just
+          # set it, so we don't want the update set to try and set it again.
+          user.password = nil
+          
+          # If the user has to change their password, it must be done below
+          # and not in the previous step that set their password because it
+          # will ignore the additional flag (which I've commented out near
+          # the top of this file because it does not work now). This works.
+          if user.must_change_password?
+            ops = [
+              [:replace, :pwdLastSet, 0.to_s]
+            ]
+            
+            puts ops.to_yaml
+            @ldap.modify :dn => user.distinguished_name, :operations => ops
+            check_ldap_result
+          end
+          
+          # The user already has the primary Windows group as Domain Users
+          # based on the default actions above. If the user has a different
+          # primary Windows group, it is necessary to add the user to that
+          # group first (as a member in the member attribute for the group)
+          # before attempting to set their primaryGroupID attribute or Active
+          # Directory will refuse to do it.
+          unless rid == find_group("Domain Users").rid
+            ops = [
+              [:add, :member, user.distinguished_name]
+            ]
+            
+            puts ops.to_yaml
+            @ldap.modify :dn => user.primary_group.distinguished_name,
+                         :operations => ops
+            check_ldap_result
+            
+            ops = [
+              [:replace, :primaryGroupID, rid.to_s]
+            ]
+            
+            puts ops.to_yaml
+            @ldap.modify :dn => user.distinguished_name, :operations => ops
+            check_ldap_result
+            # At this point, we need to pull the RID value back out and set it
+            # because it is needed later. Actually, it isn't for users, but
+            # I am pretending it is just as important because I am tracking
+            # RIDs anyway (they are in a flat namespace).
+            entry = @ldap.search(:base => user.distinguished_name,
+                                 :filter => user_filter).pop
+            user.set_rid sid2rid_int(entry.objectSid.pop)
+            # At this point the user is the equivalent as a loaded user.
+            # Calling this flags that fact as well as setting the hidden
+            # modified attribute to false since we are up to date now.
+            user.set_loaded
           end
         else
           puts "SYNC WARNING: #{user.username} already exists. Not created."
@@ -1145,7 +1194,7 @@ module RADUM
         attr.keys.each do |key|
           ad_value = attr[key]
           obj_value = user.send(key)
-          puts "#{key}: #{ad_value} =? #{obj_value}"
+          puts "\t#{key}: #{ad_value} =? #{obj_value}"
           
           if ad_value != obj_value
             case key
@@ -1159,9 +1208,10 @@ module RADUM
             when :surname
               ops.push [:replace, :sn, obj_value]
             when :primary_group
-              # Do the primary group change logic, then:
-              #ops.push [:replace, :primaryGroupID, obj_value.rid.to_s]
-              puts "skipping :primary_group"
+              @ldap.modify :dn => user.primary_group.distinguished_name,
+                           :operations => [[:add, :member,
+                                            user.distinguished_name]]
+              ops.push [:replace, :primaryGroupID, user.primary_group.rid.to_s]
             when :common_name
               ops.push [:replace, :cn, obj_value]
             when :shell
@@ -1197,8 +1247,16 @@ module RADUM
         # If the password is set, change the user's password. Otherwise this
         # will be nil.
         unless user.password.nil?
-          # Change the password logic here.
-          puts "skipping :password"
+          ops.push [:replace, :unicodePwd, str2utf16le(user.password)]
+          # Set the user's password to nil. When a password has a value, that
+          # means we need to set it, otherwise it should be nil. We just
+          # set it, so we don't want the update set to try and set it again.
+          user.password = nil
+        end
+        
+        # Force the user to change their password if that was set.
+        if user.must_change_password?
+          ops.push [:replace, :pwdLastSet, 0.to_s]
         end
         
         unless ops.empty?

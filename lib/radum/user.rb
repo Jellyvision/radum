@@ -34,7 +34,7 @@ module RADUM
     # username (case-insensitive) and the rid must be unique in the AD object,
     # otherwise a RuntimeError is raised. The primary_group must be of the
     # RADUM group type GROUP_GLOBAL_SECURITY or GROUP_UNIVERSAL_SECURITY
-    # or a RuntimeError is raised. Note that a User will be forced to change
+    # or a RuntimeError is raised. Note that a User will not be forced to change
     # their Windows password on their first login unless this is changed by
     # calling the toggle_must_change_password method. If no password is set
     # for the User, a random password will be generated. The random password
@@ -84,7 +84,7 @@ module RADUM
       @middle_name = nil
       @surname = nil
       @password = nil
-      @must_change_password = true
+      @must_change_password = false
       # A UNIXUser adding itself the container needs to happen at the end of
       # the initializer in that class instead because the UID value is needed.
       # The removed flag must be set to true first since we are not in the
@@ -165,7 +165,12 @@ module RADUM
       @modified = true
     end
     
-    # The User or UNIXUser Windows password.
+    # The User or UNIXUser Windows password. This is only set to a value other
+    # than nil if the password should be changed on the next AD.sync call. Once
+    # the User or UNIXUser is synchronized with Active Directory, the password
+    # attribute is set to nil again. This is because the password attribute does
+    # not actually reflect the current Active Directory user password, which
+    # cannot be read through LDAP directly.
     def password
       @password
     end
@@ -173,7 +178,11 @@ module RADUM
     # Set the User or UNIXUser Windows password. This defaults to nil when a
     # User or UNIXUser is created using User.new or UNIXUser.new. This does not
     # reflect the current User or UNIXUser password, but if it is set, the
-    # password will be changed.
+    # password will be changed. Once the User or UNIXUser is synchronized with
+    # Active Directory using AD.sync, the password attribute is set to nil
+    # again. This is because the password attribute does not actually reflect
+    # the current Active Directory user password, which cannot be read through
+    # LDAP directly.
     def password=(password)
       @password = password
       @modified = true
@@ -181,15 +190,16 @@ module RADUM
     
     # Check if the User or UNIXUser has to change their Windows password on
     # their first login. Returns true if this is the case, false otherwise.
+    # This defaults to false when User or UNIXUser objects are created.
     def must_change_password?
       @must_change_password
     end
     
-    # Toggle if the User or UNIXUser must change their password on their first
-    # login. Note that the default value is to force a password change on the
-    # first login.
-    def toggle_must_change_password
-      @must_change_password = !@must_change_password
+    # Force the User or UNIXUser to change their password on their next
+    # login. Note that the default value is to not force a password change on
+    # the next login.
+    def force_change_password
+      @must_change_password = true
       @modified = true
     end
     
