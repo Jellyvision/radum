@@ -339,9 +339,8 @@ module RADUM
       group_filter = Net::LDAP::Filter.eq("objectclass", "group")
       
       @containers.each do |container|
-        base = container.name + ",#{@root}"
-        
-        @ldap.search(:base => base, :filter => group_filter) do |entry|
+        @ldap.search(:base => container.distinguished_name,
+                     :filter => group_filter) do |entry|
           attr = group_ldap_entry_attr entry
           
           # Note that groups add themselves to their container.
@@ -361,9 +360,8 @@ module RADUM
       user_filter = Net::LDAP::Filter.eq("objectclass", "user")
       
       @containers.each do |container|
-        base = container.name + ",#{@root}"
-        
-        @ldap.search(:base => base, :filter => user_filter) do |entry|
+        @ldap.search(:base => container.distinguished_name,
+                     :filter => user_filter) do |entry|
           attr = user_ldap_entry_attr entry
           
           # Note that users add themselves to their container. We have to have
@@ -426,41 +424,39 @@ module RADUM
       # Windows primary_group was taken care of when creating the users
       # previously.
       groups.each do |group|
-        @ldap.search(:base => group.distinguished_name,
-                     :filter => group_filter) do |entry|
-          begin
-            entry.member.each do |member|
-              name = member.split(',')[0].split('=')[1]
-              # Groups can have groups or users as members, unlike UNIX where
-              # groups cannot contain group members.
-              member_group = find_group name
-              
-              if member_group
-                group.add_group member_group
-              end
-              
-              member_user = find_user name
-              
-              if member_user
-                group.add_user member_user
-              end
+        entry = @ldap.search(:base => group.distinguished_name,
+                             :filter => group_filter).pop
+        
+        begin
+          entry.member.each do |member|
+            name = member.split(',')[0].split('=')[1]
+            # Groups can have groups or users as members, unlike UNIX where
+            # groups cannot contain group members.
+            member_group = find_group name
+            
+            if member_group
+              group.add_group member_group
             end
-          rescue NoMethodError
+            
+            member_user = find_user name
+            
+            if member_user
+              group.add_user member_user
+            end
           end
+        rescue NoMethodError
         end
       end
       
       # Set all users and groups as loaded. This has to be done last to make
       # sure the modified attribute is correct. The modified attribute needs
       # to be false, and it is hidden from direct access by the loaded method.
-      @containers.each do |container|
-        container.groups.each do |group|
-          group.set_loaded
-        end
+      groups.each do |group|
+        group.set_loaded
+      end
         
-        container.users.each do |user|
-          user.set_loaded
-        end
+      users.each do |user|
+        user.set_loaded
       end
     end
     
@@ -949,7 +945,7 @@ module RADUM
         entry = @ldap.search(:base => group.distinguished_name,
                              :filter => group_filter).pop
         attr = group_ldap_entry_attr entry
-        opts = []
+        ops = []
         
         attr.keys.each do |key|
           # All keys in the attr has apply to UNIXGroups, but some do not apply
@@ -973,6 +969,8 @@ module RADUM
             end
           end
         end
+        
+        # TO DO: HANDLE GROUP MEMBERSHIPS.
         
         unless ops.empty?
           puts opts.to_yaml

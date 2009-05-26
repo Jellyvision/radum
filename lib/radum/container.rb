@@ -8,6 +8,8 @@ module RADUM
     attr_reader :name
     # The AD object the Container belongs to.
     attr_reader :directory
+    # The LDAP distinguishedName attribute for this Container.
+    attr_reader :distinguished_name
     # An Array of User or UNIXUser objects that are in this Container.
     attr_reader :users
     # An Array of Group or UNIXGroup objects that are in this Container.
@@ -56,6 +58,7 @@ module RADUM
       
       @name = name
       @directory = directory
+      @distinguished_name = @name + "," + @directory.root
       # The removed flag must be set to true first since we are not in the
       # directory yet.
       @removed = true
