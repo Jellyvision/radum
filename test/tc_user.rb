@@ -89,6 +89,16 @@ class TC_User < Test::Unit::TestCase
     end
   end
   
+  def test_change_primary_group_add_old_group
+    assert_block("Should have added user to old primary group on change") do
+      # The primary group is currently @g4_c1_ad1. Changing it below should
+      # automatically add the user to the @g4_c1_ad1 group (which the user is
+      # not a member of currently).
+      @u1_c1_ad1.primary_group = @g1_c1_ad1
+      @u1_c1_ad1.groups.find { |group| group == @g4_c1_ad1 }
+    end
+  end
+  
   def test_add_group
     assert_block("Should have added exactly two groups") do
       @u1_c1_ad1.add_group @g1_c1_ad1

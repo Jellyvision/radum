@@ -952,7 +952,40 @@ module RADUM
         entry = @ldap.search(:base => group.distinguished_name,
                              :filter => group_filter).pop
         attr = group_ldap_entry_attr entry
-        puts attr.to_yaml
+        opts = []
+        
+        attr.keys.each do |key|
+          # All keys in the attr has apply to UNIXGroups, but some do not apply
+          # to Groups. This is the easiest way to filter out inappropriate
+          # checking.
+          begin
+            obj_value = group.send(key)
+          rescue NoMethodError
+            next
+          end
+          
+          ad_value = attr[key]
+          puts "\t#{key}: #{ad_value} =? #{obj_value}"
+          
+          if ad_value != obj_value
+            case key
+            when :nis_domain
+              ops.push [:replace, :msSFU30NisDomain, obj_value]
+            when :unix_password
+              ops.push [:replace, :unixUserPassword, obj_value]
+            end
+          end
+        end
+        
+        unless ops.empty?
+          puts opts.to_yaml
+          @ldap.modify :dn => group.distingished_name, :operations => ops
+          check_ldap_result
+          # At this point the group is the equivalent of a loaded group. Calling
+          # this flags that fact as well as setting the hidden modified
+          # attribute to false since we are up to date now.
+          group.set_loaded
+        end
       end
     end
     
@@ -1070,32 +1103,34 @@ module RADUM
           # The shadow file attributes are all optional, so we need to check
           # each one. The other UNIX attributes above are set to something
           # by default.
-          unless user.shadow_expire.nil?
-            attr.merge!({:shadowExpire => user.shadow_expire.to_s})
-          end
+          if user.instance_of? UNIXUser
+            unless user.shadow_expire.nil?
+              attr.merge!({:shadowExpire => user.shadow_expire.to_s})
+            end
+            
+            unless user.shadow_flag.nil?
+              attr.merge!({:shadowFlag => user.shadow_flag.to_s})
+            end
           
-          unless user.shadow_flag.nil?
-            attr.merge!({:shadowFlag => user.shadow_flag.to_s})
-          end
-          
-          unless user.shadow_inactive.nil?
-            attr.merge!({:shadowInactive => user.shadow_inactive.to_s})
-          end
-          
-          unless user.shadow_last_change.nil?
-            attr.merge!({:shadowLastChange => user.shadow_last_change.to_s})
-          end
-          
-          unless user.shadow_max.nil?
-            attr.merge!({:shadowMax => user.shadow_max.to_s})
-          end
-          
-          unless user.shadow_min.nil?
-            attr.merge!({:shadowMin => user.shadow_min.to_s})
-          end
-          
-          unless user.shadow_warning.nil?
-            attr.merge!({:shadowWarning => user.shadow_warning.to_s})
+            unless user.shadow_inactive.nil?
+              attr.merge!({:shadowInactive => user.shadow_inactive.to_s})
+            end
+            
+            unless user.shadow_last_change.nil?
+              attr.merge!({:shadowLastChange => user.shadow_last_change.to_s})
+            end
+            
+            unless user.shadow_max.nil?
+              attr.merge!({:shadowMax => user.shadow_max.to_s})
+            end
+            
+            unless user.shadow_min.nil?
+              attr.merge!({:shadowMin => user.shadow_min.to_s})
+            end
+            
+            unless user.shadow_warning.nil?
+              attr.merge!({:shadowWarning => user.shadow_warning.to_s})
+            end
           end
           
           puts attr.to_yaml
@@ -1171,11 +1206,19 @@ module RADUM
             entry = @ldap.search(:base => user.distinguished_name,
                                  :filter => user_filter).pop
             user.set_rid sid2rid_int(entry.objectSid.pop)
-            # At this point the user is the equivalent as a loaded user.
-            # Calling this flags that fact as well as setting the hidden
-            # modified attribute to false since we are up to date now.
-            user.set_loaded
+            # The user has now been made a regular member of the Domain Users
+            # Windows group. This has been handled in Active Directory for us,
+            # but now we want to reflect that in the Domain Users Group object
+            # here.
+            find_group("Domain Users").add_user user
           end
+          
+          # At this point the user is the equivalent as a loaded user.
+          # Calling this flags that fact as well as setting the hidden
+          # modified attribute to false since we are up to date now. Note
+          # that the groups attribute is still not 100% accurate. It will
+          # be dealt with later.
+          user.set_loaded
         else
           puts "SYNC WARNING: #{user.username} already exists. Not created."
         end
@@ -1196,15 +1239,24 @@ module RADUM
         ops = []
         
         attr.keys.each do |key|
+          # All keys in the attr has apply to UNIXUsers, but most do not apply
+          # to Users. This is the easiest way to filter out inappropriate
+          # checking.
+          begin
+            obj_value = user.send(key)
+          rescue NoMethodError
+            next
+          end
+          
           ad_value = attr[key]
-          obj_value = user.send(key)
           puts "\t#{key}: #{ad_value} =? #{obj_value}"
           
           if ad_value != obj_value
             case key
             when :disabled?
-              # Set userAccountControl...
-              puts "skipping :disabled?"
+              user_status = UF_NORMAL_ACCOUNT
+              user_status += UF_ACCOUNTDISABLE if obj_value
+              ops.push [:replace, :userAccountControl, user_status.to_s]
             when :first_name
               ops.push [:replace, :givenName, obj_value]
             when :middle_name

@@ -220,6 +220,10 @@ module RADUM
     # if necessary as Users or UNIXUsers are not members of the Group or
     # UNIXGroup directly. The Group or UNIXGroup specified must be in the
     # same AD object or a RuntimeError is raised.
+    #
+    # When a User or UNIXUser changes their primary Windows group, they are
+    # automatically given normal group membershipt in the old primary Windows
+    # group by Active Directory. This method does the same.
     def primary_group=(group)
       unless @container.directory == group.container.directory
         raise "Group must be in the same directory."
@@ -232,7 +236,9 @@ module RADUM
       end
       
       remove_group group
+      old_group = @primary_group
       @primary_group = group
+      add_group old_group
       @modified = true
     end
     
