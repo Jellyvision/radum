@@ -334,6 +334,9 @@ module RADUM
     # case. Make sure all required Containers are in the AD before loading
     # data from Active Directory to avoid this problem.
     def load
+      # TO DO: WE SHOULD NOT ALLOW LOADING MORE THAN ONCE? SEE THE OTHER TO DO
+      # COMMENTS IN THIS CODE.
+      
       # Find all the groups first. We might need one to represent the main
       # group of a UNIX user.
       group_filter = Net::LDAP::Filter.eq("objectclass", "group")
@@ -342,6 +345,11 @@ module RADUM
         @ldap.search(:base => container.distinguished_name,
                      :filter => group_filter) do |entry|
           attr = group_ldap_entry_attr entry
+          
+          # TO DO: WHAT IF THE USER ALREADY CREATED A GROUP OR UNIXGROUP THAT
+          # WE ARE TRYING TO LOAD NOW? THE NEW WILL FAIL IN THAT CASE. SHOULD
+          # WE OVERWRITE THAT OR WHAT? THE SAME PROBLEM IS PRESENT IN THE
+          # CREATE_GROUP() METHOD.
           
           # Note that groups add themselves to their container.
           if attr[:gid]
@@ -363,6 +371,11 @@ module RADUM
         @ldap.search(:base => container.distinguished_name,
                      :filter => user_filter) do |entry|
           attr = user_ldap_entry_attr entry
+          
+          # TO DO: WHAT IF THE USER ALREADY CREATED A USER OR UNIXUSER THAT
+          # WE ARE TRYING TO LOAD NOW? THE NEW WILL FAIL IN THAT CASE. SHOULD
+          # WE OVERWRITE THAT OR WHAT? THE SAME PROBLEM IS PRESENT IN THE
+          # CREATE_USER() METHOD.
           
           # Note that users add themselves to their container. We have to have
           # found the primary_group already, or we can't make the user. The
@@ -929,6 +942,8 @@ module RADUM
           # have been set. Users at this poing in the create_user() method
           # can be considered loaded. Just noting this for my own reference.
         else
+          # TO DO: SHOULD WE OVERWRITE THE GROUP OR WHAT? SEE THE LOAD() METHOD
+          # COMMENT.
           puts "SYNC WARNING: #{group.name} already exists. Not created."
         end
       end
@@ -970,7 +985,7 @@ module RADUM
           end
         end
         
-        # TO DO: HANDLE GROUP MEMBERSHIPS.
+        # TO DO: HANDLE GROUP USER AND GROUP MEMBERSHIPS.
         
         unless ops.empty?
           puts opts.to_yaml
@@ -1215,6 +1230,8 @@ module RADUM
           # be dealt with later when groups are dealt with.
           user.set_loaded
         else
+          # TO DO: SHOULD WE OVERWRITE THE USER OR WHAT? SEE THE LOAD() METHOD
+          # COMMENT.
           puts "SYNC WARNING: #{user.username} already exists. Not created."
         end
       end
