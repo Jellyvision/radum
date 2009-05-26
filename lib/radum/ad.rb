@@ -541,6 +541,13 @@ module RADUM
     # unset attributes will be removed, and modified attributes will be
     # updated automatically.
     def sync
+      # TO DO: ACTUALLY, WE SHOULD REMOVE ANY REMOVED USERS FIRST. WE NEED TO
+      # ACTUALLY TRACK THAT SOMEHOW. IF A LOADED USER WAS REMOVED, THEN THAT
+      # USER NEEDS TO BE REMOVED FROM ACTIVE DIRECTORY. IF THEY WERE NOT LOADED,
+      # THEN WE DON'T CARE? THIS IS KIND OF COMPLICATED :-)
+      #
+      # THE SAME APPLIES FOR GROUPS BTW.
+      
       # First, create any containers or organizational units that do not already
       # exist.
       @containers.each do |container|
