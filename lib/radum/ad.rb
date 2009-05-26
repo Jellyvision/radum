@@ -425,30 +425,27 @@ module RADUM
       # Add users to groups, which also adds the groups to the user, etc. The
       # Windows primary_group was taken care of when creating the users
       # previously.
-      @containers.each do |container|
-        container.groups.each do |group|
-          base = "cn=#{group.name}," + container.name + ",#{@root}"
-          
-          @ldap.search(:base => base, :filter => group_filter) do |entry|
-            begin
-              entry.member.each do |member|
-                name = member.split(',')[0].split('=')[1]
-                # Groups can have groups or users as members, unlike UNIX where
-                # groups cannot contain group members.
-                member_group = find_group name
-                
-                if member_group
-                  group.add_group member_group
-                end
-                
-                member_user = find_user name
-                
-                if member_user
-                  group.add_user member_user
-                end
+      groups.each do |group|
+        @ldap.search(:base => group.distinguished_name,
+                     :filter => group_filter) do |entry|
+          begin
+            entry.member.each do |member|
+              name = member.split(',')[0].split('=')[1]
+              # Groups can have groups or users as members, unlike UNIX where
+              # groups cannot contain group members.
+              member_group = find_group name
+              
+              if member_group
+                group.add_group member_group
               end
-            rescue NoMethodError
+              
+              member_user = find_user name
+              
+              if member_user
+                group.add_user member_user
+              end
             end
+          rescue NoMethodError
           end
         end
       end
@@ -1217,7 +1214,7 @@ module RADUM
           # Calling this flags that fact as well as setting the hidden
           # modified attribute to false since we are up to date now. Note
           # that the groups attribute is still not 100% accurate. It will
-          # be dealt with later.
+          # be dealt with later when groups are dealt with.
           user.set_loaded
         else
           puts "SYNC WARNING: #{user.username} already exists. Not created."
