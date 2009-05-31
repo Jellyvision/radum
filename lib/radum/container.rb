@@ -103,12 +103,27 @@ module RADUM
     end
     
     # Remove a User or UNIXUser object from the Container. This sets the
-    # User or UNIXUser object's removed attribute to true.
+    # User or UNIXUser object's removed attribute to true. If the User or
+    # UNIXUser is removed from the Container, they are effectively deleted
+    # from Active Directory. Any Groups or UNIXGroups the User or UNIXUser
+    # belongs to will have their membership removed as well. This means
+    # that the User or UNIXUser will have their Group or UNIXGroup memberships
+    # removed for each Group or UNIXGroup they were in as well. Adding the
+    # User or UNIXUser back will mean their previous Group or UNIXGroup
+    # memberships wiped out. Only remove Users or UNIXUsers if you really want
+    # them deleted from Active Directory.
     def remove_user(user)
       @users.delete user
       @removed_users.push user unless @removed_users.include? user
       @directory.rids.delete user.rid if user.rid
       @directory.uids.delete user.uid if user.instance_of? UNIXUser
+      
+      @directory.groups.each do |group|
+        if group.users.include? user
+          group.remove_user user
+        end
+      end
+      
       user.removed = true
     end
     
@@ -143,7 +158,15 @@ module RADUM
     # Group or UNIXGroup object's removed attribute to true. A Group or
     # UNIXGroup cannot be removed if it is still any User object's primary
     # Windows group. A UNIXGroup cannot be removed if it is any User object's
-    # main UNIX group. In both cases, a RuntimeError will be raised.
+    # main UNIX group. In both cases, a RuntimeError will be raised. If the
+    # Group or UNIXGroup is removed from the Container, they are effectively
+    # deleted from Active Directory. Any Groups or UNIXGroups the Group or
+    # UNIXGroup belongs to will have their membership removed as well. This
+    # means that the Group or UNIXGroup will have their Group or UNIXGroup
+    # memberships removed for each Group or UNIXGroup they were in as well.
+    # Adding the Group or UNIXGroup back will mean their previous Group or
+    # UNIXGroup memberships wiped out. Only remove Groups or UNIXGroups if
+    # you really want them deleted from Active Directory.
     def remove_group(group)
       # We cannot remove a group that still has a user referencing it as their
       # primary_group or unix_main_group.
@@ -163,6 +186,13 @@ module RADUM
       @removed_groups.push group unless @removed_groups.include? group
       @directory.rids.delete group.rid if group.rid
       @directory.gids.delete group.gid if group.instance_of? UNIXGroup
+      
+      @directory.groups.each do |current_group|
+        if current_group.groups.include? group
+          group.remove_group group
+        end
+      end
+      
       group.removed = true
     end
     

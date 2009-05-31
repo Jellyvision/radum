@@ -26,8 +26,13 @@ module RADUM
     # Users or UNIXUsers are not members of the Group or UNIXGroup if the Group
     # or UNIXGroup is their primary Windows group in Active Directory.
     attr_reader :users
+    # An array of User or UNIXUser objects removed from the Group or UNIXGroup.
+    attr_reader :removed_users
     # The Group or UNIXGroup objects that are members of the Group or UNIXGroup.
     attr_reader :groups
+    # An array of Group or UNIXGroup objects removed from the Group or
+    # UNIXGroup.
+    attr_reader :removed_groups
     # True if the Group or UNIXGroup has been removed from the Container, false
     # otherwise. This is set by the Container if the Group is removed.
     attr_accessor :removed
@@ -58,7 +63,9 @@ module RADUM
       @distinguished_name = "cn=" + name + "," + @container.name + "," +
                             @container.directory.root
       @users = []
+      @removed_users = []
       @groups = []
+      @removed_groups = []
       # A UNIXGroup adding itself the container needs to happen at the end of
       # the initializer in that class instead because the GID value is needed.
       # The removed flag must be set to true first since we are not in the
@@ -93,6 +100,7 @@ module RADUM
       if @container.directory == user.container.directory
         unless self == user.primary_group
           @users.push user unless @users.include? user
+          @removed_users.delete user
           user.add_group self unless user.groups.include? self
           @modified = true
         else
@@ -108,6 +116,7 @@ module RADUM
     # object's list of groups.
     def remove_user(user)
       @users.delete user
+      @removed_users.push user unless @removed_users.include? user
       user.remove_group self if user.groups.include? self
       @modified = true
     end
@@ -132,12 +141,14 @@ module RADUM
       end
       
       @groups.push group unless @groups.include? group
+      @removed_groups.delete group
       @modified = true
     end
     
     # Remove the Group or UNIXGroup membership in the Group or UNIXGroup.
     def remove_group(group)
       @groups.delete group
+      @removed_groups.push group unless @removed_groups.include? group
       @modified = true
     end
     

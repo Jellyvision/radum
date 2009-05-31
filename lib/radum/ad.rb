@@ -1088,14 +1088,39 @@ module RADUM
         
         begin
           entry.member.each do |member|
-            # TO DO: Need some way to know who was removed.
+            # Groups can contain users and groups, so we need to check both
+            # just in case. You can't tell from the DN which is which here.
+            # First we remove any DNs that we've explicitly removed. Anything
+            # we don't know about will be ignored.
+            #
+            # This check finds users or groups that were removed from the
+            # container. This means the user has been deleted from Active
+            # Directory in the AD object. It also finds users or groups that
+            # were explicitly removed from the group.
+            if find_group_by_dn(member, true) ||
+               find_user_by_dn(member, true) ||
+               group.removed_users.include?(find_user_by_dn(member)) ||
+               group.removed_groups.include?(find_user_by_dn(member))
+              ops.push [:delete, :member, member.to_s]
+            end
+          end
+          
+          # Now add any users or groups that are not already in the members
+          # attribute array. We don't want to add the same thing twice because
+          # this actually seems to duplicate the entries.
+          (group.users + group.groups).each do |item|
+            found = entry.member.find do |member|
+              item.distinguished_name.downcase == member.downcase
+            end
+            
+            ops.push [:add, :member, item.distinguished_name] unless found
           end
         rescue NoMethodError
         end
         
         unless ops.empty?
-          puts opts.to_yaml
-          @ldap.modify :dn => group.distingished_name, :operations => ops
+          puts ops.to_yaml
+          @ldap.modify :dn => group.distinguished_name, :operations => ops
           check_ldap_result
           # At this point the group is the equivalent of a loaded group. Calling
           # this flags that fact as well as setting the hidden modified

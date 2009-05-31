@@ -23,6 +23,9 @@ module RADUM
     # is not added to the groups array directly. This matches the implicit
     # membership in the primary Windows group in Active Directory.
     attr_reader :groups
+    # An array of Group or UNIXGroup objects removed from the User or
+    # UNIXUser.
+    attr_reader :removed_groups
     # True if the User or UNIXUser has been removed from the Container, false
     # otherwise. This is set by the Container if the User or UNIXUser is
     # removed.
@@ -80,6 +83,7 @@ module RADUM
       @distinguished_name = "cn=" + @common_name + "," + @container.name +
                             "," + @container.directory.root
       @groups = []
+      @removed_groups = []
       @first_name = username
       @middle_name = nil
       @surname = nil
@@ -288,6 +292,7 @@ module RADUM
       if @container.directory == group.container.directory
         unless @primary_group == group
           @groups.push group unless @groups.include? group
+          @removed_groups.delete group
           group.add_user self unless group.users.include? self
         else
           raise "User is already a member of their primary group."
@@ -301,6 +306,16 @@ module RADUM
     # automatically removes the User or UNIXUser from the Group or UNIXGroup
     # object's list of users.
     def remove_group(group)
+      # This method can be called on a primary_group change. If the user was a
+      # member of the primary_group, we want to make sure we remove that
+      # membership. It is also possible the user was not already a member of
+      # that primary_group. We only want to add that group to the
+      # @removed_groups array if they were really a member, otherwise we would
+      # not care.
+      if @groups.include? group
+        @removed_groups.push group unless @removed_groups.include? group
+      end
+      
       @groups.delete group
       group.remove_user self if group.users.include? self
     end
