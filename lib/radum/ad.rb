@@ -1010,28 +1010,52 @@ module RADUM
     # Remove a Group or UNIXGroup from Active Directory.
     def remove_group(group)
       # First check to make sure the group is not the primary Windows group
-      # for any user in Active Directory. We could probably rely on the attempt
-      # to delete the group failing, but I don't like doing that. Yes, it is
-      # much less efficient this way, but removing a group is not very common
-      # in my experience.
-      found = []
+      # or main UNIX group for any user in Active Directory. We could probably
+      # rely on the attempt to delete the group failing, but I don't like doing
+      # that. Yes, it is much less efficient this way, but removing a group is
+      # not very common in my experience. Also note that this would probably not
+      # fail for a main UNIX group because that's pretty much "tacked" onto
+      # the standard Windows Active Directory logic (at least, I have been
+      # able to remove a group that was someone's main UNIX group before, but
+      # not their primary Windows group).
+      found_primary = []
+      found_unix = []
       user_filter = Net::LDAP::Filter.eq("objectclass", "user")
       
       @ldap.search(:base => @root, :filter => user_filter) do |entry|
         rid = entry.primaryGroupID.pop.to_i
-        found.push entry.dn if rid == group.rid
+        found_primary.push entry.dn if rid == group.rid
+        
+        if group.instance_of? UNIXGroup
+          begin
+            gid = entry.gidNumber.pop.to_i
+            found_unix.push entry.dn if gid == group.gid
+          rescue NoMethodError
+          end
+        end
       end
       
-      if found.empty?
+      if found_primary.empty? && found_unix.empty?
         puts "Removing group #{group.name}."
         @ldap.delete :dn => group.distinguished_name
         check_ldap_result
       else
-        puts "Cannot remove group: #{group.name}."
-        puts "It is the primary Windows group for the following users:\n"
+        puts "Cannot remove group #{group.name}:"
         
-        found.each do |user|
-          puts user
+        unless found_primary.empty?
+          puts "#{group.name} is the primary Windows group for the users:"
+          
+          found_primary.each do |user|
+            puts "\t#{user}"
+          end
+        end
+        
+        unless found_unix.empty?
+          puts "#{group.name} is the main UNIX group for the users:"
+          
+          found_unix.each do |user|
+            puts "\t#{user}"
+          end
         end
       end
     end
