@@ -240,9 +240,16 @@ module RADUM
     
     # Find a User or UNIXUser in the AD by username. The search is
     # case-insensitive. The User or UNIXUser is returned if found, otherwise
-    # nil is returned.
-    def find_user(username)
-      found = users.find do |user|
+    # nil is returned. Specify the second argument as true if you wish to
+    # search for removed User or UNIXUser objects.
+    def find_user(username, removed = false)
+      if removed
+        search_users = removed_users
+      else
+        search_users = users
+      end
+      
+      found = search_users.find do |user|
         # This relies on the fact that usernames (sAMAccountName) must be
         # unique in a directory.
         user.username.downcase == username.downcase
@@ -253,9 +260,16 @@ module RADUM
     end
     
     # Find a User or UNIXUser in the AD by RID. The User or UNIXUser is
-    # returned if found, otherwise nil is returned.
-    def find_user_by_rid(rid)
-      found = users.find do |user|
+    # returned if found, otherwise nil is returned. Specify the second argument
+    # as true if you wish to search for removed User or UNIXUser objects.
+    def find_user_by_rid(rid, removed = false)
+      if removed
+        search_users = removed_users
+      else
+        search_users = users
+      end
+      
+      found = search_users.find do |user|
         user.rid == rid
       end
       
@@ -264,9 +278,16 @@ module RADUM
     end
     
     # Find a UNIXUser in the AD by UID. The UNIXUser is returned if found,
-    # otherwise nil is returned.
-    def find_user_by_uid(uid)
-      found = users.find do |user|
+    # otherwise nil is returned. Specify the second argument as true if you
+    # wish to search for removed UNIXUser objects.
+    def find_user_by_uid(uid, removed = false)
+      if removed
+        search_users = removed_users
+      else
+        search_users = users
+      end
+      
+      found = search_users.find do |user|
         user.uid == uid if user.instance_of? UNIXUser
       end
       
@@ -275,9 +296,17 @@ module RADUM
     end
     
     # Find a User or UNIXUser in the AD by distinguished name. The User or
-    # UNIXUser is returned if found, otherwise nil is returned.
-    def find_user_by_dn(dn)
-      found = users.find do |user|
+    # UNIXUser is returned if found, otherwise nil is returned. Specify the
+    # second argument as true if you wish to search for removed User or
+    # UNIXUser objects.
+    def find_user_by_dn(dn, removed = false)
+      if removed
+        search_users = removed_users
+      else
+        search_users = users
+      end
+      
+      found = search_users.find do |user|
         user.distinguished_name.downcase == dn.downcase
       end
       
@@ -314,9 +343,16 @@ module RADUM
     
     # Find a Group or UNIXGroup in the AD by name. The search is
     # case-insensitive. The Group or UNIXGroup is returned if found, otherwise
-    # nil is returned.
-    def find_group(name)
-      found = groups.find do |group|
+    # nil is returned. Specify the second argument as true if you wish to
+    # search for removed Group or UNIXGroup objects.
+    def find_group(name, removed = false)
+      if removed
+        search_groups = removed_groups
+      else
+        search_groups = groups
+      end
+      
+      found = search_groups.find do |group|
         # This relies on the fact that group names must be unique in a
         # directory.
         group.name.downcase == name.downcase
@@ -327,9 +363,16 @@ module RADUM
     end
     
     # Find a Group or UNIXGroup in the AD by RID. The Group or UNIXGroup is
-    # returned if found, otherwise nil is returned.
-    def find_group_by_rid(rid)
-      found = groups.find do |group|
+    # returned if found, otherwise nil is returned. Specify the second argument
+    # as true if you wish to search for removed Group or UNIXGroup objects.
+    def find_group_by_rid(rid, removed = false)
+      if removed
+        search_groups = removed_groups
+      else
+        search_groups = groups
+      end
+      
+      found = search_groups.find do |group|
         group.rid == rid
       end
       
@@ -338,9 +381,16 @@ module RADUM
     end
     
     # Find a UNIXGroup in the AD by GID. The UNIXGroup is returned if found,
-    # otherwise nil is returned.
-    def find_group_by_gid(gid)
-      found = groups.find do |group|
+    # otherwise nil is returned. Specify the second argument as true if you
+    # wish to search for removed UNIXGroup objects.
+    def find_group_by_gid(gid, removed = false)
+      if removed
+        search_groups = removed_groups
+      else
+        search_groups = groups
+      end
+      
+      found = search_groups.find do |group|
         group.gid == gid if group.instance_of? UNIXGroup
       end
       
@@ -349,9 +399,17 @@ module RADUM
     end
     
     # Find a Group or UNIXGroup in the AD by distinguished name. The Group or
-    # UNIXGroup is returned if found, otherwise nil is returned.
-    def find_group_by_dn(dn)
-      found = groups.find do |group|
+    # UNIXGroup is returned if found, otherwise nil is returned. Specify the
+    # second argument as true if you wish to search for removed Group or
+    # UNIXGroup objects.
+    def find_group_by_dn(dn, removed = false)
+      if removed
+        search_groups = removed_groups
+      else
+        search_groups = groups
+      end
+      
+      found = search_groups.find do |group|
         group.distinguished_name.downcase == dn.downcase
       end
       
