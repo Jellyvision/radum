@@ -64,4 +64,10 @@ class TC_UNIXUser < Test::Unit::TestCase
       @uu1a_c1_ad1.groups.find { |group| group == @ug2_c1_ad1 }
     end
   end
+  
+  def test_remove_unix_main_group_exception
+    assert_raise RuntimeError do
+      @uu1a_c1_ad1.remove_group @ug1_c1_ad1
+    end
+  end
 end

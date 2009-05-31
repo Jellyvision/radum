@@ -111,9 +111,8 @@ module RADUM
       end
     end
     
-    # Remove the User or UNIXUser membership in the Group or UNIXGroup. This
-    # automatically removes the Group or UNIXGroup from the User or UNIXUser
-    # object's list of groups.
+    # Remove the User or UNIXUser membership in the Group. This automatically
+    # removes the Group from the User or UNIXUser object's list of groups.
     def remove_user(user)
       @users.delete user
       @removed_users.push user unless @removed_users.include? user
@@ -222,6 +221,21 @@ module RADUM
       @removed = true
       @container.add_group self
       @removed = false
+    end
+    
+    # Remove the User or UNIXUser membership in the UNIXGroup. This
+    # automatically removes the UNIXGroup from the User or UNIXUser object's
+    # list of groups. This method returns a RuntimeError if the user
+    # has this UNIXGroup as their UNIX main group. UNIXGroup membership cannot
+    # be removed for the UNIXUser's UNIX main group because RADUM enforces
+    # Windows group membership in the UNIX main group.
+    def remove_user(user)
+      if !user.removed && user.instance_of?(UNIXUser) &&
+         self == user.unix_main_group
+        raise "A UNIXUser cannot be removed from their unix_main_group."
+      end
+      
+      super user
     end
     
     # The UNIXGroup UNIX NIS domain.

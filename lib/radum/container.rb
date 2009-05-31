@@ -117,14 +117,15 @@ module RADUM
       @removed_users.push user unless @removed_users.include? user
       @directory.rids.delete user.rid if user.rid
       @directory.uids.delete user.uid if user.instance_of? UNIXUser
+      # This needs to be set so that there is no error when removing the user
+      # from a group if that group is its UNIX main group.
+      user.removed = true
       
       @directory.groups.each do |group|
         if group.users.include? user
           group.remove_user user
         end
       end
-      
-      user.removed = true
     end
     
     # Add Group and UNIXGroup objects which were previously removed and had

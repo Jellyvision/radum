@@ -1166,11 +1166,44 @@ module RADUM
             # container. This means the user has been deleted from Active
             # Directory in the AD object. It also finds users or groups that
             # were explicitly removed from the group.
-            if find_group_by_dn(member, true) ||
-               find_user_by_dn(member, true) ||
-               group.removed_users.include?(find_user_by_dn(member)) ||
-               group.removed_groups.include?(find_user_by_dn(member))
+            removed_group = find_group_by_dn(member, true)
+            removed_user = find_user_by_dn(member, true)
+            removed_group_membership = find_group_by_dn(member)
+            
+            unless group.removed_groups.include?(removed_group_membership)
+              removed_group_membership = false
+            end
+            
+            removed_user_membership = find_user_by_dn(member)
+            
+            unless group.removed_users.include?(removed_user_membership)
+              removed_user_membership = false
+            end
+            
+            if removed_group || removed_user || removed_group_membership ||
+               removed_user_membership
               ops.push [:delete, :member, member]
+              user = removed_user || removed_user_membership
+              
+              if user && user.instance_of?(UNIXUser) &&
+                 group.instance_of?(UNIXGroup)
+                # There is a chance the user was never a UNIX member of this
+                # UNIXGroup. This happens if the UNIX main group is changed
+                # and then the user is removed from the group as well. We
+                # should really also search the memberUid attribute, but
+                # really... it should always match up with msSFU30PosixMember.
+                begin
+                  found = entry.msSFU30PosixMember.find do |member|
+                    item.distinguished_name.downcase == member.downcase
+                  end
+                  
+                  if found
+                    ops.push [:delete, :memberUid, user.username]
+                    ops.push [:delete, :msSFU30PosixMember, member]
+                  end
+                rescue NoMethodError
+                end
+              end
             end
           end
           
@@ -1183,6 +1216,23 @@ module RADUM
             end
             
             ops.push [:add, :member, item.distinguished_name] unless found
+            
+            if item.instance_of?(UNIXUser) && group.instance_of?(UNIXGroup) &&
+               group != item.unix_main_group
+              begin
+                # We should really also search the memberUid attribute, but
+                # really... it should always match up with msSFU30PosixMember.
+                found = entry.msSFU30PosixMember.find do |member|
+                  item.distinguished_name.downcase == member.downcase
+                end
+                
+                unless found
+                  ops.push [:add, :memberUid, item.username]
+                  ops.push [:add, :msSFU30PosixMember, item.distinguished_name]
+                end
+              rescue NoMethodError
+              end
+            end
           end
         rescue NoMethodError
         end

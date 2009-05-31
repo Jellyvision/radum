@@ -302,9 +302,8 @@ module RADUM
       end
     end
     
-    # Remove the User or UNIXUser membership in the Group or UNIXGroup. This
-    # automatically removes the User or UNIXUser from the Group or UNIXGroup
-    # object's list of users.
+    # Remove the User membership in the Group or UNIXGroup. This automatically
+    # removes the User from the Group or UNIXGroup object's list of users.
     def remove_group(group)
       # This method can be called on a primary_group change. If the user was a
       # member of the primary_group, we want to make sure we remove that
@@ -623,6 +622,22 @@ module RADUM
       @modified = true
     end
     
+    # Remove the UNIXUser membership in the Group or UNIXGroup. This
+    # automatically removes the UNIXUser from the Group or UNIXGroup object's
+    # list of users. This method returns a RuntimeError if the group is a
+    # UNIXGroup and the UNIXUser's UNIX main group. UNIXGroup membership
+    # cannot be removed for the UNIXUser's UNIX main group because RADUM
+    # enforces Windows group membership in the UNIX main group.
+    def remove_group(group)
+      if group.instance_of? UNIXGroup
+        if !self.removed && group == @unix_main_group
+          raise "A UNIXUser cannot be removed from their unix_main_group."
+        end
+      end
+      
+      super group
+    end
+    
     # The UNIXUser UNIX main group. This is where the UNIXUser UNIX GID
     # value comes from, which is reflected in the gid attribute.
     def unix_main_group
@@ -639,7 +654,9 @@ module RADUM
           @unix_main_group = group
           @gid = group.gid
           @container.add_group group
-          add_group group
+          # The UNIXUser is already a member of their primary Windows group
+          # implicitly.
+          add_group group unless group == @primary_group
           @modified = true
         else
           raise "UNIXUser unix_main_group must be in the same directory."

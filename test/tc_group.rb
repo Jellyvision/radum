@@ -112,6 +112,12 @@ class TC_Group < Test::Unit::TestCase
     end
   end
   
+  def test_remove_user_main_unix_group_exception
+    assert_raise RuntimeError do
+      @ug1_c1_ad1.remove_user @uu1_c1_ad1
+    end
+  end
+  
   def test_add_group_self_exception
     assert_raise RuntimeError do
       @g1_c1_ad1.add_group @g1_c1_ad1
