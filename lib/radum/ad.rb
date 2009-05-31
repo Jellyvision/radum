@@ -97,10 +97,10 @@ module RADUM
     # in the AD object. This is automatically managed by the other objects and
     # should not be modified directly.
     attr_accessor :rids
-    # The array of Containers in the AD object. This is automatically managed
-    # by the Container and AD objects and should not be modified directly
-    # except for using the methods of those classes.
-    attr_accessor :containers
+    # The array of Containers in the AD object.
+    attr_reader :containers
+    # The array of Containers set for removal in the AD object.
+    attr_reader :removed_containers
     
     # Create a new AD object to represent an Active Directory environment.
     # The root is a String representation of an LDAP path, such as
@@ -131,6 +131,7 @@ module RADUM
       @user = user
       @server = server
       @containers = []
+      @removed_containers = []
       @uids = []
       @gids = []
       # RIDs are in a flat namespace, so there's no need to keep track of them
@@ -190,6 +191,7 @@ module RADUM
           # Someone could have manaually set the removed flag as well, so
           # we still check.
           @containers.push container unless @containers.include? container
+          @removed_containers.delete container
           container.removed = false
         else
           raise "Container must be in the same directory."
@@ -201,6 +203,11 @@ module RADUM
     # attribute to true.
     def remove_container(container)
       @containers.delete container
+      
+      unless @removed_containers.include? container
+        @removed_containers.push container
+      end
+      
       container.removed = true
     end
     
@@ -216,6 +223,19 @@ module RADUM
       end
       
       all_users
+    end
+    
+    # Returns an Array of all removed User and UNIXUser objects in the AD.
+    def removed_users
+      all_removed_users = []
+      
+      @containers.each do |container|
+        container.removed_users.each do |user|
+          all_removed_users.push user
+        end
+      end
+      
+      all_removed_users
     end
     
     # Find a User or UNIXUser in the AD by username. The search is
@@ -277,6 +297,19 @@ module RADUM
       end
       
       all_groups
+    end
+    
+    # Returns an Array of all removed Group and UNIXGroup objects in the AD.
+    def removed_groups
+      all_removed_groups = []
+      
+      @containers.each do |container|
+        container.removed_groups.each do |group|
+          all_removed_groups.push group
+        end
+      end
+      
+      all_removed_groups
     end
     
     # Find a Group or UNIXGroup in the AD by name. The search is
@@ -446,16 +479,15 @@ module RADUM
         
         begin
           entry.member.each do |member|
-            name = member.split(',')[0].split('=')[1]
             # Groups can have groups or users as members, unlike UNIX where
             # groups cannot contain group members.
-            member_group = find_group name
+            member_group = find_group_by_dn member
             
             if member_group
               group.add_group member_group
             end
             
-            member_user = find_user name
+            member_user = find_user_by_dn member
             
             if member_user
               group.add_user member_user
@@ -996,7 +1028,12 @@ module RADUM
           end
         end
         
-        # TO DO: HANDLE GROUP USER AND GROUP MEMBERSHIPS.
+        begin
+          entry.member.each do |member|
+            # TO DO: Need some way to know who was removed.
+          end
+        rescue NoMethodError
+        end
         
         unless ops.empty?
           puts opts.to_yaml

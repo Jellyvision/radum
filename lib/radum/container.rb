@@ -12,8 +12,13 @@ module RADUM
     attr_reader :distinguished_name
     # An Array of User or UNIXUser objects that are in this Container.
     attr_reader :users
+    # An Array of User or UNIXUser objects set for removal from this Container.
+    attr_reader :removed_users
     # An Array of Group or UNIXGroup objects that are in this Container.
     attr_reader :groups
+    # An Array of Group or UNIXGroup objects set for removal from this
+    # Container.
+    attr_reader :removed_groups
     # True if the Container has been removed from the AD, false
     # otherwise. This is set by the AD if the Container is removed.
     attr_accessor :removed
@@ -65,7 +70,9 @@ module RADUM
       @directory.add_container self
       @removed = false
       @users = []
+      @removed_users = []
       @groups = []
+      @removed_groups = []
     end
     
     # Add User and UNIXUser objects which were previously removed and had
@@ -83,6 +90,7 @@ module RADUM
           # we still check.
           unless @users.include? user
             @users.push user
+            @removed_users.delete user
             @directory.rids.push user.rid if user.rid
             @directory.uids.push user.uid if user.instance_of? UNIXUser
           end
@@ -98,6 +106,7 @@ module RADUM
     # User or UNIXUser object's removed attribute to true.
     def remove_user(user)
       @users.delete user
+      @removed_users.push user unless @removed_users.include? user
       @directory.rids.delete user.rid if user.rid
       @directory.uids.delete user.uid if user.instance_of? UNIXUser
       user.removed = true
@@ -118,6 +127,7 @@ module RADUM
           # we still check.
           unless @groups.include? group
             @groups.push group
+            @removed_groups.delete group
             @directory.rids.push group.rid if group.rid
             @directory.gids.push group.gid if group.instance_of? UNIXGroup
           end
@@ -150,6 +160,7 @@ module RADUM
       end
       
       @groups.delete group
+      @removed_groups.push group unless @removed_groups.include? group
       @directory.rids.delete group.rid if group.rid
       @directory.gids.delete group.gid if group.instance_of? UNIXGroup
       group.removed = true
