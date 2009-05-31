@@ -629,10 +629,9 @@ module RADUM
     # cannot be removed for the UNIXUser's UNIX main group because RADUM
     # enforces Windows group membership in the UNIX main group.
     def remove_group(group)
-      if group.instance_of? UNIXGroup
-        if !self.removed && group == @unix_main_group
-          raise "A UNIXUser cannot be removed from their unix_main_group."
-        end
+      if !self.removed && group.instance_of?(UNIXGroup) &&
+         group == @unix_main_group
+        raise "A UNIXUser cannot be removed from their unix_main_group."
       end
       
       super group
