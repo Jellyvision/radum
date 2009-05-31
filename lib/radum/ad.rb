@@ -635,14 +635,30 @@ module RADUM
     # unset attributes will be removed, and modified attributes will be
     # updated automatically.
     def sync
-      # TO DO: ACTUALLY, WE SHOULD REMOVE ANY REMOVED USERS FIRST. WE NEED TO
-      # ACTUALLY TRACK THAT SOMEHOW. IF A LOADED USER WAS REMOVED, THEN THAT
-      # USER NEEDS TO BE REMOVED FROM ACTIVE DIRECTORY. IF THEY WERE NOT LOADED,
-      # THEN WE DON'T CARE? THIS IS KIND OF COMPLICATED :-)
-      #
-      # THE SAME APPLIES FOR GROUPS BTW.
+      # First, remove any users that have been removed from a container here.
+      # We need to remove users first because a group cannot be removed if
+      # a user has it as their primary Windows group. Just in case, we remove
+      # the removed users first. The same applies if the group is some other
+      # user's main UNIX group. The code in this module makes sure that doesn't
+      # happen for objects it knows about, but there could be others in Active
+      # Directory the module does not know about.
+      removed_users.each do |user|
+        remove_user user
+      end
       
-      # First, create any containers or organizational units that do not already
+      # Second, remove any groups that have been removed from a contianer here.
+      removed_groups.each do |group|
+        # This method checks if the group is some other user's primary Windows
+        # group by searching the entire Active Directory. A group cannot be
+        # removed if it is any user's primary Windows group. The same applies
+        # if the group is some other user's main UNIX group. The code in this
+        # module makes sure that doesn't happen for objects it knows about, but
+        # there could be others in Active Directory the module does not know
+        # about.
+        remove_group group
+      end
+      
+      # Third, create any containers or organizational units that do not already
       # exist.
       @containers.each do |container|
         # This method only creates containers that do not already exist. Since
@@ -651,21 +667,21 @@ module RADUM
         create_container container
       end
       
-      # Second, make sure any groups that need to be created are added to Active
+      # Fourth, make sure any groups that need to be created are added to Active
       # Directory.
       groups.each do |group|
         # This method checks if the group actually needs to be created or not.
         create_group group
       end
       
-      # Third, make sure any users that need to be created are added to Active
+      # Fifth, make sure any users that need to be created are added to Active
       # Directory.
       users.each do |user|
         # This method checks if the user actually needs to be created or not.
         create_user user
       end
       
-      # Fourth, update any modified attributes on each group.
+      # Sixth, update any modified attributes on each group.
       groups.each do |group|
         # This method figures out what attributes need to be updated when
         # compared to Active Directory. All objects should exist in Active
@@ -675,7 +691,7 @@ module RADUM
         update_group group
       end
             
-      # Fifth, update any modified attributs on each user.
+      # Finally, update any modified attributs on each user.
       users.each do |user|
         # This method figures out what attributes need to be updated when
         # compared to Active Directory. All objects should exist in Active
@@ -991,6 +1007,35 @@ module RADUM
       end
     end
     
+    # Remove a Group or UNIXGroup from Active Directory.
+    def remove_group(group)
+      # First check to make sure the group is not the primary Windows group
+      # for any user in Active Directory. We could probably rely on the attempt
+      # to delete the group failing, but I don't like doing that. Yes, it is
+      # much less efficient this way, but removing a group is not very common
+      # in my experience.
+      found = []
+      user_filter = Net::LDAP::Filter.eq("objectclass", "user")
+      
+      @ldap.search(:base => @root, :filter => user_filter) do |entry|
+        rid = entry.primaryGroupID.pop.to_i
+        found.push entry.dn if rid == group.rid
+      end
+      
+      if found.empty?
+        puts "Removing group #{group.name}."
+        @ldap.delete :dn => group.distinguished_name
+        check_ldap_result
+      else
+        puts "Cannot remove group: #{group.name}."
+        puts "It is the primary Windows group for the following users:\n"
+        
+        found.each do |user|
+          puts user
+        end
+      end
+    end
+    
     # Create a Group or UNIXGroup in Active Directory. The Group or UNIXGroup
     # must have its loaded attribute set to false, which indicates it was
     # manually created. This method checks that, so it is not necessary to
@@ -1101,7 +1146,7 @@ module RADUM
                find_user_by_dn(member, true) ||
                group.removed_users.include?(find_user_by_dn(member)) ||
                group.removed_groups.include?(find_user_by_dn(member))
-              ops.push [:delete, :member, member.to_s]
+              ops.push [:delete, :member, member]
             end
           end
           
@@ -1128,6 +1173,12 @@ module RADUM
           group.set_loaded
         end
       end
+    end
+    
+    # Remove a User or UNIXUser from Active Directory.
+    def remove_user(user)
+      @ldap.delete :dn => user.distinguished_name
+      check_ldap_result
     end
     
     # Create a User or UNIXUser in Active Directory. The User or UNIXUser
