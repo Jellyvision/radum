@@ -222,44 +222,46 @@ module RADUM
     # case-insensitive. The User or UNIXUser is returned if found, otherwise
     # nil is returned.
     def find_user(username)
-      @containers.each do |container|
-        found = container.users.find do |user|
-          # This relies on the fact that usernames (sAMAccountName) must be
-          # unique in a directory.
-          user.username.downcase == username.downcase
-        end
-        
-        return found if found
+      found = users.find do |user|
+        # This relies on the fact that usernames (sAMAccountName) must be
+        # unique in a directory.
+        user.username.downcase == username.downcase
       end
       
+      return found if found
       return nil
     end
     
     # Find a User or UNIXUser in the AD by RID. The User or UNIXUser is
     # returned if found, otherwise nil is returned.
     def find_user_by_rid(rid)
-      @containers.each do |container|
-        found = container.users.find do |user|
-          user.rid == rid
-        end
-        
-        return found if found
+      found = users.find do |user|
+        user.rid == rid
       end
       
+      return found if found
       return nil
     end
     
     # Find a UNIXUser in the AD by UID. The UNIXUser is returned if found,
     # otherwise nil is returned.
     def find_user_by_uid(uid)
-      @containers.each do |container|
-        found = container.users.find do |user|
-          user.uid == uid if user.instance_of? UNIXUser
-        end
-        
-        return found if found
+      found = users.find do |user|
+        user.uid == uid if user.instance_of? UNIXUser
       end
       
+      return found if found
+      return nil
+    end
+    
+    # Find a User or UNIXUser in the AD by distinguished name. The User or
+    # UNIXUser is returned if found, otherwise nil is returned.
+    def find_user_by_dn(dn)
+      found = users.find do |user|
+        user.distinguished_name.downcase == dn.downcase
+      end
+      
+      return found if found
       return nil
     end
     
@@ -281,44 +283,46 @@ module RADUM
     # case-insensitive. The Group or UNIXGroup is returned if found, otherwise
     # nil is returned.
     def find_group(name)
-      @containers.each do |container|
-        found = container.groups.find do |group|
-          # This relies on the fact that group names must be unique in a
-          # directory.
-          group.name.downcase == name.downcase
-        end
-        
-        return found if found
+      found = groups.find do |group|
+        # This relies on the fact that group names must be unique in a
+        # directory.
+        group.name.downcase == name.downcase
       end
       
+      return found if found
       return nil
     end
     
     # Find a Group or UNIXGroup in the AD by RID. The Group or UNIXGroup is
     # returned if found, otherwise nil is returned.
     def find_group_by_rid(rid)
-      @containers.each do |container|
-        found = container.groups.find do |group|
-          group.rid == rid
-        end
-        
-        return found if found
+      found = groups.find do |group|
+        group.rid == rid
       end
       
+      return found if found
       return nil
     end
     
     # Find a UNIXGroup in the AD by GID. The UNIXGroup is returned if found,
     # otherwise nil is returned.
     def find_group_by_gid(gid)
-      @containers.each do |container|
-        found = container.groups.find do |group|
-          group.gid == gid if group.instance_of? UNIXGroup
-        end
-        
-        return found if found
+      found = groups.find do |group|
+        group.gid == gid if group.instance_of? UNIXGroup
       end
       
+      return found if found
+      return nil
+    end
+    
+    # Find a Group or UNIXGroup in the AD by distinguished name. The Group or
+    # UNIXGroup is returned if found, otherwise nil is returned.
+    def find_group_by_dn(dn)
+      found = groups.find do |group|
+        group.distinguished_name.downcase == dn.downcase
+      end
+      
+      return found if found
       return nil
     end
     
