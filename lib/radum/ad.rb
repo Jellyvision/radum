@@ -1133,7 +1133,7 @@ module RADUM
         ops = []
         
         attr.keys.each do |key|
-          # All keys in the attr has apply to UNIXGroups, but some do not apply
+          # All keys in the attr hash apply to UNIXGroups, but some do not apply
           # to Groups. This is the easiest way to filter out inappropriate
           # checking.
           begin
@@ -1507,7 +1507,7 @@ module RADUM
         ops = []
         
         attr.keys.each do |key|
-          # All keys in the attr has apply to UNIXUsers, but most do not apply
+          # All keys in the attr hash apply to UNIXUsers, but most do not apply
           # to Users. This is the easiest way to filter out inappropriate
           # checking.
           begin
