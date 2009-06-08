@@ -199,16 +199,60 @@ module RADUM
       end
     end
     
-    # Remove a Container from the AD. This sets the Container object's removed
-    # attribute to true.
+    # Remove a Container from the AD. This attempts to set the Container
+    # object's removed attribute to true as well as remove any users or
+    # groups it contains. If any group cannot be removed because it is a
+    # dependency, the Container cannot be fully removed either, but all
+    # objects that can be removed will be removed. This can happen if a
+    # group is another user object's primary Windows group or UNIX main
+    # group and that user is not in the same Container.
+    #
+    # Note that this method might succeed based on the user and group objects
+    # it knows about, but it still might fail when AD.sync is called because a
+    # more extensive Active Directory search will be performed at that point.
+    # In any case, all users will be removed and all groups (and the Container)
+    # if possible. This method is greedy in that it tries to remove as many
+    # objects from Active Directory as possible.
     def remove_container(container)
-      @containers.delete container
+      can_remove = true
       
-      unless @removed_containers.include? container
-        @removed_containers.push container
+      # Note in both cases we are removing users from the Container's users
+      # array, thus it is necessary to clone the array or modifications will
+      # mess up the iteration.
+      container.users.clone.each do |user|
+        container.remove_user user
       end
       
-      container.removed = true
+      container.groups.clone.each do |group|
+        begin
+          container.remove_group group
+        rescue RuntimeError => error
+          puts error
+          can_remove = false
+        end
+      end
+      
+      @containers.each do |current_container|
+        next if current_container == container
+        
+        if current_container.name =~ /#{container.name}/
+          puts "Container #{container.name} contains container " +
+               "#{current_container.name}."
+          can_remove = false
+        end
+      end
+      
+      if can_remove
+        @containers.delete container
+        
+        unless @removed_containers.include? container
+          @removed_containers.push container
+        end
+        
+        container.removed = true
+      else
+        puts "Cannot fully remove container #{container.name}."
+      end
     end
     
     # Returns an Array of all User and UNIXUser objects in all Containers
@@ -424,13 +468,16 @@ module RADUM
     # module for account management work.
     #
     # Users are not created if their primary Windows group is not found
-    # during the load. UNIXUsers are not created if their main UNIX group
+    # during the load. UNIXUsers are not created if their UNIX main group
     # is not found during the load. Warning messages are printed in each
     # case. Make sure all required Containers are in the AD before loading
     # data from Active Directory to avoid this problem.
     def load
       # TO DO: WE SHOULD NOT ALLOW LOADING MORE THAN ONCE? SEE THE OTHER TO DO
-      # COMMENTS IN THIS CODE.
+      # COMMENTS IN THIS CODE. I THINK WE SHOULD JUST SET ANY ATTRIBUTES WE
+      # CAN TO THEIR ACTIVE DIRECTORY VALUES - THIS REQUIRES CHECKING THE
+      # CURRENT CLASS OF THE GROUP. THINK OF THIS AS A FILTER THAT IGNORES ANY
+      # ATTRIBUTES THAT DON'T MATCH THE CLASS AS IS.
       
       # Find all the groups first. We might need one to represent the main
       # group of a UNIX user.
@@ -458,7 +505,7 @@ module RADUM
         end
       end
       
-      # Find all the users. The main UNIX group must be set for UNIXUser
+      # Find all the users. The UNIX main group must be set for UNIXUser
       # objects, so it will be necessary to search for that.
       user_filter = Net::LDAP::Filter.eq("objectclass", "user")
       
@@ -633,17 +680,18 @@ module RADUM
     # Active Directory. This will create entries as needed after checking to
     # make sure they do not already exist. New attributes will be added,
     # unset attributes will be removed, and modified attributes will be
-    # updated automatically.
+    # updated automatically. Removed objects will be deleted from Active
+    # Directory.
     def sync
-      # First, remove any users that have been removed from a container here.
+      # First, delete any users that have been removed from a container here.
       # We need to remove users first because a group cannot be removed if
       # a user has it as their primary Windows group. Just in case, we remove
       # the removed users first. The same applies if the group is some other
-      # user's main UNIX group. The code in this module makes sure that doesn't
+      # user's UNIX main group. The code in this module makes sure that doesn't
       # happen for objects it knows about, but there could be others in Active
       # Directory the module does not know about.
       removed_users.each do |user|
-        remove_user user
+        delete_user user
       end
       
       # Second, remove any groups that have been removed from a contianer here.
@@ -651,15 +699,25 @@ module RADUM
         # This method checks if the group is some other user's primary Windows
         # group by searching the entire Active Directory. A group cannot be
         # removed if it is any user's primary Windows group. The same applies
-        # if the group is some other user's main UNIX group. The code in this
+        # if the group is some other user's UNIX main group. The code in this
         # module makes sure that doesn't happen for objects it knows about, but
         # there could be others in Active Directory the module does not know
         # about.
-        remove_group group
+        delete_group group
       end
       
-      # Third, create any containers or organizational units that do not already
-      # exist.
+      # Third, remove any containers that have been removed. This can only be
+      # done after all the user and group removals hae been dealt with. This
+      # can still fail if there are any objects in Active Directory inside of
+      # the container (such as another container).  Note that the
+      # AD.remove_container method makes sure that a container is not removed
+      # if it contains another container in the first place.
+      removed_containers.each do |container|
+        delete_container container
+      end
+      
+      # Fourth, create any containers or organizational units that do not
+      # already exist.
       @containers.each do |container|
         # This method only creates containers that do not already exist. Since
         # containers are not loaded directly at first, their status is directly
@@ -667,21 +725,21 @@ module RADUM
         create_container container
       end
       
-      # Fourth, make sure any groups that need to be created are added to Active
+      # Fifth, make sure any groups that need to be created are added to Active
       # Directory.
       groups.each do |group|
         # This method checks if the group actually needs to be created or not.
         create_group group
       end
       
-      # Fifth, make sure any users that need to be created are added to Active
+      # Sixth, make sure any users that need to be created are added to Active
       # Directory.
       users.each do |user|
         # This method checks if the user actually needs to be created or not.
         create_user user
       end
       
-      # Sixth, update any modified attributes on each group.
+      # Seventh, update any modified attributes on each group.
       groups.each do |group|
         # This method figures out what attributes need to be updated when
         # compared to Active Directory. All objects should exist in Active
@@ -945,6 +1003,14 @@ module RADUM
       end
     end
     
+    # Delete a Container from Active Directory. There isn't much we can check
+    # except trying to delete it.
+    def delete_container(container)
+      puts "Deleting container #{container.name}."
+      @ldap.delete :dn => container.distinguished_name
+      check_ldap_result
+    end
+    
     # Create a Container in Active Directory. Each Container is searched for
     # directly and created if it does not already exist. This method also
     # automatically creates parent containers as required. This is safe to
@@ -1007,16 +1073,16 @@ module RADUM
       end
     end
     
-    # Remove a Group or UNIXGroup from Active Directory.
-    def remove_group(group)
+    # Delete a Group or UNIXGroup from Active Directory.
+    def delete_group(group)
       # First check to make sure the group is not the primary Windows group
-      # or main UNIX group for any user in Active Directory. We could probably
+      # or UNIX main group for any user in Active Directory. We could probably
       # rely on the attempt to delete the group failing, but I don't like doing
       # that. Yes, it is much less efficient this way, but removing a group is
       # not very common in my experience. Also note that this would probably not
-      # fail for a main UNIX group because that's pretty much "tacked" onto
+      # fail for a UNIX main group because that's pretty much "tacked" onto
       # the standard Windows Active Directory logic (at least, I have been
-      # able to remove a group that was someone's main UNIX group before, but
+      # able to remove a group that was someone's UNIX main group before, but
       # not their primary Windows group).
       found_primary = []
       found_unix = []
@@ -1036,11 +1102,11 @@ module RADUM
       end
       
       if found_primary.empty? && found_unix.empty?
-        puts "Removing group #{group.name}."
+        puts "Deleted group #{group.name}."
         @ldap.delete :dn => group.distinguished_name
         check_ldap_result
       else
-        puts "Cannot remove group #{group.name}:"
+        puts "Cannot delete group #{group.name}:"
         
         unless found_primary.empty?
           puts "#{group.name} is the primary Windows group for the users:"
@@ -1051,7 +1117,7 @@ module RADUM
         end
         
         unless found_unix.empty?
-          puts "#{group.name} is the main UNIX group for the users:"
+          puts "#{group.name} is the UNIX main group for the users:"
           
           found_unix.each do |user|
             puts "\t#{user}"
@@ -1168,6 +1234,10 @@ module RADUM
             # were explicitly removed from the group.
             removed_group = find_group_by_dn(member, true)
             removed_user = find_user_by_dn(member, true)
+            # The _membership versions find removed memberships for groups or
+            # users who have not actually been removed from the AD object. This
+            # reflects simple group and user membership changes, not removing
+            # a user or group.
             removed_group_membership = find_group_by_dn(member)
             
             unless group.removed_groups.include?(removed_group_membership)
@@ -1249,8 +1319,9 @@ module RADUM
       end
     end
     
-    # Remove a User or UNIXUser from Active Directory.
-    def remove_user(user)
+    # Delete a User or UNIXUser from Active Directory.
+    def delete_user(user)
+      puts "Deleting user #{user.username}."
       @ldap.delete :dn => user.distinguished_name
       check_ldap_result
     end

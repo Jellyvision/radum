@@ -159,7 +159,7 @@ module RADUM
     # Group or UNIXGroup object's removed attribute to true. A Group or
     # UNIXGroup cannot be removed if it is still any User object's primary
     # Windows group. A UNIXGroup cannot be removed if it is any User object's
-    # main UNIX group. In both cases, a RuntimeError will be raised. If the
+    # UNIX main group. In both cases, a RuntimeError will be raised. If the
     # Group or UNIXGroup is removed from the Container, they are effectively
     # deleted from Active Directory. Any Groups or UNIXGroups the Group or
     # UNIXGroup belongs to will have their membership removed as well. This
@@ -173,12 +173,14 @@ module RADUM
       # primary_group or unix_main_group.
       @directory.users.each do |user|
         if group == user.primary_group
-          raise "Cannot remove group: it is a User's primary_group."
+          raise "Cannot remove group #{group.name}: it is " +
+                "#{user.username}'s primary Windows group."
         end
         
         if user.instance_of? UNIXUser
           if group == user.unix_main_group
-            raise "Cannot remove group: it is a UNIXUser's unix_main_group."
+            raise "Cannot remove group #{group.name}: it is " +
+                  "#{user.username}'s UNIX main group."
           end
         end
       end
@@ -190,7 +192,7 @@ module RADUM
       
       @directory.groups.each do |current_group|
         if current_group.groups.include? group
-          group.remove_group group
+          current_group.remove_group group
         end
       end
       
