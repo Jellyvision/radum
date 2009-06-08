@@ -216,9 +216,9 @@ module RADUM
     def remove_container(container)
       can_remove = true
       
-      # Note in both cases we are removing users from the Container's users
-      # array, thus it is necessary to clone the array or modifications will
-      # mess up the iteration.
+      # Note in the next two cases we are removing objects from the Container's
+      # array of those objects, thus it is necessary to clone the array or
+      # modifications will mess up the iteration.
       container.users.clone.each do |user|
         container.remove_user user
       end
