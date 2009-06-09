@@ -85,10 +85,16 @@ module RADUM
     # The server hostname or IP address of the Active Directory server. This
     # defaults to "localhost" when an AD is created using AD.new.
     attr_reader :server
+    # The minimum UID value to use if no other UIDs are found. This defaults to
+    # 1000.
+    attr_accessor :min_uid
     # The array of UID values from UNIXUser objects in the AD object. This is
     # automatically managed by the other objects and should not be modified
     # directly.
     attr_accessor :uids
+    # The minimum GID value to use if no other GIDs are found. This defaults to
+    # 1000.
+    attr_accessor :min_gid
     # The array of GID values from UNIXGroup objects in the AD object. This is
     # automatically managed by the other objects and should not be modified
     # directly.
@@ -132,7 +138,9 @@ module RADUM
       @server = server
       @containers = []
       @removed_containers = []
+      @min_uid = 1000
       @uids = []
+      @min_gid = 1000
       @gids = []
       # RIDs are in a flat namespace, so there's no need to keep track of them
       # for user or group objects specifically, just in the directory overall.
@@ -633,10 +641,11 @@ module RADUM
       end
     end
     
-    # Load the next free UID value from the Active Directory. This is a
-    # convenience method that allows one to find the next free UID value.
-    # This method returns the next free UID value found while searching
-    # from the AD root. A return value of 0 indicates no UIDs were found.
+    # Load the next free UID value. This is a convenience method that allows
+    # one to find the next free UID value. This method returns the next free
+    # UID value found while searching from the AD root and any current UID
+    # values for UNIXUser objects that might not be in the Active Directory yet.
+    # If nothing is found, the min_uid attribute is returned.
     def load_next_uid
       all_uids = []
       user_filter = Net::LDAP::Filter.eq("objectclass", "user")
@@ -649,10 +658,11 @@ module RADUM
         end
       end
       
-      all_uids.sort!
       next_uid = 0
       
-      all_uids.each do |uid|
+      # This accounts for any GIDs that might not be in Active Directory yet
+      # as well.
+      (all_uids + @uids).sort.each do |uid|
         if next_uid == 0 || next_uid + 1 == uid
           next_uid = uid
         else
@@ -660,13 +670,18 @@ module RADUM
         end
       end
       
-      next_uid + 1
+      if next_uid == 0
+        @min_uid
+      else
+        next_uid + 1
+      end
     end
     
-    # Load the next free GID value from the Active Directory. This is a
-    # convenince method that allows one to find the next free GID value.
-    # This method returns the next free GID value found while searching
-    # from the AD root. A return value of 0 indicates no GIDs were found.
+    # Load the next free GID value. This is a convenince method that allows
+    # one to find the next free GID value. This method returns the next free
+    # GID value found while searching from the AD root and any current GID
+    # values for UNIXGroup objects that might not be in the Active Directory
+    # yet. If nothing is found, the min_gid attribute is returned.
     def load_next_gid
       all_gids = []
       group_filter = Net::LDAP::Filter.eq("objectclass", "group")
@@ -679,10 +694,11 @@ module RADUM
         end
       end
       
-      all_gids.sort!
       next_gid = 0
       
-      all_gids.each do |gid|
+      # This accounts for any GIDs that might not be in Active Directory yet
+      # as well.
+      (all_gids + @gids).sort.each do |gid|
         if next_gid == 0 || next_gid + 1 == gid
           next_gid = gid
         else
@@ -690,7 +706,11 @@ module RADUM
         end
       end
       
-      next_gid + 1
+      if next_gid == 0
+        @min_gid
+      else
+        next_gid + 1
+      end
     end
     
     # Synchronize all modified Users, UNIXUsers, Groups, and UNIXGroups to
@@ -1298,35 +1318,41 @@ module RADUM
               end
             end
           end
-          
-          # Now add any users or groups that are not already in the members
-          # attribute array. We don't want to add the same thing twice because
-          # this actually seems to duplicate the entries.
-          (group.users + group.groups).each do |item|
+        rescue NoMethodError
+        end
+        
+        # Now add any users or groups that are not already in the members
+        # attribute array. We don't want to add the same thing twice because
+        # this actually seems to duplicate the entries.
+        (group.users + group.groups).each do |item|
+          # As in the above begin block, the member attribute might not exist.
+          # We have to take that into account.
+          begin
             found = entry.member.find do |member|
               item.distinguished_name.downcase == member.downcase
             end
-            
-            ops.push [:add, :member, item.distinguished_name] unless found
-            
-            if item.instance_of?(UNIXUser) && group.instance_of?(UNIXGroup) &&
-               group != item.unix_main_group
-              begin
-                # We should really also search the memberUid attribute, but
-                # really... it should always match up with msSFU30PosixMember.
-                found = entry.msSFU30PosixMember.find do |member|
-                  item.distinguished_name.downcase == member.downcase
-                end
-                
-                unless found
-                  ops.push [:add, :memberUid, item.username]
-                  ops.push [:add, :msSFU30PosixMember, item.distinguished_name]
-                end
-              rescue NoMethodError
+          rescue NoMethodError
+            found = false
+          end
+          
+          ops.push [:add, :member, item.distinguished_name] unless found
+          
+          if item.instance_of?(UNIXUser) && group.instance_of?(UNIXGroup) &&
+             group != item.unix_main_group
+            begin
+              # We should really also search the memberUid attribute, but
+              # really... it should always match up with msSFU30PosixMember.
+              found = entry.msSFU30PosixMember.find do |member|
+                item.distinguished_name.downcase == member.downcase
               end
+              
+              unless found
+                ops.push [:add, :memberUid, item.username]
+                ops.push [:add, :msSFU30PosixMember, item.distinguished_name]
+              end
+            rescue NoMethodError
             end
           end
-        rescue NoMethodError
         end
         
         unless ops.empty?
