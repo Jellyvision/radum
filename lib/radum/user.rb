@@ -49,7 +49,7 @@ module RADUM
                    rid = nil) # :doc:
       # The RID must be unique.
       if container.directory.rids.include? rid
-        raise "RID is already in use in the directory."
+        raise "RID #{rid} is already in use in the directory."
       end
       
       # The username (sAMAccountName) must be unique (case-insensitive). This
@@ -390,7 +390,7 @@ module RADUM
                    disabled = false, rid = nil)
       # The UID must be unique.
       if container.directory.uids.include? uid
-        raise "UID is already in use in the directory."
+        raise "UID #{uid} is already in use in the directory."
       end
       
       super username, container, primary_group, disabled, rid

@@ -279,6 +279,14 @@ module RADUM
         end
       end
       
+      # We also need to check removed Containers too because they can have
+      # removed users too.
+      @removed_containers.each do |container|
+        container.removed_users.each do |user|
+          all_removed_users.push user
+        end
+      end
+      
       all_removed_users
     end
     
@@ -377,6 +385,14 @@ module RADUM
       all_removed_groups = []
       
       @containers.each do |container|
+        container.removed_groups.each do |group|
+          all_removed_groups.push group
+        end
+      end
+      
+      # We also need to check removed Containers too because they can have
+      # removed groups too.
+      @removed_containers.each do |container|
         container.removed_groups.each do |group|
           all_removed_groups.push group
         end
@@ -484,8 +500,10 @@ module RADUM
       group_filter = Net::LDAP::Filter.eq("objectclass", "group")
       
       @containers.each do |container|
+        puts "Searcing in #{container.distinguished_name}:"
         @ldap.search(:base => container.distinguished_name,
-                     :filter => group_filter) do |entry|
+                     :filter => group_filter,
+                     :scope => Net::LDAP::SearchScope_SingleLevel) do |entry|
           attr = group_ldap_entry_attr entry
           
           # TO DO: WHAT IF THE USER ALREADY CREATED A GROUP OR UNIXGROUP THAT
@@ -511,7 +529,8 @@ module RADUM
       
       @containers.each do |container|
         @ldap.search(:base => container.distinguished_name,
-                     :filter => user_filter) do |entry|
+                     :filter => user_filter,
+                     :scope => Net::LDAP::SearchScope_SingleLevel) do |entry|
           attr = user_ldap_entry_attr entry
           
           # TO DO: WHAT IF THE USER ALREADY CREATED A USER OR UNIXUSER THAT
@@ -580,7 +599,8 @@ module RADUM
       # previously.
       groups.each do |group|
         entry = @ldap.search(:base => group.distinguished_name,
-                             :filter => group_filter).pop
+                             :filter => group_filter,
+                             :scope => Net::LDAP::SearchScope_BaseObject).pop
         
         begin
           entry.member.each do |member|
@@ -620,10 +640,9 @@ module RADUM
     # from the AD root. A return value of 0 indicates no UIDs were found.
     def load_next_uid
       all_uids = []
-      base = "#{@root}"
       user_filter = Net::LDAP::Filter.eq("objectclass", "user")
       
-      @ldap.search(:base => base, :filter => user_filter) do |entry|
+      @ldap.search(:base => @root, :filter => user_filter) do |entry|
         begin
           uid = entry.uidNumber.pop.to_i
           all_uids.push uid
@@ -651,10 +670,9 @@ module RADUM
     # from the AD root. A return value of 0 indicates no GIDs were found.
     def load_next_gid
       all_gids = []
-      base = "#{@root}"
       group_filter = Net::LDAP::Filter.eq("objectclass", "group")
       
-      @ldap.search(:base => base, :filter => group_filter) do |entry|
+      @ldap.search(:base => @root, :filter => group_filter) do |entry|
         begin
           gid = entry.gidNumber.pop.to_i
           all_gids.push gid
@@ -1042,6 +1060,7 @@ module RADUM
         # that the container needs to be created.
         found = @ldap.search(:base => distinguished_name,
                              :filter => container_filter,
+                             :scope => Net::LDAP::SearchScope_BaseObject,
                              :return_result => false)
         
         if found == false
@@ -1141,7 +1160,9 @@ module RADUM
         # to check for false explicitly for a failure. A failure indicates
         # that the group needs to be created.
         found = @ldap.search(:base => group.distinguished_name,
-                             :filter => group_filter, :return_result => false)
+                             :filter => group_filter,
+                             :scope => Net::LDAP::SearchScope_BaseObject,
+                             :return_result => false)
         
         # The group should not already exist of course. This is to make sure
         # it is not already there in the case it was manually created but
@@ -1171,7 +1192,8 @@ module RADUM
           # At this point, we need to pull the RID value back out and set it
           # because it is needed later.
           entry = @ldap.search(:base => group.distinguished_name,
-                               :filter => group_filter).pop
+                               :filter => group_filter,
+                               :scope => Net::LDAP::SearchScope_BaseObject).pop
           group.set_rid sid2rid_int(entry.objectSid.pop)
           # Note: unlike a user, the group cannot be considered loaded at this
           # point because we have not handled any group memberships that might
@@ -1194,7 +1216,8 @@ module RADUM
         puts "Updating #{group.class} #{group.name}..."
         group_filter = Net::LDAP::Filter.eq("objectclass", "group")
         entry = @ldap.search(:base => group.distinguished_name,
-                             :filter => group_filter).pop
+                             :filter => group_filter,
+                             :scope => Net::LDAP::SearchScope_BaseObject).pop
         attr = group_ldap_entry_attr entry
         ops = []
         
@@ -1341,7 +1364,9 @@ module RADUM
         # to check for false explicitly for a failure. A failure indicates
         # that the user needs to be created.
         found = @ldap.search(:base => user.distinguished_name,
-                             :filter => user_filter, :return_result => false)
+                             :filter => user_filter,
+                             :scope => Net::LDAP::SearchScope_BaseObject,
+                             :return_result => false)
         
         # The user should not already exist of course. This is to make sure
         # it is not already there.
@@ -1358,7 +1383,8 @@ module RADUM
             group_filter = Net::LDAP::Filter.eq("objectclass", "group")
             
             @ldap.search(:base => user.primary_group.distinguished_name,
-                         :filter => group_filter) do |entry|
+                         :filter => group_filter,
+                         :scope => Net::LDAP::SearchScope_BaseObject) do |entry|
               rid = sid2rid_int(entry.objectSid.pop)
             end
           end
@@ -1541,7 +1567,8 @@ module RADUM
             # I am pretending it is just as important because I am tracking
             # RIDs anyway (they are in a flat namespace).
             entry = @ldap.search(:base => user.distinguished_name,
-                                 :filter => user_filter).pop
+                                :filter => user_filter,
+                                :scope => Net::LDAP::SearchScope_BaseObject).pop
             user.set_rid sid2rid_int(entry.objectSid.pop)
             # The user has now been made a regular member of the Domain Users
             # Windows group. This has been handled in Active Directory for us,
@@ -1573,7 +1600,8 @@ module RADUM
         puts "Updating #{user.class} #{user.username}..."
         user_filter = Net::LDAP::Filter.eq("objectclass", "user")
         entry = @ldap.search(:base => user.distinguished_name,
-                             :filter => user_filter).pop
+                             :filter => user_filter,
+                             :scope => Net::LDAP::SearchScope_BaseObject).pop
         attr = user_ldap_entry_attr entry
         ops = []
         

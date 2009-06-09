@@ -46,7 +46,7 @@ module RADUM
     def initialize(name, container, type = GROUP_GLOBAL_SECURITY, rid = nil)
       # The RID must be unique.
       if container.directory.rids.include? rid
-        raise "RID is already in use in the directory."
+        raise "RID #{rid} is already in use in the directory."
       end
       
       # The group name (like a user) must be unique (case-insensitive). This
@@ -209,7 +209,7 @@ module RADUM
                    nis_domain = "radum", rid = nil)
       # The GID must be unique.
       if container.directory.gids.include? gid
-        raise "GID is already in use in the directory."
+        raise "GID #{gid} is already in use in the directory."
       end
       
       super name, container, type, rid
