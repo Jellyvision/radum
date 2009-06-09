@@ -500,7 +500,6 @@ module RADUM
       group_filter = Net::LDAP::Filter.eq("objectclass", "group")
       
       @containers.each do |container|
-        puts "Searcing in #{container.distinguished_name}:"
         @ldap.search(:base => container.distinguished_name,
                      :filter => group_filter,
                      :scope => Net::LDAP::SearchScope_SingleLevel) do |entry|
