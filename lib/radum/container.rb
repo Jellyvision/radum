@@ -111,20 +111,41 @@ module RADUM
     # removed for each Group or UNIXGroup they were in as well. Adding the
     # User or UNIXUser back will mean their previous Group or UNIXGroup
     # memberships wiped out. Only remove Users or UNIXUsers if you really want
-    # them deleted from Active Directory.
+    # them deleted from Active Directory. The User or UNIXUser must be in
+    # the Container or a RuntimeError is raised.
     def remove_user(user)
-      @users.delete user
+      destroy_user user
+      # This is the only difference between remove_user and destroy_user.
+      # Because we keep a reference, the comment about not keeping a reference
+      # in destroy_user can be ignored.
       @removed_users.push user unless @removed_users.include? user
-      @directory.rids.delete user.rid if user.rid
-      @directory.uids.delete user.uid if user.instance_of? UNIXUser
-      # This needs to be set so that there is no error when removing the user
-      # from a group if that group is its UNIX main group.
-      user.removed = true
-      
-      @directory.groups.each do |group|
-        if group.users.include? user
-          group.remove_user user
+    end
+    
+    # Destroy a reference to the User or UNIXUser. This removes any reference
+    # to the User or UNIXUser from the RADUM system. This is different from
+    # removing a User or UNIXUser. Removal causes the User or UNIXUser to be
+    # deleted from Active Directory. Destroying the User or UNIXUser does not
+    # cause the User or UNIXUser to be removed from Active Directory, but
+    # it does remove all references to the User or UNIXUser from the system.
+    # The User or UNIXUser must be in the Container or a RuntimeError is
+    # raised. This does set the User or UNIXUser object's removed attribute
+    # to true, but any references to the User or UNIXUser should be discarded.
+    def destroy_user(user)
+      if self == user.container
+        @users.delete user
+        @directory.rids.delete user.rid if user.rid
+        @directory.uids.delete user.uid if user.instance_of? UNIXUser
+        # This needs to be set so that there is no error when removing the user
+        # from a group if that group is its UNIX main group.
+        user.removed = true
+        
+        @directory.groups.each do |group|
+          if group.users.include? user
+            group.remove_user user
+          end
         end
+      else
+        raise "User must be in this container."
       end
     end
     
@@ -167,36 +188,57 @@ module RADUM
     # memberships removed for each Group or UNIXGroup they were in as well.
     # Adding the Group or UNIXGroup back will mean their previous Group or
     # UNIXGroup memberships wiped out. Only remove Groups or UNIXGroups if
-    # you really want them deleted from Active Directory.
+    # you really want them deleted from Active Directory. The Group or
+    # UNIXGroup must be in the Container or a RuntimeError is raised.
     def remove_group(group)
-      # We cannot remove a group that still has a user referencing it as their
-      # primary_group or unix_main_group.
-      @directory.users.each do |user|
-        if group == user.primary_group
-          raise "Cannot remove group #{group.name}: it is " +
-                "#{user.username}'s primary Windows group."
-        end
-        
-        if user.instance_of? UNIXUser
-          if group == user.unix_main_group
-            raise "Cannot remove group #{group.name}: it is " +
-                  "#{user.username}'s UNIX main group."
+      destroy_group group
+      # This is the only difference between remove_group and destroy_group.
+      # Because we keep a reference, the comment about not keeping a reference
+      # in destroy_group can be ignored.
+      @removed_groups.push group unless @removed_groups.include? group
+    end
+    
+    # Destroy a reference to the Group or UNIXGroup. This removes any reference
+    # to the Group or UNIXGroup from the RADUM system. This is different from
+    # removing a Group or UNIXGroup. Removal causes the Group or UNIXGroup to be
+    # deleted from Active Directory. Destroying the Group or UNIXGroup does not
+    # cause the Group or UNIXGroup to be removed from Active Directory, but
+    # it does remove all references to the Group or UNIXGroup from the system.
+    # The Group or UNIXGroup must be in the Container or a RuntimeError is
+    # raised. This does set the Group or UNIXGroup object's removed attribute
+    # to true, but any references to the Group or UNIXGroup should be discarded.
+    def destroy_group(group)
+      if self == group.container
+        # We cannot remove of destroy a group that still has a user referencing
+        # it as their primary_group or unix_main_group.
+        @directory.users.each do |user|
+          if group == user.primary_group
+            raise "Cannot remove or destroy group #{group.name}: it is " +
+                  "#{user.username}'s primary Windows group."
+          end
+
+          if user.instance_of? UNIXUser
+            if group == user.unix_main_group
+              raise "Cannot remove or destroy group #{group.name}: it is " +
+                    "#{user.username}'s UNIX main group."
+            end
           end
         end
-      end
-      
-      @groups.delete group
-      @removed_groups.push group unless @removed_groups.include? group
-      @directory.rids.delete group.rid if group.rid
-      @directory.gids.delete group.gid if group.instance_of? UNIXGroup
-      
-      @directory.groups.each do |current_group|
-        if current_group.groups.include? group
-          current_group.remove_group group
+
+        @groups.delete group
+        @directory.rids.delete group.rid if group.rid
+        @directory.gids.delete group.gid if group.instance_of? UNIXGroup
+
+        @directory.groups.each do |current_group|
+          if current_group.groups.include? group
+            current_group.remove_group group
+          end
         end
+
+        group.removed = true        
+      else
+        raise "Group must be in this container."
       end
-      
-      group.removed = true
     end
     
     # The String representation of the Container object.

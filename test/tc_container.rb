@@ -15,6 +15,7 @@ class TC_Container < Test::Unit::TestCase
     @g3_c3_ad1 = RADUM::Group.new("test", @c3_ad1)
     @u1_c1_ad1 = RADUM::User.new("user", @c1_ad1, @g1_c1_ad1)
     @u2_c4_ad2 = RADUM::User.new("user", @c4_ad2, @g2_c4_ad2)
+    @u3_c3_ad1 = RADUM::User.new("remove", @c3_ad1, @g1_c1_ad1)
   end
   
   def test_ad_removed_flag_false
@@ -84,6 +85,12 @@ class TC_Container < Test::Unit::TestCase
     end
   end
   
+  def test_remove_user_different_container_exception
+    assert_raise RuntimeError do
+      @c1_ad1.remove_user @u3_c3_ad1
+    end
+  end
+  
   def test_remove_user_removed_flag_set
     assert_block("Should have set removed user removed flag") do
       @c1_ad1.remove_user @u1_c1_ad1
@@ -120,6 +127,12 @@ class TC_Container < Test::Unit::TestCase
       # is set or the other container will ignore it.
       @c4_ad2.remove_group @g2_c4_ad2
       @c1_ad1.add_group @g2_c4_ad2
+    end
+  end
+  
+  def test_remove_group_different_container_exception
+    assert_raise RuntimeError do
+      @c1_ad1.remove_group @g3_c3_ad1
     end
   end
   
