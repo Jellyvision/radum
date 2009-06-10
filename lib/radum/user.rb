@@ -98,6 +98,8 @@ module RADUM
       @removed = false
       @modified = true
       @loaded = false
+      RADUM::logger.log("Created User: #{@username}.\n\n", LOG_DEBUG) unless
+                        instance_of? UNIXUser
     end
     
     # True if the User or UNIXUser account is disabled, false otherwise.
@@ -108,17 +110,27 @@ module RADUM
     
     # Disable a User or UNIXUser account.
     def disable
+      RADUM::logger.log("User#disable() for #{@username}.", LOG_DEBUG)
       unless @disabled
+        RADUM::logger.log("User was disabled.\n\n", LOG_DEBUG)
         @disabled = true
         @modified = true
+      else
+        RADUM::logger.log("User was not disabled because they were already" +
+                          " disabled.\n\n", LOG_DEBUG)
       end
     end
     
     # Enable a User or UNIXUser account.
     def enable
+      RADUM::logger.log("User#disable() for #{@username}.", LOG_DEBUG)
       if @disabled
+        RADUM::logger.log("User was enabled.\n\n", LOG_DEBUG)
         @disabled = false
         @modified = true
+      else
+        RADUM::logger.log("User was not enabled because they were not" +
+                          " disabled.\n\n", LOG_DEBUG)
       end
     end
     
@@ -134,6 +146,8 @@ module RADUM
     # correct value when a User or UNIXUser is loaded by AD.load from the AD
     # object the Container belongs to.
     def first_name=(first_name)
+      RADUM::logger.log("User#first_name=(#{first_name}) for #{@username}.\n\n",
+                        LOG_DEBUG)
       @fisrt_name = first_name
       @modified = true
     end
@@ -149,6 +163,8 @@ module RADUM
     # User.new or UNIXUser.new, but is set to the correct value when a User or
     # UNIXUser is loaded by AD.load from the AD object the Container belongs to.
     def middle_name=(middle_name)
+       RADUM::logger.log("User#middle_name=(#{middle_name}) for #{@username}" +
+                         ".\n\n", LOG_DEBUG)
       @middle_name = middle_name
       @modified = true
     end
@@ -165,6 +181,8 @@ module RADUM
     # User or UNIXUser is loaded by AD.load from the AD object the Container
     # belongs to.
     def surname=(surname)
+       RADUM::logger.log("User#surname=(#{surname}) for #{@username}.\n\n",
+                         LOG_DEBUG)
       @surname = surname
       @modified = true
     end
@@ -188,6 +206,8 @@ module RADUM
     # the current Active Directory user password, which cannot be read through
     # LDAP directly.
     def password=(password)
+       RADUM::logger.log("User#password=(#{password}) for #{@username}.\n\n",
+                         LOG_DEBUG)
       @password = password
       @modified = true
     end
@@ -203,6 +223,8 @@ module RADUM
     # login. Note that the default value is to not force a password change on
     # the next login.
     def force_change_password
+      RADUM::logger.log("User#force_change_password() for #{@username}.\n\n",
+                        LOG_DEBUG)
       @must_change_password = true
       @modified = true
     end
@@ -229,6 +251,8 @@ module RADUM
     # automatically given normal group membershipt in the old primary Windows
     # group by Active Directory. This method does the same.
     def primary_group=(group)
+      RADUM::logger.log("User#primary_group=(#{group.name}) for" +
+                        " #{@username}.\n\n", LOG_DEBUG)
       unless @container.directory == group.container.directory
         raise "Group must be in the same directory."
       end
@@ -262,6 +286,8 @@ module RADUM
     # Setting the common_name also changes the distinguished_name accordingly
     # (which is also built automatically).
     def common_name=(cn)
+      RADUM::logger.log("User#common_name=(#{cn}) for #{@username}.\n\n",
+                        LOG_DEBUG)
       @distinguished_name = "cn=" + cn + "," + @container.name + "," +
                             @container.directory.root
       @common_name = cn
@@ -289,6 +315,8 @@ module RADUM
     # This automatically adds the User or UNIXUser to the Group or UNIXGroup
     # object's list of users.
     def add_group(group)
+      RADUM::logger.log("User#add_group(#{group.name}) for #{@username}.\n\n",
+                        LOG_DEBUG)
       if @container.directory == group.container.directory
         unless @primary_group == group
           @groups.push group unless @groups.include? group
@@ -305,6 +333,8 @@ module RADUM
     # Remove the User membership in the Group or UNIXGroup. This automatically
     # removes the User from the Group or UNIXGroup object's list of users.
     def remove_group(group)
+      RADUM::logger.log("User#remove_group(#{group.name}) for" + 
+                        " #{@username}.\n\n", LOG_DEBUG)
       # This method can be called on a primary_group change. If the user was a
       # member of the primary_group, we want to make sure we remove that
       # membership. It is also possible the user was not already a member of
@@ -329,10 +359,15 @@ module RADUM
     # Set the loaded flag. Calling this only has an effect once. This is only
     # callled by AD.load when a User or UNIXUser is initially loaded.
     def set_loaded
+      RADUM::logger.log("User#set_loaded() for #{@username}.", LOG_DEBUG)
       # This allows the modified attribute to be hidden.
       unless @loaded
+        RADUM::logger.log("User was set as loaded.\n\n", LOG_DEBUG)
         @loaded = true
         @modified = false
+      else
+        RADUM::logger.log("User was not set as loaded beccause they were" +
+                          " already loaded.\n\n", LOG_DEBUG)
       end
     end
     
@@ -353,6 +388,7 @@ module RADUM
     # set. This is not meant for general use. It will only set the rid attribute
     # if it has not already been set.
     def set_rid(rid)
+      RADUM::logger.log("User#set_rid(#{rid}) for #{@username}.\n\n")
       if @rid.nil?
         @rid = rid
         @container.directory.rids.push rid
@@ -426,6 +462,7 @@ module RADUM
       @removed = true
       @container.add_user self
       @removed = false
+      RADUM::logger.log("Created UNIXUser: #{@username}.\n\n", LOG_DEBUG)
     end
     
     # The UNIXUser UNIX shell.

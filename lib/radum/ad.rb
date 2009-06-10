@@ -162,6 +162,7 @@ module RADUM
       # of warning messages in the load() method. Keep in mind that containers
       # automatically add themselves to their AD object.
       Container.new("cn=Users", self)
+      RADUM::logger.log("Created #{self}.\n\n", LOG_DEBUG)
     end
     
     # The port number used to communicate with the Active Directory server.
