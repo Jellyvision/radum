@@ -75,7 +75,7 @@ module RADUM
       @removed = false
       @modified = true
       @loaded = false
-      RADUM::logger.log("Created Group: #{@name}.\n\n", LOG_DEBUG) unless
+      RADUM::logger.log("Created Group: <#{@name}>.", LOG_DEBUG) unless
                         instance_of? UNIXGroup
     end
     
@@ -223,7 +223,7 @@ module RADUM
       @removed = true
       @container.add_group self
       @removed = false
-      RADUM::logger.log("Created UNIXGroup: #{@name}.\n\n", LOG_DEBUG)
+      RADUM::logger.log("Created UNIXGroup: <#{@name}>.", LOG_DEBUG)
     end
     
     # Remove the User or UNIXUser membership in the UNIXGroup. This

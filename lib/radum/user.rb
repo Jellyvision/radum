@@ -98,44 +98,40 @@ module RADUM
       @removed = false
       @modified = true
       @loaded = false
-      RADUM::logger.log("Created User: #{@username}.\n\n", LOG_DEBUG) unless
+      RADUM::logger.log("Created User: <#{@username}>.", LOG_DEBUG) unless
                         instance_of? UNIXUser
     end
     
     # True if the User or UNIXUser account is disabled, false otherwise.
     # This is a boolean representation of the LDAP userAccountControl attribute.
     def disabled?
+      RADUM::logger.log("User#disabled?() for <#{@username}>.", LOG_DEBUG)
       @disabled
     end
     
     # Disable a User or UNIXUser account.
     def disable
-      RADUM::logger.log("User#disable() for #{@username}.", LOG_DEBUG)
+      RADUM::logger.log("User#disable() for <#{@username}>.", LOG_DEBUG)
+      
       unless @disabled
-        RADUM::logger.log("User was disabled.\n\n", LOG_DEBUG)
         @disabled = true
         @modified = true
-      else
-        RADUM::logger.log("User was not disabled because they were already" +
-                          " disabled.\n\n", LOG_DEBUG)
       end
     end
     
     # Enable a User or UNIXUser account.
     def enable
-      RADUM::logger.log("User#disable() for #{@username}.", LOG_DEBUG)
+      RADUM::logger.log("User#enable() for <#{@username}>.", LOG_DEBUG)
+      
       if @disabled
-        RADUM::logger.log("User was enabled.\n\n", LOG_DEBUG)
         @disabled = false
         @modified = true
-      else
-        RADUM::logger.log("User was not enabled because they were not" +
-                          " disabled.\n\n", LOG_DEBUG)
       end
     end
     
     # The User or UNIXUser first name.
     def first_name
+      RADUM::logger.log("User#first_name() for <#{@username}>.", LOG_DEBUG)
       @first_name
     end
     
@@ -146,14 +142,15 @@ module RADUM
     # correct value when a User or UNIXUser is loaded by AD.load from the AD
     # object the Container belongs to.
     def first_name=(first_name)
-      RADUM::logger.log("User#first_name=(#{first_name}) for #{@username}.\n\n",
-                        LOG_DEBUG)
+      RADUM::logger.log("User#first_name=(\"#{first_name}\") for" +
+                        " <#{@username}>.", LOG_DEBUG)
       @fisrt_name = first_name
       @modified = true
     end
     
     # The User or UNIXUser middle name.
     def middle_name
+      RADUM::logger.log("User#middle_name() for <#{@username}>.", LOG_DEBUG)
       @middle_name
     end
     
@@ -163,14 +160,15 @@ module RADUM
     # User.new or UNIXUser.new, but is set to the correct value when a User or
     # UNIXUser is loaded by AD.load from the AD object the Container belongs to.
     def middle_name=(middle_name)
-       RADUM::logger.log("User#middle_name=(#{middle_name}) for #{@username}" +
-                         ".\n\n", LOG_DEBUG)
+       RADUM::logger.log("User#middle_name=(\"#{middle_name}\") for" +
+                         " <#{@username}>.", LOG_DEBUG)
       @middle_name = middle_name
       @modified = true
     end
     
     # The User or UNIXUser surname (last name).
     def surname
+      RADUM::logger.log("User#surname() for <#{@username}>.", LOG_DEBUG)
       @surname
     end
     
@@ -181,7 +179,7 @@ module RADUM
     # User or UNIXUser is loaded by AD.load from the AD object the Container
     # belongs to.
     def surname=(surname)
-       RADUM::logger.log("User#surname=(#{surname}) for #{@username}.\n\n",
+       RADUM::logger.log("User#surname=(\"#{surname}\") for <#{@username}>.",
                          LOG_DEBUG)
       @surname = surname
       @modified = true
@@ -194,6 +192,7 @@ module RADUM
     # not actually reflect the current Active Directory user password, which
     # cannot be read through LDAP directly.
     def password
+      RADUM::logger.log("User#password() for <#{@username}>.", LOG_DEBUG)
       @password
     end
     
@@ -206,8 +205,8 @@ module RADUM
     # the current Active Directory user password, which cannot be read through
     # LDAP directly.
     def password=(password)
-       RADUM::logger.log("User#password=(#{password}) for #{@username}.\n\n",
-                         LOG_DEBUG)
+       RADUM::logger.log("User#password=(\"#{password}\") for" +
+                         " <#{@username}>.", LOG_DEBUG)
       @password = password
       @modified = true
     end
@@ -216,6 +215,8 @@ module RADUM
     # their first login. Returns true if this is the case, false otherwise.
     # This defaults to false when User or UNIXUser objects are created.
     def must_change_password?
+      RADUM::logger.log("User#must_change_password?() for <#{@username}>.",
+                        LOG_DEBUG)
       @must_change_password
     end
     
@@ -223,7 +224,7 @@ module RADUM
     # login. Note that the default value is to not force a password change on
     # the next login.
     def force_change_password
-      RADUM::logger.log("User#force_change_password() for #{@username}.\n\n",
+      RADUM::logger.log("User#force_change_password() for <#{@username}>.",
                         LOG_DEBUG)
       @must_change_password = true
       @modified = true
@@ -233,6 +234,7 @@ module RADUM
     # Windows group. Users are not members of this group directly. They are
     # members through their LDAP primaryGroupID attribute.
     def primary_group
+      RADUM::logger.log("User#primary_group() for <#{@username}>.", LOG_DEBUG)
       @primary_group
     end
     
@@ -251,8 +253,9 @@ module RADUM
     # automatically given normal group membershipt in the old primary Windows
     # group by Active Directory. This method does the same.
     def primary_group=(group)
-      RADUM::logger.log("User#primary_group=(#{group.name}) for" +
-                        " #{@username}.\n\n", LOG_DEBUG)
+      RADUM::logger.log("User#primary_group=(<#{group.name}>) for" +
+                        " <#{@username}>.", LOG_DEBUG)
+      
       unless @container.directory == group.container.directory
         raise "Group must be in the same directory."
       end
@@ -273,6 +276,7 @@ module RADUM
     # The common name (cn) portion of the LDAP distinguisedName attribute and
     # the LDAP cn attribute itself.
     def common_name
+      RADUM::logger.log("User#common_name() for <#{@username}>.", LOG_DEBUG)
       @common_name
     end
     
@@ -286,7 +290,7 @@ module RADUM
     # Setting the common_name also changes the distinguished_name accordingly
     # (which is also built automatically).
     def common_name=(cn)
-      RADUM::logger.log("User#common_name=(#{cn}) for #{@username}.\n\n",
+      RADUM::logger.log("User#common_name=(\"#{cn}\") for <#{@username}>.",
                         LOG_DEBUG)
       @distinguished_name = "cn=" + cn + "," + @container.name + "," +
                             @container.directory.root
@@ -315,8 +319,9 @@ module RADUM
     # This automatically adds the User or UNIXUser to the Group or UNIXGroup
     # object's list of users.
     def add_group(group)
-      RADUM::logger.log("User#add_group(#{group.name}) for #{@username}.\n\n",
+      RADUM::logger.log("User#add_group(<#{group.name}>) for <#{@username}>.",
                         LOG_DEBUG)
+      
       if @container.directory == group.container.directory
         unless @primary_group == group
           @groups.push group unless @groups.include? group
@@ -333,8 +338,9 @@ module RADUM
     # Remove the User membership in the Group or UNIXGroup. This automatically
     # removes the User from the Group or UNIXGroup object's list of users.
     def remove_group(group)
-      RADUM::logger.log("User#remove_group(#{group.name}) for" + 
-                        " #{@username}.\n\n", LOG_DEBUG)
+      RADUM::logger.log("User#remove_group(<#{group.name}>) for" + 
+                        " <#{@username}>.", LOG_DEBUG)
+      
       # This method can be called on a primary_group change. If the user was a
       # member of the primary_group, we want to make sure we remove that
       # membership. It is also possible the user was not already a member of
@@ -353,26 +359,26 @@ module RADUM
     # This also evaluates to true if the Group or UNIXGroup is the
     # User or UNIXUser object's primary_group.
     def member_of?(group)
+      RADUM::logger.log("User#member_of?(<#{group.name}>) for <#{@username}>.",
+                        LOG_DEBUG)
       @groups.include? group || @primary_group == group
     end
     
     # Set the loaded flag. Calling this only has an effect once. This is only
     # callled by AD.load when a User or UNIXUser is initially loaded.
     def set_loaded
-      RADUM::logger.log("User#set_loaded() for #{@username}.", LOG_DEBUG)
+      RADUM::logger.log("User#set_loaded() for <#{@username}>.", LOG_DEBUG)
+      
       # This allows the modified attribute to be hidden.
       unless @loaded
-        RADUM::logger.log("User was set as loaded.\n\n", LOG_DEBUG)
         @loaded = true
         @modified = false
-      else
-        RADUM::logger.log("User was not set as loaded beccause they were" +
-                          " already loaded.\n\n", LOG_DEBUG)
       end
     end
     
     # Check if the User or UNIXUser was loaded from Active Directory.
     def loaded?
+      RADUM::logger.log("User#loaded?() for <#{@username}>.", LOG_DEBUG)
       @loaded
     end
     
@@ -380,6 +386,7 @@ module RADUM
     # created User or UNIXUser objects and false for initially loaded User and
     # UNIXUser objects.
     def modified?
+      RADUM::logger.log("User#modified?() for <#{@username}>.", LOG_DEBUG)
       @modified
     end
     
@@ -388,7 +395,8 @@ module RADUM
     # set. This is not meant for general use. It will only set the rid attribute
     # if it has not already been set.
     def set_rid(rid)
-      RADUM::logger.log("User#set_rid(#{rid}) for #{@username}.\n\n")
+      RADUM::logger.log("User#set_rid(#{rid}) for <#{@username}>.", LOG_DEBUG)
+      
       if @rid.nil?
         @rid = rid
         @container.directory.rids.push rid
@@ -462,35 +470,43 @@ module RADUM
       @removed = true
       @container.add_user self
       @removed = false
-      RADUM::logger.log("Created UNIXUser: #{@username}.\n\n", LOG_DEBUG)
+      RADUM::logger.log("Created UNIXUser: <#{@username}>.", LOG_DEBUG)
     end
     
     # The UNIXUser UNIX shell.
     def shell
+      RADUM::logger.log("UNIXUser#shell() for <#{@username}>.", LOG_DEBUG)
       @shell
     end
     
     # Set the UNIXUser UNIX shell. This corresponds to the LDAP loginShell
     # attribute.
     def shell=(shell)
+      RADUM::logger.log("UNIXUser#shell=(\"#{shell}\") for <#{@username}>.",
+                        LOG_DEBUG)
       @shell = shell
       @modified = true
     end
     
     # The UNIXUser UNIX home directory.
     def home_directory
+      RADUM::logger.log("UNIXUser#home_directory() for <#{@username}>.",
+                        LOG_DEBUG)
       @home_directory
     end
     
     # Set the UNIXUser UNIX home directory. This corresponds to the LDAP
     # unixHomeDirectory attribute.
     def home_directory=(home_directory)
+      RADUM::logger.log("UNIXUser#home_directory=(\"#{home_directory}\") for" +
+                        " <#{@username}>.", LOG_DEBUG)
       @home_directory = home_directory
       @modified = true
     end
     
     # The UNIXUser UNIX NIS domain.
     def nis_domain
+      RADUM::logger.log("UNIXUser#nis_domain() for <#{@username}>.", LOG_DEBUG)
       @nis_domain
     end
     
@@ -500,12 +516,15 @@ module RADUM
     # using UNIXUser.new, but it is set to the correct value when the UNIXUser
     # is loaded by AD.load from the AD object the Container belongs to.
     def nis_domain=(nis_domain)
+      RADUM::logger.log("UNIXUser#nis_domain=(\"#{nis_domain}\") for " +
+                        " <#{@username}>.", LOG_DEBUG)
       @nis_domain = nis_domain
       @modified = true
     end
     
     # The UNIXUser UNIX GECOS field.
     def gecos
+      RADUM::logger.log("UNIXUser#gecos() for <#{@username}>.", LOG_DEBUG)
       @gecos
     end
     
@@ -514,12 +533,16 @@ module RADUM
     # UNIXUser.new, but it is set to the correct value when the UNIXUser is
     # loaded by AD.load from the AD object the Container belongs to.
     def gecos=(gecos)
+      RADUM::logger.log("UNIXUser#gecos=(\"#{gecos}\") for" + 
+                        " <#{@username}>.", LOG_DEBUG)
       @gecos = gecos
       @modified = true
     end
     
     # The UNIXUser UNIX password field.
     def unix_password
+      RADUM::logger.log("UNIXUser#unix_password() for <#{@username}>.",
+                        LOG_DEBUG)
       @unix_password
     end
     
@@ -536,12 +559,16 @@ module RADUM
     # LDAP in Active Directory) for user information. In those cases, it is
     # best to set this field to "*", which is why that is the default.
     def unix_password=(unix_password)
+      RADUM::logger.log("UNIXUser#unix_password=(\"#{unix_password}\") for" +
+                        " <#{@username}>.", LOG_DEBUG)
       @unix_password = unix_password
       @modified = true
     end
     
     # The UNIXUser UNIX shadow file expire field.
     def shadow_expire
+      RADUM::logger.log("UNIXUser#shadow_expire() for <#{@username}>.",
+                        LOG_DEBUG)
       @shadow_expire
     end
     
@@ -553,12 +580,15 @@ module RADUM
     # It would not be needed most of the time. This corresponds to the LDAP
     # shadowExpire attribute.
     def shadow_expire=(shadow_expire)
+      RADUM::logger.log("UNIXUser#shadow_expire=(#{shadow_expire}) for" +
+                        " <#{@username}>.", LOG_DEBUG)
       @shadow_expire = shadow_expire
       @modified = true
     end
     
     # The UNIXUser UNIX shadow file reserved field.
     def shadow_flag
+      RADUM::logger.log("UNIXUser#shadow_flag() for <#{@username}>.", LOG_DEBUG)
       @shadow_flag
     end
     
@@ -570,12 +600,16 @@ module RADUM
     # It would not be needed most of the time. This corresponds to the LDAP
     # shadowFlag attribute.
     def shadow_flag=(shadow_flag)
+      RADUM::logger.log("UNIXUser#shadow_flag=(<#{shadow_flag}>) for" +
+                        " <#{@username}>.", LOG_DEBUG)
       @shadow_flag = shadow_flag
       @modified = true
     end
     
     # The UNIXUser UNIX shadow file inactive field.
     def shadow_inactive
+      RADUM::logger.log("UNIXUser#shadow_inactive() for <#{@username}>.",
+                        LOG_DEBUG)
       @shadow_inactive
     end
     
@@ -587,12 +621,16 @@ module RADUM
     # It would not be needed most of the time. This corresponds to the LDAP
     # shadowInactive attribute.
     def shadow_inactive=(shadow_inactive)
+      RADUM::logger.log("UNIXUser#shadow_inactive=(#{shadow_inactive}) for" +
+                        " <#{@username}>.", LOG_DEBUG)
       @shadow_inactive = shadow_inactive
       @modified = true
     end
     
     # The UNIXUser UNIX shadow file last change field.
     def shadow_last_change
+      RADUM::logger.log("UNIXUser#shadow_last_change() for <#{@username}>.",
+                        LOG_DEBUG)
       @shadow_last_change
     end
     
@@ -604,12 +642,15 @@ module RADUM
     # It would not be needed most of the time. This corresponds to the LDAP
     # shadowLastChange attribute.
     def shadow_last_change=(shadow_last_change)
+      RADUM::logger.log("UNIXUser#shadow_last_change=(<#{shadow_last_change})" +
+                        " for <#{@username}>.", LOG_DEBUG)
       @shadow_last_change = shadow_last_change
       @modified = true
     end
     
     # The UNIXUser UNIX shadow file max field.
     def shadow_max
+      RADUM::logger.log("UNIXUser#shadow_max() for <#{@username}>.", LOG_DEBUG)
       @shadow_max
     end
     
@@ -621,12 +662,15 @@ module RADUM
     # It would not be needed most of the time. This corresponds to the LDAP
     # shadowMax attribute.
     def shadow_max=(shadow_max)
+      RADUM::logger.log("UNIXUser#shadow_max=(#{shadow_max}) for" +
+                        " <#{@username}>.", LOG_DEBUG)
       @shadow_max = shadow_max
       @modified = true
     end
     
     # The UNIXUser UNIX shadow file min field.
     def shadow_min
+      RADUM::logger.log("UNIXUser#shadow_min() for <#{@username}>.", LOG_DEBUG)
       @shadow_min
     end
     
@@ -638,12 +682,16 @@ module RADUM
     # It would not be needed most of the time. This corresponds to the LDAP
     # shadowMin attribute.
     def shadow_min=(shadow_min)
+      RADUM::logger.log("UNIXUser#shadow_min=(#{shadow_min}) for" +
+                        " <#{@username}>.", LOG_DEBUG)
       @shadow_min = shadow_min
       @modified = true
     end
     
     # The UNIXUser UNIX shadow file warning field.
     def shadow_warning
+      RADUM::logger.log("UNIXUser#shadow_warning() for <#{@username}>.",
+                        LOG_DEBUG)
       @shadow_warning
     end
     
@@ -655,6 +703,8 @@ module RADUM
     # It would not be needed most of the time. This corresponds to the LDAP
     # shadowWarning attribute.
     def shadow_warning=(shadow_warning)
+      RADUM::logger.log("UNIXUser#shadow_warning=(#{shadow_warning}) for " +
+                        " <#{@username}>.", LOG_DEBUG)
       @shadow_warning = shadow_warning
       @modified = true
     end
@@ -666,6 +716,9 @@ module RADUM
     # cannot be removed for the UNIXUser's UNIX main group because RADUM
     # enforces Windows group membership in the UNIX main group.
     def remove_group(group)
+      RADUM::logger.log("UNIXUser#remove_group(<#{group.name}>) for" +
+                        " <#{@username}>.", LOG_DEBUG)
+      
       if !self.removed && group.instance_of?(UNIXGroup) &&
          group == @unix_main_group
         raise "A UNIXUser cannot be removed from their unix_main_group."
@@ -677,6 +730,8 @@ module RADUM
     # The UNIXUser UNIX main group. This is where the UNIXUser UNIX GID
     # value comes from, which is reflected in the gid attribute.
     def unix_main_group
+      RADUM::logger.log("UNIXUser#unix_main_group() for <#{@username}>.",
+                        LOG_DEBUG)
       @unix_main_group
     end
     
@@ -685,6 +740,9 @@ module RADUM
     # object or a RuntimeError is raised. This method does not automatically
     # remove membership in the previous unix_main_group UNIXGroup.
     def unix_main_group=(group)
+      RADUM::logger.log("UNIXUser#unix_main_group=(<#{group.name}>) for" +
+                        " <#{@username}>.", LOG_DEBUG)
+      
       if group.instance_of? UNIXGroup
         if @container.directory == group.container.directory
           @unix_main_group = group
