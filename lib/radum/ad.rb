@@ -162,12 +162,10 @@ module RADUM
       # of warning messages in the load() method. Keep in mind that containers
       # automatically add themselves to their AD object.
       Container.new("cn=Users", self)
-      RADUM::logger.log("Created AD: #{self}.", LOG_DEBUG)
     end
     
     # The port number used to communicate with the Active Directory server.
     def port
-      RADUM::logger.log("AD#port() for #{self}.", LOG_DEBUG)
       @port
     end
     
@@ -175,7 +173,6 @@ module RADUM
     # This defaults to 636 for TLS in order to create user accounts properly,
     # but can be set here for nonstandard configurations.
     def port=(port)
-      RADUM::logger.log("AD#port=(#{port}) for #{self}.", LOG_DEBUG)
       @port = port
       @ldap.port = port
     end
@@ -183,9 +180,6 @@ module RADUM
     # Find a Container in the AD by name. The search is case-insensitive. The
     # Container is returned if found, otherwise nil is returned.
     def find_container(name)
-      RADUM::logger.log("AD#find_container(\"#{name}\") for #{self}.",
-                        LOG_DEBUG)
-      
       @containers.find do |container|
         # This relies on the fact that a container name must be unique in a
         # directory.
@@ -200,9 +194,6 @@ module RADUM
     # added back into it. If this is not true, a RuntimeError is raised. If
     # successful, the Container object's removed attribute is set to false.
     def add_container(container)
-      RADUM::logger.log("AD#add_container(<#{container.name}>) for #{self}.",
-                        LOG_DEBUG)
-      
       if container.removed
         if self == container.directory
           # Someone could have manaually set the removed flag as well, so
@@ -231,8 +222,6 @@ module RADUM
     # if possible. This method is greedy in that it tries to remove as many
     # objects from Active Directory as possible.
     def remove_container(container)
-      RADUM::logger.log("AD#remove_container(<#{container.name}>) for" +
-                        " #{self}.", LOG_DEBUG)
       can_remove = true
       
       # Note in the next two cases we are removing objects from the Container's
@@ -277,7 +266,6 @@ module RADUM
     # Returns an Array of all User and UNIXUser objects in all Containers
     # in the AD.
     def users
-      RADUM::logger.log("AD#users() for #{self}.", LOG_DEBUG)
       all_users = []
       
       @containers.each do |container|
@@ -291,7 +279,6 @@ module RADUM
     
     # Returns an Array of all removed User and UNIXUser objects in the AD.
     def removed_users
-      RADUM::logger.log("AD#removed_users() for #{self}.", LOG_DEBUG)
       all_removed_users = []
       
       @containers.each do |container|
@@ -316,9 +303,6 @@ module RADUM
     # nil is returned. Specify the second argument as true if you wish to
     # search for removed User or UNIXUser objects.
     def find_user(username, removed = false)
-      RADUM::logger.log("AD#find_user(\"#{username}\", #{removed}) for" +
-                        " #{self}.", LOG_DEBUG)
-      
       if removed
         search_users = removed_users
       else
@@ -339,9 +323,6 @@ module RADUM
     # returned if found, otherwise nil is returned. Specify the second argument
     # as true if you wish to search for removed User or UNIXUser objects.
     def find_user_by_rid(rid, removed = false)
-      RADUM::logger.log("AD#find_user_by_rid(#{rid}, #{removed}) for #{self}.",
-                        LOG_DEBUG)
-      
       if removed
         search_users = removed_users
       else
@@ -360,9 +341,6 @@ module RADUM
     # otherwise nil is returned. Specify the second argument as true if you
     # wish to search for removed UNIXUser objects.
     def find_user_by_uid(uid, removed = false)
-      RADUM::logger.log("AD#find_user_by_uid(#{uid}, #{removed}) for #{self}.",
-                        LOG_DEBUG)
-      
       if removed
         search_users = removed_users
       else
@@ -382,9 +360,6 @@ module RADUM
     # second argument as true if you wish to search for removed User or
     # UNIXUser objects.
     def find_user_by_dn(dn, removed = false)
-      RADUM::logger.log("AD#find_user_by_dn(\"#{dn}\", #{removed}) for" +
-                        " #{self}.", LOG_DEBUG)
-      
       if removed
         search_users = removed_users
       else
@@ -402,7 +377,6 @@ module RADUM
     # Returns an Array of all Group and UNIXGroup objects in all Containers
     # in the AD.
     def groups
-      RADUM::logger.log("AD#groups() for #{self}.", LOG_DEBUG)
       all_groups = []
       
       @containers.each do |container|
@@ -416,7 +390,6 @@ module RADUM
     
     # Returns an Array of all removed Group and UNIXGroup objects in the AD.
     def removed_groups
-      RADUM::logger.log("AD#removed_groups() for #{self}.", LOG_DEBUG)
       all_removed_groups = []
       
       @containers.each do |container|
@@ -441,9 +414,6 @@ module RADUM
     # nil is returned. Specify the second argument as true if you wish to
     # search for removed Group or UNIXGroup objects.
     def find_group(name, removed = false)
-      RADUM::logger.log("AD#find_group(\"#{name}\", #{removed}) for #{self}.",
-                        LOG_DEBUG)
-      
       if removed
         search_groups = removed_groups
       else
@@ -464,9 +434,6 @@ module RADUM
     # returned if found, otherwise nil is returned. Specify the second argument
     # as true if you wish to search for removed Group or UNIXGroup objects.
     def find_group_by_rid(rid, removed = false)
-      RADUM::logger.log("AD#find_group_by_rid(#{rid}, #{removed}) for" +
-                        " #{self}.", LOG_DEBUG)
-      
       if removed
         search_groups = removed_groups
       else
@@ -485,9 +452,6 @@ module RADUM
     # otherwise nil is returned. Specify the second argument as true if you
     # wish to search for removed UNIXGroup objects.
     def find_group_by_gid(gid, removed = false)
-      RADUM::logger.log("AD#find_group_by_gid(#{gid}, #{removed}) for" +
-                        " #{self}.", LOG_DEBUG)
-      
       if removed
         search_groups = removed_groups
       else
@@ -507,9 +471,6 @@ module RADUM
     # second argument as true if you wish to search for removed Group or
     # UNIXGroup objects.
     def find_group_by_dn(dn, removed = false)
-      RADUM::logger.log("AD#find_group_by_dn(\"#{dn}\", #{removed}) for" +
-                        " #{self}.", LOG_DEBUG)
-      
       if removed
         search_groups = removed_groups
       else
@@ -542,7 +503,7 @@ module RADUM
       # CURRENT CLASS OF THE GROUP. THINK OF THIS AS A FILTER THAT IGNORES ANY
       # ATTRIBUTES THAT DON'T MATCH THE CLASS AS IS.
       
-      RADUM::logger.log("AD#load() for #{self}.", LOG_DEBUG)
+      RADUM::logger.log("[AD #{self.root}] entering load().", LOG_DEBUG)
       # Find all the groups first. We might need one to represent the main
       # group of a UNIX user.
       group_filter = Net::LDAP::Filter.eq("objectclass", "group")
@@ -679,6 +640,7 @@ module RADUM
       users.each do |user|
         user.set_loaded
       end
+      RADUM::logger.log("[AD #{self.root}] exiting load().", LOG_DEBUG)
     end
     
     # Load the next free UID value. This is a convenience method that allows
@@ -687,7 +649,6 @@ module RADUM
     # values for UNIXUser objects that might not be in the Active Directory yet.
     # If nothing is found, the min_uid attribute is returned.
     def load_next_uid
-      RADUM::logger.log("AD#load_next_uid() for #{self}.", LOG_DEBUG)
       all_uids = []
       user_filter = Net::LDAP::Filter.eq("objectclass", "user")
       
@@ -724,7 +685,6 @@ module RADUM
     # values for UNIXGroup objects that might not be in the Active Directory
     # yet. If nothing is found, the min_gid attribute is returned.
     def load_next_gid
-      RADUM::logger.log("AD#load_next_gid() for #{self}.", LOG_DEBUG)
       all_gids = []
       group_filter = Net::LDAP::Filter.eq("objectclass", "group")
       
@@ -762,8 +722,6 @@ module RADUM
     # updated automatically. Removed objects will be deleted from Active
     # Directory.
     def sync
-      RADUM::logger.log("AD#sync() for #{self}.", LOG_DEBUG)
-      
       # First, delete any users that have been removed from a container here.
       # We need to remove users first because a group cannot be removed if
       # a user has it as their primary Windows group. Just in case, we remove
@@ -863,7 +821,6 @@ module RADUM
     # Unpack a RID from the SID value in the LDAP objectSid attribute for a
     # user or group in Active Directory.
     def sid2rid_int(sid)
-      RADUM::logger.log("AD#sid2rid_int(<BINARY SID>) for #{self}.", LOG_DEBUG)
       sid.unpack("qV*").pop.to_i
     end
     
@@ -873,33 +830,28 @@ module RADUM
     # Active Directory is expecting for the unicodePwd attribute has to be
     # explicitly quoted.
     def str2utf16le(str)
-      RADUM::logger.log("AD#str2utf16le(\"#{str}\") for #{self}.", LOG_DEBUG)
       ('"' + str + '"').gsub(/./) { |c| "#{c}\0" }
     end
     
     # Return a random number character as a string.
     def random_number
-      RADUM::logger.log("AD#random_number() for #{self}.", LOG_DEBUG)
       srand
       (rand 10).to_s
     end
     
     # Return a random lowercase letter as a string.
     def random_lowercase
-      RADUM::logger.log("AD#random_lowercase() for #{self}.", LOG_DEBUG)
       srand
       sprintf "%c", ((rand 26) + 97)
     end
     
     # Return a random uppercase letter as a string.
     def random_uppercase
-      RADUM::logger.log("AD#random_uppercase() for #{self}.", LOG_DEBUG)
       random_lowercase.swapcase
     end
     
     # Return a random symbol as a string.
     def random_symbol
-      RADUM::logger.log("AD#random_symbol() for #{self}.", LOG_DEBUG)
       srand
       
       case rand 4
@@ -921,7 +873,6 @@ module RADUM
     # If you don't like this, supply your own password for User and UNIXUser
     # objects.
     def random_password
-      RADUM::logger.log("AD#random_password() for #{self}.", LOG_DEBUG)
       random_lowercase + random_number + random_lowercase + random_uppercase +
       random_symbol + random_number + random_uppercase + random_symbol
     end
@@ -930,8 +881,6 @@ module RADUM
     # key is the RADUM group attribute name and the value is the computed value
     # from the group's attributes in Active Directory.
     def group_ldap_entry_attr(entry)
-      RADUM::logger.log("AD#group_ldap_entry_attr(#{entry}) for #{self}.",
-                        LOG_DEBUG)
       attr = {}
       # These are attributes that might be empty. If they are empty,
       # a NoMethodError exception will be raised. We have to check each
@@ -967,8 +916,6 @@ module RADUM
     # key is the RADUM user attribute name and the value is the computed value
     # from the user's attributes in Active Directory.
     def user_ldap_entry_attr(entry)
-      RADUM::logger.log("AD#user_ldap_entry_attr(#{entry}) for #{self}.",
-                        LOG_DEBUG)
       attr = {}
       # These are attributes that might be empty. If they are empty,
       # a NoMethodError exception will be raised. We have to check each
@@ -1089,8 +1036,6 @@ module RADUM
     
     # Check the LDAP operation result code for an error message.
     def check_ldap_result
-      RADUM::logger.log("AD#check_ldap_result() for #{self}.", LOG_DEBUG)
-      
       unless @ldap.get_operation_result.code == 0
         puts "LDAP ERROR: " + @ldap.get_operation_result.message
         puts "[Error code: " + @ldap.get_operation_result.code.to_s + "]"
@@ -1100,8 +1045,6 @@ module RADUM
     # Delete a Container from Active Directory. There isn't much we can check
     # except trying to delete it.
     def delete_container(container)
-      RADUM::logger.log("AD#delete_container(<#{container.name}>) for" +
-                        " #{self}.", LOG_DEBUG)
       @ldap.delete :dn => container.distinguished_name
       check_ldap_result
     end
@@ -1112,8 +1055,6 @@ module RADUM
     # do, even if one of those was also passed to this method later (since it
     # would then be found).
     def create_container(container)
-      RADUM::logger.log("AD#create_container(<#{container.name}>) for" +
-                        " #{self}.", LOG_DEBUG)
       distinguished_name = @root
       # This depends on the fact that the Container name had all spaces stripped
       # out in the initialize() method of the Container class.
@@ -1173,8 +1114,6 @@ module RADUM
     
     # Delete a Group or UNIXGroup from Active Directory.
     def delete_group(group)
-      RADUM::logger.log("AD#delete_group(<#{group.name}>) for #{self}.",
-                        LOG_DEBUG)
       # First check to make sure the group is not the primary Windows group
       # or UNIX main group for any user in Active Directory. We could probably
       # rely on the attempt to delete the group failing, but I don't like doing
@@ -1234,9 +1173,6 @@ module RADUM
     # match one that already exists. Therefore, any Group or UNIXGroup can be
     # passed into this method.
     def create_group(group)
-      RADUM::logger.log("AD#create_group(<#{group.name}>) for #{self}.",
-                        LOG_DEBUG)
-      
       unless group.loaded?
         group_filter = Net::LDAP::Filter.eq("objectclass", "group")
         # The return value will be false explicitly if the search fails,
@@ -1296,9 +1232,6 @@ module RADUM
     # exist in Active Directory or this method does nothing. This is checked, so
     # it is safe to pass any Group or UNIXGroup object to this method.
     def update_group(group)
-      RADUM::logger.log("AD#update_group(<#{group.name}>) for #{self}.",
-                        LOG_DEBUG)
-      
       if group.modified?
         puts "Updating #{group.class} #{group.name}..."
         group_filter = Net::LDAP::Filter.eq("objectclass", "group")
@@ -1437,8 +1370,6 @@ module RADUM
     
     # Delete a User or UNIXUser from Active Directory.
     def delete_user(user)
-      RADUM::logger.log("AD#delete_user(<#{user.username}>) for #{self}.",
-                        LOG_DEBUG)
       puts "Deleting user #{user.username}."
       @ldap.delete :dn => user.distinguished_name
       check_ldap_result
@@ -1452,9 +1383,6 @@ module RADUM
     # match one that already exists. Therefore, any User or UNIXUser can be
     # passed into this method.
     def create_user(user)
-      RADUM::logger.log("AD#create_user(<#{user.username}>) for #{self}.",
-                        LOG_DEBUG)
-      
       unless user.loaded?
         user_filter = Net::LDAP::Filter.eq("objectclass", "user")
         # The return value will be false explicitly if the search fails,
@@ -1694,9 +1622,6 @@ module RADUM
     # exist in Active Directory or this method does nothing. This is checked, so
     # it is safe to pass any User or UNIXUser object to this method.
     def update_user(user)
-      RADUM::logger.log("AD#update_user(<#{user.userame}>) for #{self}.",
-                        LOG_DEBUG)
-      
       if user.modified?
         puts "Updating #{user.class} #{user.username}..."
         user_filter = Net::LDAP::Filter.eq("objectclass", "user")

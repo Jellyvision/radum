@@ -73,7 +73,6 @@ module RADUM
       @removed_users = []
       @groups = []
       @removed_groups = []
-      RADUM::logger.log("Created Container: <#{@name}>.", LOG_DEBUG)
     end
     
     # Add User and UNIXUser objects which were previously removed and had
@@ -85,9 +84,6 @@ module RADUM
     # RuntimeError is raised. If successful, the User or UNIXUser object's
     # removed attribute is set to false.
     def add_user(user)
-      RADUM::logger.log("Container#add_user(<#{user.username}>) for" +
-                        " <#{@name}>.", LOG_DEBUG)
-      
       if user.removed
         if self == user.container
           # Someone could have manaually set the removed flag as well, so
@@ -118,8 +114,6 @@ module RADUM
     # them deleted from Active Directory. The User or UNIXUser must be in
     # the Container or a RuntimeError is raised.
     def remove_user(user)
-      RADUM::logger.log("Container#remove_user(<#{user.username}>) for" +
-                        " <#{@name}>.", LOG_DEBUG)
       destroy_user user
       # This is the only difference between remove_user and destroy_user.
       # Because we keep a reference, the comment about not keeping a reference
@@ -137,11 +131,6 @@ module RADUM
     # raised. This does set the User or UNIXUser object's removed attribute
     # to true, but any references to the User or UNIXUser should be discarded.
     def destroy_user(user)
-      RADUM::logger.log("Container#destroy_user(<#{user.username}>) for" +
-                        " <#{@name}>.", LOG_DEBUG)
-      RADUM::logger.log("This is called from Container#remove_user too.",
-                        LOG_DEBUG)
-      
       if self == user.container
         @users.delete user
         @directory.rids.delete user.rid if user.rid
@@ -169,9 +158,6 @@ module RADUM
     # RuntimeError is raised. If successful, the Group or UNIXGroup object's
     # removed attribute is set to false.
     def add_group(group)
-      RADUM::logger.log("Container#add_group(<#{group.name}>) for <#{@name}>.",
-                        LOG_DEBUG)
-      
       if group.removed
         if self == group.container
           # Someone could have manaually set the removed flag as well, so
@@ -205,8 +191,6 @@ module RADUM
     # you really want them deleted from Active Directory. The Group or
     # UNIXGroup must be in the Container or a RuntimeError is raised.
     def remove_group(group)
-      RADUM::logger.log("Container#remove_group(<#{group.name}>) for" +
-                        " <#{@name}>.", LOG_DEBUG)
       destroy_group group
       # This is the only difference between remove_group and destroy_group.
       # Because we keep a reference, the comment about not keeping a reference
@@ -224,11 +208,6 @@ module RADUM
     # raised. This does set the Group or UNIXGroup object's removed attribute
     # to true, but any references to the Group or UNIXGroup should be discarded.
     def destroy_group(group)
-      RADUM::logger.log("Container#destroy_group(<#{group.name}>) for" +
-                        " <#{@name}>.", LOG_DEBUG)
-      RADUM::logger.log("This is called from Container#remove_group too.",
-                        LOG_DEBUG)
-      
       if self == group.container
         # We cannot remove of destroy a group that still has a user referencing
         # it as their primary_group or unix_main_group.
