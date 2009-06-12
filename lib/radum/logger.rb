@@ -35,7 +35,8 @@ module RADUM
       end
     end
     
-    # Set the logger output file.
+    # Set the logger output file. The file is opened with mode "a" so it is
+    # created if needed and then appended to.
     def output_file(filename)
       @output = open(filename, "a")
     end
