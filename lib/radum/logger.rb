@@ -21,6 +21,7 @@ module RADUM
     
     def initialize(default_level)
       @default_level = default_level
+      @output = $stdout
     end
     
     # Print a long message with the given log level. If the log level is
@@ -30,8 +31,13 @@ module RADUM
     def log(mesg, log_level = LOG_NORMAL)
       if @default_level != LOG_NONE && log_level != LOG_NONE &&
          log_level <= @default_level
-        puts mesg
+        @output.puts mesg
       end
+    end
+    
+    # Set the logger output file.
+    def output_file(filename)
+      @output = open(filename, "a")
     end
   end
   

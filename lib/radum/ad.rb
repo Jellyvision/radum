@@ -235,7 +235,7 @@ module RADUM
         begin
           container.remove_group group
         rescue RuntimeError => error
-          puts error
+          RADUM::logger.log(error, LOG_NORMAL)
           can_remove = false
         end
       end
@@ -244,8 +244,8 @@ module RADUM
         next if current_container == container
         
         if current_container.name =~ /#{container.name}/
-          puts "Container #{container.name} contains container " +
-               "#{current_container.name}."
+          RADUM::logger.log("Container #{container.name} contains container " +
+                            "#{current_container.name}.", LOG_NORMAL)
           can_remove = false
         end
       end
@@ -259,7 +259,8 @@ module RADUM
         
         container.removed = true
       else
-        puts "Cannot fully remove container #{container.name}."
+        RADUM::logger.log("Cannot fully remove container #{container.name}.",
+                          LOG_NORMAL)
       end
     end
     
@@ -503,7 +504,7 @@ module RADUM
       # CURRENT CLASS OF THE GROUP. THINK OF THIS AS A FILTER THAT IGNORES ANY
       # ATTRIBUTES THAT DON'T MATCH THE CLASS AS IS.
       
-      RADUM::logger.log("[AD #{self.root}] entering load().", LOG_DEBUG)
+      RADUM::logger.log("[AD #{self.root}] entering load()", LOG_DEBUG)
       # Find all the groups first. We might need one to represent the main
       # group of a UNIX user.
       group_filter = Net::LDAP::Filter.eq("objectclass", "group")
@@ -582,9 +583,9 @@ module RADUM
                 user.shadow_warning = attr[:shadow_warning] if
                                       attr[:shadow_warning]
               else
-                puts "Warning: Main UNIX group could not be found for: " +
-                     attr[:username]
-                puts "Not loading #{attr[:username]}."
+                RADUM::logger.log("Warning: Main UNIX group could not be " +
+                                  "found for: " + attr[:username], LOG_NORMAL)
+                RADUM::logger.log("Not loading #{attr[:username]}.", LOG_NORMAL)
               end
             else
               user = User.new(attr[:username], container, attr[:primary_group],
@@ -595,9 +596,9 @@ module RADUM
               user.surname = attr[:surname] if attr[:surname]
             end
           else
-            puts "Warning: Windows primary group not found for: " +
-                 attr[:username]
-            puts "Not loading #{attr[:username]}."
+            RADUM::logger.log("Warning: Windows primary group not found for: " +
+                              attr[:username], LOG_NORMAL)
+            RADUM::logger.log("Not loading #{attr[:username]}.", LOG_NORMAL)
           end
         end
       end
@@ -640,7 +641,8 @@ module RADUM
       users.each do |user|
         user.set_loaded
       end
-      RADUM::logger.log("[AD #{self.root}] exiting load().", LOG_DEBUG)
+      
+      RADUM::logger.log("[AD #{self.root}] exiting load()", LOG_DEBUG)
     end
     
     # Load the next free UID value. This is a convenience method that allows
@@ -722,6 +724,8 @@ module RADUM
     # updated automatically. Removed objects will be deleted from Active
     # Directory.
     def sync
+      RADUM::logger.log("[AD #{self.root}] entering sync()", LOG_DEBUG)
+      
       # First, delete any users that have been removed from a container here.
       # We need to remove users first because a group cannot be removed if
       # a user has it as their primary Windows group. Just in case, we remove
@@ -797,6 +801,8 @@ module RADUM
         # case.
         update_user user
       end
+      
+      RADUM::logger.log("[AD #{self.root}] exiting sync()", LOG_DEBUG)
     end
     
     # Returns true if two AD objects are equal, otherwise false. Equality is
@@ -1037,14 +1043,19 @@ module RADUM
     # Check the LDAP operation result code for an error message.
     def check_ldap_result
       unless @ldap.get_operation_result.code == 0
-        puts "LDAP ERROR: " + @ldap.get_operation_result.message
-        puts "[Error code: " + @ldap.get_operation_result.code.to_s + "]"
+        RADUM::logger.log("LDAP ERROR: " + @ldap.get_operation_result.message,
+                          LOG_NORMAL)
+        RADUM::logger.log("[Error code: " +
+                          @ldap.get_operation_result.code.to_s + "]",
+                          LOG_NORMAL)
       end
     end
     
     # Delete a Container from Active Directory. There isn't much we can check
     # except trying to delete it.
     def delete_container(container)
+      RADUM::logger.log("[AD #{self.root}]" +
+                        " delete_container(<#{container.name}>)", LOG_DEBUG)
       @ldap.delete :dn => container.distinguished_name
       check_ldap_result
     end
@@ -1055,6 +1066,8 @@ module RADUM
     # do, even if one of those was also passed to this method later (since it
     # would then be found).
     def create_container(container)
+      RADUM::logger.log("[AD #{self.root}]" +
+                        " create_container(<#{container.name}>)", LOG_DEBUG)
       distinguished_name = @root
       # This depends on the fact that the Container name had all spaces stripped
       # out in the initialize() method of the Container class.
@@ -1068,8 +1081,9 @@ module RADUM
         elsif current_name =~ /^[Cc][Nn]=/
           type = "container"
         else
-          puts "SYNC ERROR: " + container.name + " ( #{current_name}) - " +
-               "unknown Container type."
+          RADUM::logger.log("SYNC ERROR: " + container.name +
+                            " ( #{current_name}) - unknown Container type.",
+                            LOG_NORMAL)
           return
         end
         
@@ -1084,7 +1098,8 @@ module RADUM
                              :return_result => false)
         
         if found == false
-          puts "#{distinguished_name} not found - creating..."
+          RADUM::logger.log("\t#{distinguished_name} not found - creating.",
+                            LOG_DEBUG)
           
           # Note that all the attributes need to be strings in the attr hash.
           if type == "organizationalUnit"
@@ -1101,19 +1116,25 @@ module RADUM
               :objectclass => ["top", "container"]
             }
           else
-            puts "SYNC ERROR: " + container.name + " ( #{current_name}) - " +
-                 "unknown Container type."
+            RADUM::logger.log("SYNC ERROR: " + container.name +
+                              " ( #{current_name}) - unknown Container type.",
+                              LOG_NORMAL)
             return
           end
           
           @ldap.add :dn => distinguished_name, :attributes => attr
           check_ldap_result
+        else
+          RADUM::logger.log("\t#{distinguished_name} found - not creating.",
+                            LOG_DEBUG)
         end
       end
     end
     
     # Delete a Group or UNIXGroup from Active Directory.
     def delete_group(group)
+      RADUM::logger.log("[AD #{self.root}]" +
+                        " delete_group(<#{group.name}>)", LOG_DEBUG)
       # First check to make sure the group is not the primary Windows group
       # or UNIX main group for any user in Active Directory. We could probably
       # rely on the attempt to delete the group failing, but I don't like doing
@@ -1141,25 +1162,27 @@ module RADUM
       end
       
       if found_primary.empty? && found_unix.empty?
-        puts "Deleted group #{group.name}."
+        RADUM::logger.log("\tDeleted group #{group.name}.", LOG_DEBUG)
         @ldap.delete :dn => group.distinguished_name
         check_ldap_result
       else
-        puts "Cannot delete group #{group.name}:"
+        RADUM::logger.log("\tCannot delete group #{group.name}:", LOG_DEBUG)
         
         unless found_primary.empty?
-          puts "#{group.name} is the primary Windows group for the users:"
+          RADUM::logger("\t#{group.name} is the primary Windows group for the" +
+                        " users:", LOG_DEBUG)
           
           found_primary.each do |user|
-            puts "\t#{user}"
+            RADUM::logger.log("\t\t#{user.username}", LOG_DEBUG)
           end
         end
         
         unless found_unix.empty?
-          puts "#{group.name} is the UNIX main group for the users:"
+          RADUM::logger.log("\t#{group.name} is the UNIX main group for the" +
+                            " users:", LOG_DEBUG)
           
           found_unix.each do |user|
-            puts "\t#{user}"
+            RADUM::logger.log("\t\t#{user.username}", LOG_DEBUG)
           end
         end
       end
@@ -1188,7 +1211,8 @@ module RADUM
         # it is not already there in the case it was manually created but
         # matches a group that already exists.
         if found == false
-          puts "#{group.name} not found - creating..."
+          RADUM::logger.log("[AD #{self.root}]" +
+                            " create_group(<#{group.name}>)", LOG_DEBUG)
           
           # Note that all the attributes need to be strings in this hash.
           attr = {
@@ -1219,10 +1243,9 @@ module RADUM
           # point because we have not handled any group memberships that might
           # have been set. Users at this poing in the create_user() method
           # can be considered loaded. Just noting this for my own reference.
-        else
+          
           # TO DO: SHOULD WE OVERWRITE THE GROUP OR WHAT? SEE THE LOAD() METHOD
           # COMMENT.
-          puts "SYNC WARNING: #{group.name} already exists. Not created."
         end
       end
     end
@@ -1233,13 +1256,15 @@ module RADUM
     # it is safe to pass any Group or UNIXGroup object to this method.
     def update_group(group)
       if group.modified?
-        puts "Updating #{group.class} #{group.name}..."
+        RADUM::logger.log("[AD #{self.root}]" +
+                          " update_group(<#{group.name}>)", LOG_DEBUG)
         group_filter = Net::LDAP::Filter.eq("objectclass", "group")
         entry = @ldap.search(:base => group.distinguished_name,
                              :filter => group_filter,
                              :scope => Net::LDAP::SearchScope_BaseObject).pop
         attr = group_ldap_entry_attr entry
         ops = []
+        RADUM::logger.log("\tKey: AD Value =? Object Value", LOG_DEBUG)
         
         attr.keys.each do |key|
           # All keys in the attr hash apply to UNIXGroups, but some do not apply
@@ -1252,7 +1277,7 @@ module RADUM
           end
           
           ad_value = attr[key]
-          puts "\t#{key}: #{ad_value} =? #{obj_value}"
+          RADUM::logger.log("\t#{key}: #{ad_value} =? #{obj_value}", LOG_DEBUG)
           
           if ad_value != obj_value
             case key
@@ -1357,7 +1382,7 @@ module RADUM
         end
         
         unless ops.empty?
-          puts ops.to_yaml
+          RADUM::logger.log("\n" + ops.to_yaml + "\n\n", LOG_DEBUG)
           @ldap.modify :dn => group.distinguished_name, :operations => ops
           check_ldap_result
           # At this point the group is the equivalent of a loaded group. Calling
@@ -1370,7 +1395,8 @@ module RADUM
     
     # Delete a User or UNIXUser from Active Directory.
     def delete_user(user)
-      puts "Deleting user #{user.username}."
+      RADUM::logger.log("[AD #{self.root}]" +
+                        " delete_user(<#{user.username}>)", LOG_DEBUG)
       @ldap.delete :dn => user.distinguished_name
       check_ldap_result
     end
@@ -1397,6 +1423,8 @@ module RADUM
         # The user should not already exist of course. This is to make sure
         # it is not already there.
         if found == false
+          RADUM::logger.log("[AD #{self.root}]" +
+                            " create_user(<#{user.username}>)", LOG_DEBUG)
           # We need the RID of the user's primary Windows group. If the primary
           # Windows group has true for its loaded attribute, it knows its RID
           # already. If not, we need to search Active Directory to find it
@@ -1416,11 +1444,10 @@ module RADUM
           end
           
           if rid.nil?
-            puts "SYNC ERROR: RID of #{user.primary_group.name} not found."
+            RADUM::logger.log("SYNC ERROR: RID of #{user.primary_group.name}" +
+                              " not found.", LOG_NORMAL)
             return
           end
-          
-          puts "#{user.username} not found - creating..."
           
           # Note that all the attributes need to be strings in this hash.
           attr = {
@@ -1522,8 +1549,7 @@ module RADUM
             end
           end
           
-          puts attr.to_yaml
-          puts user.distinguished_name
+          RADUM::logger.log("\n" + attr.to_yaml + "\n\n", LOG_DEBUG)
           @ldap.add :dn => user.distinguished_name, :attributes => attr
           check_ldap_result
           
@@ -1534,7 +1560,8 @@ module RADUM
           
           if user.password.nil?
             user.password = random_password
-            puts "Generated password #{user.password} for #{user.username}."
+            RADUM::logger.log("\tGenerated password #{user.password} for" +
+                              " #{user.username}.", LOG_DEBUG)
           end
           
           ops = [
@@ -1542,7 +1569,7 @@ module RADUM
             [:replace, :userAccountControl, user_status.to_s]
           ]
           
-          puts ops.to_yaml
+          RADUM::logger.log("\n" + ops.to_yaml + "\n\n", LOG_DEBUG)
           @ldap.modify :dn => user.distinguished_name, :operations => ops
           check_ldap_result
           
@@ -1560,7 +1587,7 @@ module RADUM
               [:replace, :pwdLastSet, 0.to_s]
             ]
             
-            puts ops.to_yaml
+            RADUM::logger.log("\n" + ops.to_yaml + "\n\n", LOG_DEBUG)
             @ldap.modify :dn => user.distinguished_name, :operations => ops
             check_ldap_result
           end
@@ -1576,7 +1603,7 @@ module RADUM
               [:add, :member, user.distinguished_name]
             ]
             
-            puts ops.to_yaml
+            RADUM::logger.log("\n" + ops.to_yaml + "\n\n", LOG_DEBUG)
             @ldap.modify :dn => user.primary_group.distinguished_name,
                          :operations => ops
             check_ldap_result
@@ -1585,7 +1612,7 @@ module RADUM
               [:replace, :primaryGroupID, rid.to_s]
             ]
             
-            puts ops.to_yaml
+            RADUM::logger.log("\n" + ops.to_yaml + "\n\n", LOG_DEBUG)
             @ldap.modify :dn => user.distinguished_name, :operations => ops
             check_ldap_result
             # At this point, we need to pull the RID value back out and set it
@@ -1609,10 +1636,9 @@ module RADUM
           # that the groups attribute is still not 100% accurate. It will
           # be dealt with later when groups are dealt with.
           user.set_loaded
-        else
+          
           # TO DO: SHOULD WE OVERWRITE THE USER OR WHAT? SEE THE LOAD() METHOD
           # COMMENT.
-          puts "SYNC WARNING: #{user.username} already exists. Not created."
         end
       end
     end
@@ -1623,13 +1649,15 @@ module RADUM
     # it is safe to pass any User or UNIXUser object to this method.
     def update_user(user)
       if user.modified?
-        puts "Updating #{user.class} #{user.username}..."
+        RADUM::logger.log("[AD #{self.root}]" +
+                          " update_user(<#{user.username}>)", LOG_DEBUG)
         user_filter = Net::LDAP::Filter.eq("objectclass", "user")
         entry = @ldap.search(:base => user.distinguished_name,
                              :filter => user_filter,
                              :scope => Net::LDAP::SearchScope_BaseObject).pop
         attr = user_ldap_entry_attr entry
         ops = []
+        RADUM::logger.log("\tKey: AD Value =? Object Value", LOG_DEBUG)
         
         attr.keys.each do |key|
           # All keys in the attr hash apply to UNIXUsers, but most do not apply
@@ -1642,7 +1670,7 @@ module RADUM
           end
           
           ad_value = attr[key]
-          puts "\t#{key}: #{ad_value} =? #{obj_value}"
+          RADUM::logger.log("\t#{key}: #{ad_value} =? #{obj_value}", LOG_DEBUG)
           
           if ad_value != obj_value
             case key
@@ -1710,7 +1738,7 @@ module RADUM
         end
         
         unless ops.empty?
-          puts ops.to_yaml
+          RADUM::logger.log("\n" + ops.to_yaml + "\n\n", LOG_DEBUG)
           @ldap.modify :dn => user.distinguished_name, :operations => ops
           check_ldap_result
           # At this point the user is the equivalent as a loaded user. Calling
