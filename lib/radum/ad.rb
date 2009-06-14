@@ -287,9 +287,7 @@ module RADUM
       all_users = []
       
       @containers.each do |container|
-        container.users.each do |user|
-          all_users.push user
-        end
+        all_users += container.users
       end
       
       all_users
@@ -300,17 +298,13 @@ module RADUM
       all_removed_users = []
       
       @containers.each do |container|
-        container.removed_users.each do |user|
-          all_removed_users.push user
-        end
+        all_removed_users += container.removed_users
       end
       
       # We also need to check removed Containers too because they can have
       # removed users too.
       @removed_containers.each do |container|
-        container.removed_users.each do |user|
-          all_removed_users.push user
-        end
+        all_removed_users += container.removed_users
       end
       
       all_removed_users
@@ -398,9 +392,7 @@ module RADUM
       all_groups = []
       
       @containers.each do |container|
-        container.groups.each do |group|
-          all_groups.push group
-        end
+        all_groups += container.groups
       end
       
       all_groups
@@ -411,17 +403,13 @@ module RADUM
       all_removed_groups = []
       
       @containers.each do |container|
-        container.removed_groups.each do |group|
-          all_removed_groups.push group
-        end
+        all_removed_groups += container.removed_groups
       end
       
       # We also need to check removed Containers too because they can have
       # removed groups too.
       @removed_containers.each do |container|
-        container.removed_groups.each do |group|
-          all_removed_groups.push group
-        end
+        all_removed_groups += container.removed_groups
       end
       
       all_removed_groups
