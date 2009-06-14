@@ -8,9 +8,9 @@ module RADUM
   # aside from exceptions goes through the Logger class. The possible log
   # levels are:
   #
-  #  LOG_NONE: Do not output any log information.
-  #  LOG_NORMAL: Output normal messages such as warnings for certain situations.
-  #  LOG_DEBUG: Output verbose debugging information.
+  # * LOG_NONE: Do not output any log information.
+  # * LOG_NORMAL: Output normal messages (warnings) for certain situations.
+  # * LOG_DEBUG: Output verbose debugging information.
   #
   # The RADUM module automatically instantiates a Logger instance for the
   # module that is accessible through the RADUM::logger method.

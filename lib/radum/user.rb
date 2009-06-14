@@ -11,8 +11,8 @@ module RADUM
     attr_reader :container
     # The RID of the User or UNIXUser object. This corresponds to part of the
     # LDAP objectSid attribute. This is set when the User or UNIXUser is loaded
-    # by AD.load from the AD object the Container belogs to. This attribute
-    # should not be specified in the User.new method when creating a new User
+    # by AD#load from the AD object the Container belogs to. This attribute
+    # should not be specified in the User#new method when creating a new User
     # or UNIXUser by hand.
     attr_reader :rid
     # The LDAP distinguishedName attribute for this User or UNIXUser. This can
@@ -130,8 +130,8 @@ module RADUM
     # Set the User or UNIXUser first name. This corresponds to the LDAP
     # givenName attribute and is used in the LDAP displayName, description,
     # and name attributes. This defaults to the username when a User or
-    # UNIXUser is created using User.new or UNIXUser.new, but is set to the
-    # correct value when a User or UNIXUser is loaded by AD.load from the AD
+    # UNIXUser is created using User#new or UNIXUser#new, but is set to the
+    # correct value when a User or UNIXUser is loaded by AD#load from the AD
     # object the Container belongs to.
     def first_name=(first_name)
       @fisrt_name = first_name
@@ -146,8 +146,8 @@ module RADUM
     # Set the User or UNIXUser middle name. This corresponds to the LDAP
     # middleName attribute and is used in the LDAP displayName and description
     # attributes. This defaults to nil when a User or UNIXUser is created using
-    # User.new or UNIXUser.new, but is set to the correct value when a User or
-    # UNIXUser is loaded by AD.load from the AD object the Container belongs to.
+    # User#new or UNIXUser#new, but is set to the correct value when a User or
+    # UNIXUser is loaded by AD#load from the AD object the Container belongs to.
     def middle_name=(middle_name)
       @middle_name = middle_name
       @modified = true
@@ -161,8 +161,8 @@ module RADUM
     # Set the User or UNIXUser surname (last name). This corresponds to the
     # LDAP sn attribute and is used in the LDAP displayName, description, and
     # name attributes. This defaults to nil when a User or UNIXUser is created
-    # using User.new or UNIXUser.new, but is set to the correct value when a
-    # User or UNIXUser is loaded by AD.load from the AD object the Container
+    # using User#new or UNIXUser#new, but is set to the correct value when a
+    # User or UNIXUser is loaded by AD#load from the AD object the Container
     # belongs to.
     def surname=(surname)
       @surname = surname
@@ -170,7 +170,7 @@ module RADUM
     end
     
     # The User or UNIXUser Windows password. This is only set to a value other
-    # than nil if the password should be changed on the next AD.sync call. Once
+    # than nil if the password should be changed on the next AD#sync call. Once
     # the User or UNIXUser is synchronized with Active Directory, the password
     # attribute is set to nil again. This is because the password attribute does
     # not actually reflect the current Active Directory user password, which
@@ -180,10 +180,10 @@ module RADUM
     end
     
     # Set the User or UNIXUser Windows password. This defaults to nil when a
-    # User or UNIXUser is created using User.new or UNIXUser.new. This does not
+    # User or UNIXUser is created using User#new or UNIXUser#new. This does not
     # reflect the current User or UNIXUser password, but if it is set, the
     # password will be changed. Once the User or UNIXUser is synchronized with
-    # Active Directory using AD.sync, the password attribute is set to nil
+    # Active Directory using AD#sync, the password attribute is set to nil
     # again. This is because the password attribute does not actually reflect
     # the current Active Directory user password, which cannot be read through
     # LDAP directly.
@@ -253,8 +253,8 @@ module RADUM
     end
     
     # The common_name is set to the username by default whe a User or UNIXUser
-    # is created using User.new or UNIXUser.new, but it is set to the correct
-    # value when the User or UNIXUser is loaded by AD.load from the AD object
+    # is created using User#new or UNIXUser#new, but it is set to the correct
+    # value when the User or UNIXUser is loaded by AD#load from the AD object
     # the Container belongs to. The username value corresponds to the LDAP
     # sAMAccountName and and msSFU30Name attributes. It is possible for the
     # LDAP cn attribute to be different than sAMAccountName and msSFU30Name
@@ -327,7 +327,7 @@ module RADUM
     end
     
     # Set the loaded flag. Calling this only has an effect once. This is only
-    # callled by AD.load when a User or UNIXUser is initially loaded.
+    # callled by AD#load when a User or UNIXUser is initially loaded.
     def set_loaded
       # This allows the modified attribute to be hidden.
       unless @loaded
@@ -460,8 +460,8 @@ module RADUM
     # Set the UNIXUser UNIX NIS domain. This corresponds to the LDAP
     # msSFU30NisDomain attribute. This needs to be set even if NIS services
     # are not being used. This defaults to "radum" when a UNIXUser is created
-    # using UNIXUser.new, but it is set to the correct value when the UNIXUser
-    # is loaded by AD.load from the AD object the Container belongs to.
+    # using UNIXUser#new, but it is set to the correct value when the UNIXUser
+    # is loaded by AD#load from the AD object the Container belongs to.
     def nis_domain=(nis_domain)
       @nis_domain = nis_domain
       @modified = true
@@ -474,8 +474,8 @@ module RADUM
     
     # Set the UNIXUser UNIX GECOS field. This corresponds to the LDAP gecos
     # attribute. This defaults to username when a UNIXUser is created using
-    # UNIXUser.new, but it is set to the correct value when the UNIXUser is
-    # loaded by AD.load from the AD object the Container belongs to.
+    # UNIXUser#new, but it is set to the correct value when the UNIXUser is
+    # loaded by AD#load from the AD object the Container belongs to.
     def gecos=(gecos)
       @gecos = gecos
       @modified = true
@@ -490,9 +490,9 @@ module RADUM
     # (or whatever your system supports potentially - Windows works with
     # crypt and MD5 in Microsoft Identity Management for UNIX). This
     # corresponds to the LDAP unixUserPassword attribute. The unix_password
-    # value defaults to "*" when a UNIXUser is created using UNIXUser.new,
+    # value defaults to "*" when a UNIXUser is created using UNIXUser#new,
     # but it is set to the correct value when the UNIXUser is loaded by
-    # AD.load from the AD object the Container belongs to.
+    # AD#load from the AD object the Container belongs to.
     #
     # It is not necessary to set the LDAP unixUserPassword attribute if you
     # are using Kerberos for authentication, but using LDAP (or NIS by way of
@@ -510,8 +510,8 @@ module RADUM
     
     # Set the UNIXUser UNIX shadow file expire field. This is the 8th field
     # of the /etc/shadow file. This defaults to nil when a UNIXUser is created
-    # using UNIXUser.new, but it is set to the correct value when the UNIXUser
-    # is loaded by AD.load from the AD object the Container belongs to. This
+    # using UNIXUser#new, but it is set to the correct value when the UNIXUser
+    # is loaded by AD#load from the AD object the Container belongs to. This
     # only needs to be set if the shadow file information is really needed.
     # It would not be needed most of the time. This corresponds to the LDAP
     # shadowExpire attribute.
@@ -527,8 +527,8 @@ module RADUM
     
     # Set the UNIXUser UNIX shadow file reserved field. This is the 9th field
     # of the /etc/shadow file. This defaults to nil when a UNIXUser is created
-    # using UNIXUser.new, but it is set to the correct value when the UNIXUser
-    # is loaded by AD.load from the AD object the Container belongs to. This
+    # using UNIXUser#new, but it is set to the correct value when the UNIXUser
+    # is loaded by AD#load from the AD object the Container belongs to. This
     # only needs to be set if the shadow file information is really needed.
     # It would not be needed most of the time. This corresponds to the LDAP
     # shadowFlag attribute.
@@ -544,8 +544,8 @@ module RADUM
     
     # Set the UNIXUser UNIX shadow file inactive field. This is the 7th field
     # of the /etc/shadow file. This defaults to nil when a UNIXUser is created
-    # using UNIXUser.new, but it is set to the correct value when the UNIXUser
-    # is loaded by AD.load from the AD object the Container belongs to. This
+    # using UNIXUser#new, but it is set to the correct value when the UNIXUser
+    # is loaded by AD#load from the AD object the Container belongs to. This
     # only needs to be set if the shadow file information is really needed.
     # It would not be needed most of the time. This corresponds to the LDAP
     # shadowInactive attribute.
@@ -561,8 +561,8 @@ module RADUM
     
     # Set the UNIXUser UNIX shadow file last change field. This is the 3rd field
     # of the /etc/shadow file. This defaults to nil when a UNIXUser is created
-    # using UNIXUser.new, but it is set to the correct value when the UNIXUser
-    # is loaded by AD.load from the AD object the Container belongs to. This
+    # using UNIXUser#new, but it is set to the correct value when the UNIXUser
+    # is loaded by AD#load from the AD object the Container belongs to. This
     # only needs to be set if the shadow file information is really needed.
     # It would not be needed most of the time. This corresponds to the LDAP
     # shadowLastChange attribute.
@@ -578,8 +578,8 @@ module RADUM
     
     # Set the UNIXUser UNIX shadow file max field. This is the 5th field of
     # the /etc/shadow file. This defaults to nil when a UNIXUser is created
-    # using UNIXUser.new, but it is set to the correct value when the UNIXUser
-    # is loaded by AD.load from the AD object the Container belongs to. This
+    # using UNIXUser#new, but it is set to the correct value when the UNIXUser
+    # is loaded by AD#load from the AD object the Container belongs to. This
     # only needs to be set if the shadow file information is really needed.
     # It would not be needed most of the time. This corresponds to the LDAP
     # shadowMax attribute.
@@ -595,8 +595,8 @@ module RADUM
     
     # Set the UNIXUser UNIX shadow file min field. This is the 4th field of
     # the /etc/shadow file. This defaults to nil when a UNIXUser is created
-    # using UNIXUser.new, but it is set to the correct value when the UNIXUser
-    # is loaded by AD.load from the AD object the Container belongs to. This
+    # using UNIXUser#new, but it is set to the correct value when the UNIXUser
+    # is loaded by AD#load from the AD object the Container belongs to. This
     # only needs to be set if the shadow file information is really needed.
     # It would not be needed most of the time. This corresponds to the LDAP
     # shadowMin attribute.
@@ -612,8 +612,8 @@ module RADUM
     
     # Set the UNIXUser UNIX shadow file warning field. This is the 6th field of
     # the /etc/shadow file. This defaults to nil when a UNIXUser is created
-    # using UNIXUser.new, but it is set to the correct value when the UNIXUser
-    # is loaded by AD.load from the AD object the Container belongs to. This
+    # using UNIXUser#new, but it is set to the correct value when the UNIXUser
+    # is loaded by AD#load from the AD object the Container belongs to. This
     # only needs to be set if the shadow file information is really needed.
     # It would not be needed most of the time. This corresponds to the LDAP
     # shadowWarning attribute.
@@ -625,8 +625,8 @@ module RADUM
     # Remove the UNIXUser membership in the Group or UNIXGroup. This
     # automatically removes the UNIXUser from the Group or UNIXGroup object's
     # list of users. This method returns a RuntimeError if the group is a
-    # UNIXGroup and the UNIXUser's UNIX main group. UNIXGroup membership
-    # cannot be removed for the UNIXUser's UNIX main group because RADUM
+    # UNIXGroup and the UNIXUser object's UNIX main group. UNIXGroup membership
+    # cannot be removed for the UNIXUser object's UNIX main group because RADUM
     # enforces Windows group membership in the UNIX main group.
     def remove_group(group)
       if !self.removed && group.instance_of?(UNIXGroup) &&

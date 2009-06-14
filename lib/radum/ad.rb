@@ -83,7 +83,7 @@ module RADUM
     # "cn=Administrator,cn=Users" when an AD is created using AD#new.
     attr_reader :user
     # The server hostname or IP address of the Active Directory server. This
-    # defaults to "localhost" when an AD is created using AD.new.
+    # defaults to "localhost" when an AD is created using AD#new.
     attr_reader :server
     # The minimum UID value to use if no other UIDs are found. This defaults to
     # 1000.
@@ -224,7 +224,7 @@ module RADUM
     # group and that user is not in the same Container.
     #
     # Note that this method might succeed based on the user and group objects
-    # it knows about, but it still might fail when AD.sync is called because a
+    # it knows about, but it still might fail when AD#sync is called because a
     # more extensive Active Directory search will be performed at that point.
     # In any case, all users will be removed and all groups (and the Container)
     # if possible. This method is greedy in that it tries to remove as many

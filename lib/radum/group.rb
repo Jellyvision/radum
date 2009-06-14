@@ -164,7 +164,7 @@ module RADUM
     end
     
     # Set the loaded flag. Calling this only has an effect once. This is only
-    # callled by AD.load when a Group or UNIXGroup is initially loaded.
+    # callled by AD#load when a Group or UNIXGroup is initially loaded.
     def set_loaded
       # This allows the modified attribute to be hidden.
       unless @loaded
@@ -257,8 +257,8 @@ module RADUM
     # automatically removes the UNIXGroup from the User or UNIXUser object's
     # list of groups. This method returns a RuntimeError if the user
     # has this UNIXGroup as their UNIX main group. UNIXGroup membership cannot
-    # be removed for the UNIXUser's UNIX main group because RADUM enforces
-    # Windows group membership in the UNIX main group.
+    # be removed for the UNIXUser object's UNIX main group because RADUM
+    # enforces Windows group membership in the UNIX main group.
     def remove_user(user)
       if !user.removed && user.instance_of?(UNIXUser) &&
          self == user.unix_main_group
@@ -276,8 +276,8 @@ module RADUM
     # Set the UNIXGroup UNIX NIS domain. This corresponds to the LDAP
     # msSFU30NisDomain attribute. This needs to be set even if NIS services
     # are not being used. This defaults to "radum" when a UNIXGroup is created
-    # using UNIXGroup.new, but it is set to the correct value when the UNIXGroup
-    # is loaded by AD.load from the AD object the Container belongs to.
+    # using UNIXGroup#new, but it is set to the correct value when the UNIXGroup
+    # is loaded by AD#load from the AD object the Container belongs to.
     def nis_domain=(nis_domain)
       @nis_domain = nis_domain
       @modified = true
@@ -292,8 +292,8 @@ module RADUM
     # (or whatever your system supports potentially - Windows works with crypt
     # and MD5 in Microsoft Identity Management for UNIX). This corresponds to
     # the LDAP unixUserPassword attribute. The unix_password value defaults
-    # to "*" when a UNIXGroup is created using UNIXGroup.new, but it is set
-    # to the correct value when the UNIXGroup is loaded by AD.load from the AD
+    # to "*" when a UNIXGroup is created using UNIXGroup#new, but it is set
+    # to the correct value when the UNIXGroup is loaded by AD#load from the AD
     # object the Container belongs to.
     #
     # It is not necessary to set the LDAP unixUserPassword attribute if you
