@@ -108,34 +108,42 @@ module RADUM
     # The array of Containers set for removal in the AD object.
     attr_reader :removed_containers
     
-    # Create a new AD object to represent an Active Directory environment.
-    # The root is a String representation of an LDAP path, such as
-    # "dc=example,dc=com". The password is used in conjunction with the
-    # specified user, which defaults to Administrator
-    # ("cn=Administrator,cn=Users"), to authenticate when a connection is
-    # is actually utilized in data processing ("load" and "sync" prefixed
-    # methods). The server is a String representing either the hostname or IP
-    # address of the Active Directory server, which defaults to "localhost".
-    # This module requires TLS to create user accounts in Active Directory
-    # properly, so you will need to make sure you have a certificate server
-    # so that you can connect with SSL on port 636.
+    # Create a new AD object that represents an Active Directory environment.
+    # This method takes a Hash containing arguments, some of which are required
+    # and others optional. The supported arguments follow:
     #
-    #   ad = RADUM::AD.new('dc=example,dc=com', 'password',
-    #                      'cn=Administrator,cn=Users', '192.168.1.1')
+    # * :root => The root of the Active Directory [required]
+    # * :user => The user for an LDAP bind [default "cn=Administrator,cn=Users"]
+    # * :password => The user password for an LDAP bind [optional]
+    # * :server => The Active Directory server hostname [default "localhost"]
+    #
+    # RADUM requires TLS to create user accounts in Active Directory properly,
+    # so you will need to make sure you have a certificate server so that you
+    # can connect with SSL on port 636. An example instantiation follows:
+    #
+    #   ad = RADUM::AD.new :root => 'dc=example,dc=com',
+    #                      :user => 'cn=Administrator,cn=Users',
+    #                      :password => 'password',
+    #                      :server => '192.168.1.1'
+    #
+    # Note that the :user argument specifies the path to the user account in
+    # Active Directory equivalent to the distinguished_name attribute for the
+    # user without the :root portion. The :server argument can be an IP address
+    # or a hostname. The :root argument is required. If it is not specified,
+    # a RuntimeError is raised.
     #
     # A Container object for "cn=Users" is automatically created and added to
-    # the AD when an AD object is created. This is meant to be a convenience
-    # because most (if not all) User and UNIXUser objects will have the
+    # the AD object when it is created. This is meant to be a convenience
+    # because most, if not all, User and UNIXUser objects will have the
     # "Domain Users" Windows group as their primary Windows group. It is
-    # possible to remove this Container if absolutely necessary, but it should
-    # not be an issue.
-    def initialize(root, password, user = "cn=Administrator,cn=Users",
-                   server = "localhost")
-      @root = root.gsub(/\s+/, "")
+    # impossible to remove this Container.
+    def initialize(args = {})
+      @root = args[:root] or raise "AD :root argument required."
+      @root.gsub!(/\s+/, "")
       @domain = @root.gsub(/dc=/, "").gsub(/,/, ".")
-      @password = password
-      @user = user
-      @server = server
+      @user = args[:user] || "cn=Administrator,cn=Users"
+      @password = args[:password]
+      @server = args[:server] = "localhost"
       @containers = []
       @removed_containers = []
       @min_uid = 1000
@@ -161,7 +169,7 @@ module RADUM
       # primary group. If we did not do this, there would likely be a ton
       # of warning messages in the load() method. Keep in mind that containers
       # automatically add themselves to their AD object.
-      Container.new("cn=Users", self)
+      @cn_users = Container.new("cn=Users", self)
     end
     
     # The port number used to communicate with the Active Directory server.
@@ -221,7 +229,16 @@ module RADUM
     # In any case, all users will be removed and all groups (and the Container)
     # if possible. This method is greedy in that it tries to remove as many
     # objects from Active Directory as possible.
+    #
+    # This method refuses to remove the "cn=Users" container as a safety
+    # measure.
     def remove_container(container)
+      if container == @cn_users
+        RADUM::logger.log("Cannot remove #{container.name} - safety measure.",
+                          LOG_NORMAL)
+        return
+      end
+      
       can_remove = true
       
       # Note in the next two cases we are removing objects from the Container's

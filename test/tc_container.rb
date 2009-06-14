@@ -4,8 +4,8 @@ require '../lib/radum'
 # This tests the Container class.
 class TC_Container < Test::Unit::TestCase
   def setup
-    @ad1 = RADUM::AD.new("dc=vmware,dc=local", "test1")
-    @ad2 = RADUM::AD.new("dc=vmware,dc=com", "test2")
+    @ad1 = RADUM::AD.new :root => "dc=vmware,dc=local", :password => "test1"
+    @ad2 = RADUM::AD.new :root => "dc=vmware,dc=com", :password => "test2"
     @c1_ad1 = RADUM::Container.new("ou=People", @ad1)
     @c2_ad1 = RADUM::Container.new("ou=Staff, ou=People", @ad1)
     @c3_ad1 = RADUM::Container.new("cn=Test", @ad1)
