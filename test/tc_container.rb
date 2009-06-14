@@ -6,10 +6,11 @@ class TC_Container < Test::Unit::TestCase
   def setup
     @ad1 = RADUM::AD.new :root => "dc=vmware,dc=local", :password => "test1"
     @ad2 = RADUM::AD.new :root => "dc=vmware,dc=com", :password => "test2"
-    @c1_ad1 = RADUM::Container.new("ou=People", @ad1)
-    @c2_ad1 = RADUM::Container.new("ou=Staff, ou=People", @ad1)
-    @c3_ad1 = RADUM::Container.new("cn=Test", @ad1)
-    @c4_ad2 = RADUM::Container.new("cn=Test", @ad2)
+    @c1_ad1 = RADUM::Container.new :name => "ou=People", :directory => @ad1
+    @c2_ad1 = RADUM::Container.new :name => "ou=Staff, ou=People",
+                                   :directory => @ad1
+    @c3_ad1 = RADUM::Container.new :name => "cn=Test", :directory => @ad1
+    @c4_ad2 = RADUM::Container.new :name => "cn=Test", :directory => @ad2
     @g1_c1_ad1 = RADUM::Group.new("staff", @c1_ad1)
     @g2_c4_ad2 = RADUM::Group.new("enable", @c4_ad2)
     @g3_c3_ad1 = RADUM::Group.new("test", @c3_ad1)
@@ -29,19 +30,19 @@ class TC_Container < Test::Unit::TestCase
   
   def test_equal_exception
     assert_raise RuntimeError do
-      RADUM::Container.new("ou=People", @ad1)
+      RADUM::Container.new :name => "ou=People", :directory => @ad1
     end
   end
   
   def test_equal_case_insensitive_exception
     assert_raise RuntimeError do
-      RADUM::Container.new("ou=people", @ad1)
+      RADUM::Container.new :name => "ou=people", :directory => @ad1
     end
   end
   
   def test_equal_spaces_exception
     assert_raise RuntimeError do
-      RADUM::Container.new("ou=Staff,ou=People", @ad1)
+      RADUM::Container.new :name => "ou=Staff,ou=People", :directory => @ad1
     end
   end
   
@@ -184,7 +185,7 @@ class TC_Container < Test::Unit::TestCase
   
   def test_container_with_organizational_unit_exception
     assert_raise RuntimeError do
-      RADUM::Container.new("ou=foo,cn=bar", @ad1)
+      RADUM::Container.new :name => "ou=foo,cn=bar", :directory => @ad1
     end
   end
 end

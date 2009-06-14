@@ -7,9 +7,10 @@ class TC_User < Test::Unit::TestCase
     @type = RADUM::GROUP_DOMAIN_LOCAL_DISTRIBUTION
     @ad1 = RADUM::AD.new :root => "dc=vmware,dc=local", :password => "test1"
     @ad2 = RADUM::AD.new :root => "dc=vmware,dc=com", :password => "test2"
-    @c1_ad1 = RADUM::Container.new("ou=People", @ad1)
-    @c2_ad1 = RADUM::Container.new("ou=Staff,ou=People", @ad1)
-    @c3_ad2 = RADUM::Container.new("ou=People", @ad2)
+    @c1_ad1 = RADUM::Container.new :name => "ou=People", :directory => @ad1
+    @c2_ad1 = RADUM::Container.new :name => "ou=Staff,ou=People",
+                                   :directory => @ad1
+    @c3_ad2 = RADUM::Container.new :name => "ou=People", :directory => @ad2
     @g1_c1_ad1 = RADUM::Group.new("staff", @c1_ad1)
     @g2_c2_ad1 = RADUM::Group.new("enable", @c2_ad1)
     @g3_c3_ad2 = RADUM::Group.new("staff", @c3_ad2)

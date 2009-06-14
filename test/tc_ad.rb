@@ -8,8 +8,9 @@ class TC_Ad < Test::Unit::TestCase
     @ad1b = RADUM::AD.new :root => "dc=vmware, dc=local", :password => "test1b"
     @ad1c = RADUM::AD.new :root => "DC=VMWARE,DC=LOCAL", :password => "test1c"
     @ad2 = RADUM::AD.new :root => "dc=vmware,dc=com", :password => "test2"
-    @c1_ad1a = RADUM::Container.new("ou=People", @ad1a)
-    @c2_ad2 = RADUM::Container.new("ou=Staff,ou=People", @ad2)
+    @c1_ad1a = RADUM::Container.new :name => "ou=People", :directory => @ad1a
+    @c2_ad2 = RADUM::Container.new :name => "ou=Staff,ou=People",
+                                   :directory => @ad2
   end
   
   def test_equal

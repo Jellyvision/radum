@@ -6,8 +6,9 @@ class TC_UNIXUser < Test::Unit::TestCase
   def setup
     @ad1 = RADUM::AD.new :root => "dc=vmware,dc=local", :password => "test1"
     @ad2 = RADUM::AD.new :root => "dc=vmware,dc=com", :password => "test2"
-    @c1_ad1 = RADUM::Container.new("ou=People", @ad1)
-    @c2_ad2 = RADUM::Container.new("ou=Staff,ou=People", @ad2)
+    @c1_ad1 = RADUM::Container.new :name => "ou=People", :directory => @ad1
+    @c2_ad2 = RADUM::Container.new :name => "ou=Staff,ou=People",
+                                   :directory => @ad2
     @ug1_c1_ad1 = RADUM::UNIXGroup.new("staff", @c1_ad1, 1001)
     @ug2_c1_ad1 = RADUM::UNIXGroup.new("enable", @c1_ad1, 1002)
     @ug3_c2_ad2 = RADUM::UNIXGroup.new("enable", @c2_ad2, 1003)

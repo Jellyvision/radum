@@ -22,47 +22,63 @@ module RADUM
     # True if the Container has been removed from the AD, false
     # otherwise. This is set by the AD if the Container is removed.
     attr_accessor :removed
-    
-    # The Container object automatically adds itself to the AD object
-    # specified. The name should be the LDAP distinguishedName attribute
-    # without the AD root path component:
+
+    # Create a new Container object that represents an Active Directory
+    # container or organizational unit that contains users and groups. This
+    # method takes a Hash containing arguments, all of which are required.
+    # The supported arguments follow:
     #
-    #   ad = RADUM::AD.new('dc=example,dc=com', 'password',
-    #                      'cn=Administrator,cn=Users', '192.168.1.1')
-    #   cn = RADUM::Container.new("ou=People", ad)
+    # * :name => The relative path in Active Directory [required]
+    # * :directory => The Container object's associated AD object [required]
     #
-    # Spaces are removed from the name. The Container must not already be
-    # in the AD or a RuntimeError is raised. Note that you can create Container
-    # objects for an actual container in Active Directory or an organizational
-    # unit (referred to here as a "container" since it logically contains
-    # objects and this is a higher level representation). Only specify
-    # Containers that are really containers (cn=Foo) or organizational units
-    # (ou=Foo). Also note that orgainizational units can hold containers, but
-    # containers cannot hold organizational units. Therefore ou=foo,cn=bar is
-    # invalid, but cn=foo,ou=bar is valid. A RuntimeError is raised if this
-    # rule is violated. Lastly, Container objects are in a conceptually flat
-    # namespace. In other words, cn=foo,ou=bar is its own Container object.
-    # It is not represented as a child of the ou=bar organizational unit.
-    # This has been accounted for when synchronizing so that things work.
-    # For example, the cn=foo,ou=bar Container object will cause the ou=bar
-    # organizational unit to be created first, if necessary, before the cn=bar
-    # container is created. It's magic.
-    def initialize(name, directory) # :doc:
-      name.gsub!(/\s+/, "")
+    # An example instantiation follows:
+    #
+    #   ad = RADUM::AD.new :root => 'dc=example,dc=com',
+    #                      :user => 'cn=Administrator,cn=Users',
+    #                      :password => 'password',
+    #                      :server => '192.168.1.1'
+    #   cn = RADUM::Container.new :name => 'ou=People', :directory => ad
+    #
+    # The :name argument specifies the path to the container or organizational
+    # unit in Active Directory equivalent to the distinguished_name attribute
+    # for container or organizational unit without the root portion. The
+    # :directory argument is the AD object that owns the Container. A
+    # RuntimeError is raised if either of these arguments are missing.
+    #
+    # Spaces are removed from the :name argument. The Container must not
+    # already be in the AD or a RuntimeError is raised. Note that you can
+    # create Container objects for an actual container in Active Directory or
+    # an organizational unit (referred to here as a "container" since it
+    # logically contains objects and this is a higher level representation).
+    # Only specify Containers that are really containers (cn=Foo) or
+    # organizational units (ou=Foo). Also note that orgainizational units can
+    # hold containers, but containers cannot hold organizational units.
+    # Therefore ou=foo,cn=bar is invalid, but cn=foo,ou=bar is valid. A
+    # RuntimeError is raised if this rule is violated. Lastly, Container
+    # objects are in a conceptually flat namespace. In other words,
+    # cn=foo,ou=bar is its own Container object. It is not represented as a
+    # child of the ou=bar organizational unit. This has been accounted for
+    # when synchronizing so that things work. For example, the cn=foo,ou=bar
+    # Container object will cause the ou=bar organizational unit to be created
+    # first, if necessary, before the cn=bar container is created. It's magic.
+    def initialize(args = {}) # :doc:
+      @name = args[:name] or raise "Container :name argument required."
+      @name.gsub!(/\s+/, "")
       
-      if name =~ /[Oo][Uu]=.*[Cc][Nn]=/
+      if @name =~ /[Oo][Uu]=.*[Cc][Nn]=/
         raise "Container CN objects cannot contain OU objects."
       end
+      
+      @directory = args[:directory] or raise "Container :directory argument" +
+                                             " required."
       
       # The container name (like a user) must be unique (case-insensitive).
       # We would not want someone accidently making two equal containers
       # and adding users/groups in the wrong way.
-      if directory.find_container name
+      if @directory.find_container name
         raise "Container is already in the directory."
       end
       
-      @name = name
-      @directory = directory
       @distinguished_name = @name + "," + @directory.root
       # The removed flag must be set to true first since we are not in the
       # directory yet.

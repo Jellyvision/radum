@@ -126,9 +126,9 @@ module RADUM
     #                      :password => 'password',
     #                      :server => '192.168.1.1'
     #
-    # Note that the :user argument specifies the path to the user account in
-    # Active Directory equivalent to the distinguished_name attribute for the
-    # user without the :root portion. The :server argument can be an IP address
+    # The :user argument specifies the path to the user account in Active
+    # Directory equivalent to the distinguished_name attribute for the user
+    # without the :root portion. The :server argument can be an IP address
     # or a hostname. The :root argument is required. If it is not specified,
     # a RuntimeError is raised.
     #
@@ -169,7 +169,7 @@ module RADUM
       # primary group. If we did not do this, there would likely be a ton
       # of warning messages in the load() method. Keep in mind that containers
       # automatically add themselves to their AD object.
-      @cn_users = Container.new("cn=Users", self)
+      @cn_users = Container.new :name => "cn=Users", :directory => self
     end
     
     # The port number used to communicate with the Active Directory server.
