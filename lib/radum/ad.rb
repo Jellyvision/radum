@@ -772,7 +772,7 @@ module RADUM
       # the container (such as another container).  Note that the
       # AD.remove_container method makes sure that a container is not removed
       # if it contains another container in the first place.
-      removed_containers.each do |container|
+      @removed_containers.each do |container|
         delete_container container
       end
       
