@@ -9,10 +9,13 @@ class TC_UNIXUser < Test::Unit::TestCase
     @c1_ad1 = RADUM::Container.new :name => "ou=People", :directory => @ad1
     @c2_ad2 = RADUM::Container.new :name => "ou=Staff,ou=People",
                                    :directory => @ad2
-    @ug1_c1_ad1 = RADUM::UNIXGroup.new("staff", @c1_ad1, 1001)
-    @ug2_c1_ad1 = RADUM::UNIXGroup.new("enable", @c1_ad1, 1002)
-    @ug3_c2_ad2 = RADUM::UNIXGroup.new("enable", @c2_ad2, 1003)
-    @g4_c1_ad1 = RADUM::Group.new("class", @c1_ad1)
+    @ug1_c1_ad1 = RADUM::UNIXGroup.new :name => "staff", :container => @c1_ad1,
+                                       :gid => 1001
+    @ug2_c1_ad1 = RADUM::UNIXGroup.new :name => "enable", :container => @c1_ad1,
+                                       :gid => 1002
+    @ug3_c2_ad2 = RADUM::UNIXGroup.new :name => "enable", :container => @c2_ad2,
+                                       :gid => 1003
+    @g4_c1_ad1 = RADUM::Group.new :name => "class", :container => @c1_ad1
     @uu1a_c1_ad1 = RADUM::UNIXUser.new("user", @c1_ad1, @g4_c1_ad1, 1000,
                                         @ug1_c1_ad1, "/bin/bash", "/home/user")
   end

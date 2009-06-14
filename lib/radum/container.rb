@@ -29,7 +29,7 @@ module RADUM
     # The supported arguments follow:
     #
     # * :name => The relative path in Active Directory [required]
-    # * :directory => The Container object's associated AD object [required]
+    # * :directory => The Container object's associated AD [required]
     #
     # An example instantiation follows:
     #

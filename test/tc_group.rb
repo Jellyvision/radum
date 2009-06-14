@@ -4,18 +4,20 @@ require '../lib/radum'
 # This tests the Group and UNIXGroup classes.
 class TC_Group < Test::Unit::TestCase
   def setup
-    @type = RADUM::GROUP_GLOBAL_SECURITY
     @ad1 = RADUM::AD.new :root => "dc=vmware,dc=local", :password => "test1"
     @ad2 = RADUM::AD.new :root => "dc=vmware,dc=com", :password => "test2"
     @c1_ad1 = RADUM::Container.new :name => "ou=People", :directory => @ad1
     @c2_ad1 = RADUM::Container.new :name => "ou=Staff,ou=People",
                                    :directory => @ad1
     @c3_ad2 = RADUM::Container.new :name => "ou=People", :directory => @ad2
-    @g1_c1_ad1 = RADUM::Group.new("staff", @c1_ad1, @type, 1722)
-    @g2_c3_ad2 = RADUM::Group.new("staff", @c3_ad2, @type, 1722)
-    @g4_c1_ad1 = RADUM::Group.new("primary", @c1_ad1)
-    @g5_c3_ad2 = RADUM::Group.new("priamry", @c3_ad2)
-    @ug1_c1_ad1 = RADUM::UNIXGroup.new("class", @c1_ad1, 1001)
+    @g1_c1_ad1 = RADUM::Group.new :name => "staff", :container => @c1_ad1,
+                                  :rid => 1722
+    @g2_c3_ad2 = RADUM::Group.new :name => "staff", :container => @c3_ad2,
+                                  :rid => 1722
+    @g4_c1_ad1 = RADUM::Group.new :name => "primary", :container => @c1_ad1
+    @g5_c3_ad2 = RADUM::Group.new :name => "priamry", :container => @c3_ad2
+    @ug1_c1_ad1 = RADUM::UNIXGroup.new :name => "class", :container => @c1_ad1,
+                                       :gid => 1001
     @u1_c1_ad1 = RADUM::User.new("user1", @c1_ad1, @g4_c1_ad1)
     @u2_c3_ad2 = RADUM::User.new("user2", @c3_ad2, @g5_c3_ad2)
     @uu1_c1_ad1 = RADUM::UNIXUser.new("user3", @c1_ad1, @g4_c1_ad1, 1000,
@@ -30,31 +32,31 @@ class TC_Group < Test::Unit::TestCase
   
   def test_duplicate_rid_exception
     assert_raise RuntimeError do
-      RADUM::Group.new("test", @c1_ad1, @type, 1722)
+      RADUM::Group.new :name => "test", :container => @c1_ad1, :rid => 1722
     end
   end
   
   def test_duplicate_gid_exception
     assert_raise RuntimeError do
-      RADUM::UNIXGroup.new("class", @c1_ad1, 1001)
+      RADUM::UNIXGroup.new :name => "class", :container => @c1_ad1, :gid => 1001
     end
   end
   
   def test_equal_exception
     assert_raise RuntimeError do
-      RADUM::Group.new("staff", @c1_ad1)
+      RADUM::Group.new :name => "staff", :container => @c1_ad1
     end
   end
   
   def test_equal_name_case_exception
     assert_raise RuntimeError do
-      RADUM::Group.new("Staff", @c1_ad1)
+      RADUM::Group.new :name => "Staff", :container =>  @c1_ad1
     end
   end
   
   def test_equal_container_difference_exception
     assert_raise RuntimeError do
-      RADUM::Group.new("staff", @c2_ad1)
+      RADUM::Group.new :name => "staff", :container => @c2_ad1
     end
   end
   

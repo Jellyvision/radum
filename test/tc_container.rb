@@ -11,9 +11,9 @@ class TC_Container < Test::Unit::TestCase
                                    :directory => @ad1
     @c3_ad1 = RADUM::Container.new :name => "cn=Test", :directory => @ad1
     @c4_ad2 = RADUM::Container.new :name => "cn=Test", :directory => @ad2
-    @g1_c1_ad1 = RADUM::Group.new("staff", @c1_ad1)
-    @g2_c4_ad2 = RADUM::Group.new("enable", @c4_ad2)
-    @g3_c3_ad1 = RADUM::Group.new("test", @c3_ad1)
+    @g1_c1_ad1 = RADUM::Group.new :name => "staff", :container => @c1_ad1
+    @g2_c4_ad2 = RADUM::Group.new :name => "enable", :container => @c4_ad2
+    @g3_c3_ad1 = RADUM::Group.new :name => "test", :container => @c3_ad1
     @u1_c1_ad1 = RADUM::User.new("user", @c1_ad1, @g1_c1_ad1)
     @u2_c4_ad2 = RADUM::User.new("user", @c4_ad2, @g2_c4_ad2)
     @u3_c3_ad1 = RADUM::User.new("remove", @c3_ad1, @g1_c1_ad1)
@@ -145,7 +145,8 @@ class TC_Container < Test::Unit::TestCase
   
   def test_remove_unix_main_group_exception
     assert_raise RuntimeError do
-      foo = RADUM::UNIXGroup.new("bar", @c3_ad1, 1000)
+      foo = RADUM::UNIXGroup.new :name => "bar", :container => @c3_ad1,
+                                 :gid => 1000
       RADUM::UNIXUser.new("foo", @c3_ad1, @g1_c1_ad1, 1001, foo, "/bin/bash",
                           "/home/foo", "test", false, 1002)
       @c3_ad1.remove_group foo
@@ -161,9 +162,10 @@ class TC_Container < Test::Unit::TestCase
   
   def test_rid_uid_gid_added_to_container_directory
     assert_block("Should have added UID and GID to directory") do
-      RADUM::UNIXUser.new("foo", @c3_ad1, @g1_c1_ad1, 1000,
-                          RADUM::UNIXGroup.new("bar", @c3_ad1, 1001),
-                          "/bin/bash", "/home/foo", "test", false, 1002)
+      bar = RADUM::UNIXGroup.new :name => "bar", :container => @c3_ad1,
+                                 :gid => 1001
+      RADUM::UNIXUser.new("foo", @c3_ad1, @g1_c1_ad1, 1000, bar, "/bin/bash",
+                          "/home/foo", "test", false, 1002)
       @ad1.uids.find { |uid| uid == 1000 } &&
       @ad1.gids.find { |gid| gid == 1001 } &&
       @ad1.rids.find { |rid| rid == 1002 }
@@ -172,7 +174,8 @@ class TC_Container < Test::Unit::TestCase
   
   def test_rid_uid_gid_removed_from_container_directory
     assert_block("Should have removed UID and GID from directory") do
-      bar = RADUM::UNIXGroup.new("bar", @c3_ad1, 1000)
+      bar = RADUM::UNIXGroup.new :name => "bar", :container => @c3_ad1,
+                                 :gid => 1000
       foo = RADUM::UNIXUser.new("foo", @c3_ad1, @g1_c1_ad1, 1001, bar,
                                 "/bin/bash", "/home/foo", "test", false, 1002)
       @c3_ad1.remove_user foo

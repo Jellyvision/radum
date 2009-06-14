@@ -10,14 +10,14 @@ module RADUM
     attr_reader :container
     # The RADUM group type of the Group or UNIXGroup. This corresponds to the
     # LDAP groupType attribute. This defaults to GROUP_GLOBAL_SECURITY when
-    # a Group or UNIXGroup is created using Group.new or UNIXGroup.new, but
+    # a Group or UNIXGroup is created using Group#new or UNIXGroup#new, but
     # it is set to the correct value when a Group or UNIXGroup is loaded by
-    # AD.load from the AD object the Container belongs to.
+    # AD#load from the AD object the Container belongs to.
     attr_reader :type
     # The RID of the Group or UNIXGroup object. This correponds to part of the
     # LDAP objectSid attribute. This is set when the Group or UNIXGroup is
-    # loaded by AD.load from the AD object the Container belongs to. This
-    # attribute should not be specified in the Group.new or UNIXGroup.new
+    # loaded by AD#load from the AD object the Container belongs to. This
+    # attribute should not be specified in the Group#new or UNIXGroup#new
     # methods when creating a new Group or UNIXGroup by hand.
     attr_reader :rid
     # The LDAP distinguishedName attribute for this Group or UNIXGroup.
@@ -37,29 +37,41 @@ module RADUM
     # otherwise. This is set by the Container if the Group is removed.
     attr_accessor :removed
     
+    # Create a new Group object that represents a Windows group in Active
+    # Directory. This method takes a Hash containing arguments, some of which
+    # are required and others optional. The supported arguments follow:
+    #
+    # * :name => The Group object's name [required]
+    # * :container => The Group object's associated Container [required]
+    # * :type => The RADUM group type [default GROUP_GLOBAL_SECURITY]
+    # * :rid => The RID of the Group object [optional]
+    #
+    # The :name argument (case-insensitive) and the :rid argument must be
+    # unique in the AD object, otherwise a RuntimeError is raised. The :type
+    # argument must be one of the RADUM group type constants. The :rid argument
+    # should not be set directly except from the AD#load method itself.
     # The Group object automatically adds itself to the Container object
-    # specified. The rid should not be set directly. The rid should only be
-    # set by the AD object when loading groups from Active Directory. The name
-    # (case-insensitive) and the rid must be unique in the AD object, otherwise
-    # a RuntimeError is raised. The type must be one of the RADUM group type
-    # constants.
-    def initialize(name, container, type = GROUP_GLOBAL_SECURITY, rid = nil)
+    # specified by the :container argument.
+    def initialize(args = {})
+      @rid = args[:rid] || nil
+      @container = args[:container] or raise "Group :container argument" +
+                                             " required."
+      
       # The RID must be unique.
-      if container.directory.rids.include? rid
+      if @container.directory.rids.include? @rid
         raise "RID #{rid} is already in use in the directory."
       end
+      
+      @name = args[:name] or raise "Group :name argument required."
       
       # The group name (like a user) must be unique (case-insensitive). This
       # is needed in case someone tries to make the same group name in two
       # different containers.
-      if container.directory.find_group name
+      if @container.directory.find_group @name
         raise "Group is already in the directory."
       end
       
-      @name = name
-      @container = container
-      @type = type
-      @rid = rid
+      @type = args[:type] || GROUP_GLOBAL_SECURITY
       @distinguished_name = "cn=" + name + "," + @container.name + "," +
                             @container.directory.root
       @users = []
@@ -199,22 +211,40 @@ module RADUM
     # attribute.
     attr_reader :gid
     
+    # Create a new UNIXGroup object that represents a UNIX group in Active
+    # Directory. A UNIX group is a Windows group that also has UNIX attributes.
+    # This method takes a Hash containing arguments, some of which are required
+    # and others optional. The supported arguments follow:
+    #
+    # * :name => The UNIXGroup object's name [required]
+    # * :container => The UNIXGroup object's associated Container [required]
+    # * :type => The RADUM group type [default GROUP_GLOBAL_SECURITY]
+    # * :rid => The RID of the UNIXGroup object [optional]
+    # * :gid => The UNIXGroup object GID attribute [required]
+    # * :nis_domain => The UNIXGroup NIS domain attribute [default "radum"]
+    #
+    # The :name argument (case-insensitive) and the :rid argument must be
+    # unique in the AD object, otherwise a RuntimeError is raised. The :type
+    # argument must be one of the RADUM group type constants. The :rid argument
+    # should not be set directly except from the AD#load method itself.
     # The UNIXGroup object automatically adds itself to the Container object
-    # specified. The rid shold not be set directly. The rid should only be
-    # set by the AD object when loading groups from Active Directory. The name
-    # (case-insensitive), rid, and gid must be unique in the AD object,
-    # otherwise a RuntimeError is raised. The type must be one of the RADUM
-    # group type constants.
-    def initialize(name, container, gid, type = GROUP_GLOBAL_SECURITY,
-                   nis_domain = "radum", rid = nil)
+    # specified by the :container argument. The :gid argument specifies the
+    # UNIX GID value of the UNIXGroup. The :nis_domain defaults to "radum".
+    # The use of an NIS domain is not strictly required as one could simply
+    # set the right attributes in Active Directory and use LDAP on clients to
+    # access that data, but specifying an NIS domain allows for easy editing
+    # of UNIX attributes using the GUI tools in Windows, thus the use of a
+    # default value.
+    def initialize(args = {})
+      super args
+      @gid = args[:gid] or raise "UNIXGroup :gid argument required."
+      
       # The GID must be unique.
-      if container.directory.gids.include? gid
+      if @container.directory.gids.include? @gid
         raise "GID #{gid} is already in use in the directory."
       end
       
-      super name, container, type, rid
-      @gid = gid
-      @nis_domain = nis_domain
+      @nis_domain = args[:nis_domain] || "radum"
       @unix_password = "*"
       # The removed flag must be set to true first since we are not in the
       # container yet.

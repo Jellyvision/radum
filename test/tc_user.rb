@@ -11,13 +11,15 @@ class TC_User < Test::Unit::TestCase
     @c2_ad1 = RADUM::Container.new :name => "ou=Staff,ou=People",
                                    :directory => @ad1
     @c3_ad2 = RADUM::Container.new :name => "ou=People", :directory => @ad2
-    @g1_c1_ad1 = RADUM::Group.new("staff", @c1_ad1)
-    @g2_c2_ad1 = RADUM::Group.new("enable", @c2_ad1)
-    @g3_c3_ad2 = RADUM::Group.new("staff", @c3_ad2)
-    @g4_c1_ad1 = RADUM::Group.new("primary", @c1_ad1)
-    @g5_c3_ad2 = RADUM::Group.new("primary", @c3_ad2)
-    @ug1_c1_ad1 = RADUM::UNIXGroup.new("class", @c1_ad1, 1001)
-    @ug2_c3_ad2 = RADUM::UNIXGroup.new("class", @c3_ad2, 1001)
+    @g1_c1_ad1 = RADUM::Group.new :name => "staff", :container => @c1_ad1
+    @g2_c2_ad1 = RADUM::Group.new :name => "enable", :container => @c2_ad1
+    @g3_c3_ad2 = RADUM::Group.new :name => "staff", :container => @c3_ad2
+    @g4_c1_ad1 = RADUM::Group.new :name => "primary", :container => @c1_ad1
+    @g5_c3_ad2 = RADUM::Group.new :name => "primary", :container => @c3_ad2
+    @ug1_c1_ad1 = RADUM::UNIXGroup.new :name => "class", :container => @c1_ad1,
+                                       :gid => 1001
+    @ug2_c3_ad2 = RADUM::UNIXGroup.new :name => "class", :container => @c3_ad2,
+                                       :gid => 1001
     @u1_c1_ad1 = RADUM::User.new("user", @c1_ad1, @g4_c1_ad1, false, 1834)
     @u2_c3_ad2 = RADUM::User.new("user", @c3_ad2, @g5_c3_ad2, false, 1834)
   end
@@ -34,7 +36,9 @@ class TC_User < Test::Unit::TestCase
   
   def test_primary_group_type_exception
     assert_raise RuntimeError do
-      @u1_c1_ad1.primary_group = RADUM::Group.new("broken", @c1_ad1, @type)
+      @u1_c1_ad1.primary_group = RADUM::Group.new :name => "broken",
+                                                  :container => @c1_ad1,
+                                                  :type => @type
     end
   end
   

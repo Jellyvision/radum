@@ -80,7 +80,7 @@ module RADUM
     # The Active Directory user used to connect to the Active Directory. This
     # is specified using an LDAP path to the user account, without the root
     # component, such as "cn=Administrator,cn=Users". This defaults to
-    # "cn=Administrator,cn=Users" when an AD is created using AD.new.
+    # "cn=Administrator,cn=Users" when an AD is created using AD#new.
     attr_reader :user
     # The server hostname or IP address of the Active Directory server. This
     # defaults to "localhost" when an AD is created using AD.new.
