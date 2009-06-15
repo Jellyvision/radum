@@ -61,7 +61,7 @@ module RADUM
     # when synchronizing so that things work. For example, the cn=foo,ou=bar
     # Container object will cause the ou=bar organizational unit to be created
     # first, if necessary, before the cn=bar container is created. It's magic.
-    def initialize(args = {}) # :doc:
+    def initialize(args = {})
       @name = args[:name] or raise "Container :name argument required."
       @name.gsub!(/\s+/, "")
       

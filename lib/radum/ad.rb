@@ -323,9 +323,9 @@ module RADUM
     # * Find a UNIXUser by gid:
     #  find_user { |user| user.gid = 1002 }
     # * Find a removed User or UNIXUser by username:
-    #  find_user true { |user| user.username = "username" }
+    #  find_user(true) { |user| user.username = "username" }
     # * Find a removed UNIXUser by gid:
-    #  find_user true { |user| user.gid == 1002 }
+    #  find_user(true) { |user| user.gid == 1002 }
     #
     # If no block is given the method returns nil. If the User or UNIXUser is
     # not found, the method also returns nil. Otherwise the User or UNIXUser
