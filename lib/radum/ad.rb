@@ -130,7 +130,12 @@ module RADUM
     # Directory equivalent to the distinguished_name attribute for the user
     # without the :root portion. The :server argument can be an IP address
     # or a hostname. The :root argument is required. If it is not specified,
-    # a RuntimeError is raised.
+    # a RuntimeError is raised.  The argument types required follow:
+    #
+    # * :root [String]
+    # * :user [String]
+    # * :password [String]
+    # * :server [String]
     #
     # A Container object for "cn=Users" is automatically created and added to
     # the AD object when it is created. This is meant to be a convenience
@@ -574,12 +579,16 @@ module RADUM
             if attr[:uid] && attr[:gid]
               if unix_main_group = find_group_by_gid(attr[:gid])
                 attr[:nis_domain] = "radum" unless attr[:nis_domain]
-                user = UNIXUser.new(attr[:username], container,
-                                    attr[:primary_group], attr[:uid],
-                                    unix_main_group, attr[:shell],
-                                    attr[:home_directory],
-                                    attr[:nis_domain], attr[:disabled?],
-                                    attr[:rid])
+                user = UNIXUser.new :username => attr[:username],
+                                    :container => container,
+                                    :primary_group => attr[:primary_group],
+                                    :uid => attr[:uid],
+                                    :unix_main_group => unix_main_group,
+                                    :shell => attr[:shell],
+                                    :home_directory => attr[:home_directory],
+                                    :nis_domain => attr[:nis_domain],
+                                    :disabled => attr[:disabled?],
+                                    :rid => attr[:rid]
                 user.common_name = attr[:common_name]
                 user.first_name = attr[:first_name] if attr[:first_name]
                 user.middle_name = attr[:middle_name] if attr[:middle_name]
@@ -604,8 +613,11 @@ module RADUM
                 RADUM::logger.log("Not loading #{attr[:username]}.", LOG_NORMAL)
               end
             else
-              user = User.new(attr[:username], container, attr[:primary_group],
-                              attr[:disabled?], attr[:rid])
+              user = User.new :username => attr[:username],
+                              :container => container,
+                              :primary_group => attr[:primary_group],
+                              :disabled => attr[:disabled?],
+                              :rid => attr[:rid]
               user.common_name = attr[:common_name]
               user.first_name = attr[:first_name] if attr[:first_name]
               user.middle_name = attr[:middle_name] if attr[:middle_name]
@@ -1247,6 +1259,7 @@ module RADUM
             :unixUserPassword => group.unix_password
           }) if group.instance_of? UNIXGroup
           
+          RADUM::logger.log("\n" + attr.to_yaml + "\n\n", LOG_DEBUG)
           @ldap.add :dn => group.distinguished_name, :attributes => attr
           check_ldap_result
           # At this point, we need to pull the RID value back out and set it

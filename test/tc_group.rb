@@ -18,10 +18,17 @@ class TC_Group < Test::Unit::TestCase
     @g5_c3_ad2 = RADUM::Group.new :name => "priamry", :container => @c3_ad2
     @ug1_c1_ad1 = RADUM::UNIXGroup.new :name => "class", :container => @c1_ad1,
                                        :gid => 1001
-    @u1_c1_ad1 = RADUM::User.new("user1", @c1_ad1, @g4_c1_ad1)
-    @u2_c3_ad2 = RADUM::User.new("user2", @c3_ad2, @g5_c3_ad2)
-    @uu1_c1_ad1 = RADUM::UNIXUser.new("user3", @c1_ad1, @g4_c1_ad1, 1000,
-                                      @ug1_c1_ad1, "/bin/bash", "/home/user")
+    @u1_c1_ad1 = RADUM::User.new :username => "user1", :container => @c1_ad1,
+                                 :primary_group => @g4_c1_ad1
+    @u2_c3_ad2 = RADUM::User.new :username => "user2", :container => @c3_ad2,
+                                 :primary_group => @g5_c3_ad2
+    @uu1_c1_ad1 = RADUM::UNIXUser.new :username => "user3",
+                                      :container => @c1_ad1,
+                                      :primary_group => @g4_c1_ad1,
+                                      :uid => 1000,
+                                      :unix_main_group => @ug1_c1_ad1,
+                                      :shell => "/bin/bash",
+                                      :home_directory => "/home/user"
   end
   
   def test_removed_flag_false

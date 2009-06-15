@@ -16,8 +16,13 @@ class TC_UNIXUser < Test::Unit::TestCase
     @ug3_c2_ad2 = RADUM::UNIXGroup.new :name => "enable", :container => @c2_ad2,
                                        :gid => 1003
     @g4_c1_ad1 = RADUM::Group.new :name => "class", :container => @c1_ad1
-    @uu1a_c1_ad1 = RADUM::UNIXUser.new("user", @c1_ad1, @g4_c1_ad1, 1000,
-                                        @ug1_c1_ad1, "/bin/bash", "/home/user")
+    @uu1a_c1_ad1 = RADUM::UNIXUser.new :username => "user",
+                                       :container => @c1_ad1,
+                                       :primary_group => @g4_c1_ad1,
+                                       :uid => 1000,
+                                       :unix_main_group => @ug1_c1_ad1,
+                                       :shell => "/bin/bash",
+                                       :home_directory => "/home/user"
   end
   
   def test_removed_flag_false
@@ -26,22 +31,31 @@ class TC_UNIXUser < Test::Unit::TestCase
   
   def test_duplicate_uid_exception
     assert_raise RuntimeError do
-      RADUM::UNIXUser.new("test", @c1_ad1, @g4_c1_ad1, 1000, @ug1_c1_ad1,
-                          "/bin/bash", "/home/user")
+      RADUM::UNIXUser.new :username => "test", :container => @c1_ad1,
+                          :primary_group => @g4_c1_ad1, :uid => 1000,
+                          :unix_main_group => @ug1_c1_ad1,
+                          :shell => "/bin/bash",
+                          :home_directory => "/home/user"
     end
   end
   
   def test_unix_main_group_different_directory_exception
     assert_raise RuntimeError do
-      RADUM::UNIXUser.new("test", @c1_ad1, @g4_c1_ad1, 1000, @ug3_c2_ad2,
-                          "/bin/bash", "/home/test")
+      RADUM::UNIXUser.new :username => "test", :container => @c1_ad1,
+                          :primary_group => @g4_c1_ad1, :uid => 1000,
+                          :unix_main_group => @ug3_c2_ad2,
+                          :shell => "/bin/bash",
+                          :home_directory => "/home/test"
     end
   end
   
   def test_unix_main_group_non_unix_exception
     assert_raise RuntimeError do
-      RADUM::UNIXUser.new("test", @c1_ad1, @g4_c1_ad1, 1000, @g4_c1_ad1,
-                          "/bin/bash", "/home/test")
+      RADUM::UNIXUser.new :username => "test", :container => @c1_ad1,
+                          :primary_group => @g4_c1_ad1, :uid => 1000,
+                          :unix_main_group => @g4_c1_ad1,
+                          :shell => "/bin/bash",
+                          :home_directory => "/home/test"
     end
   end
   

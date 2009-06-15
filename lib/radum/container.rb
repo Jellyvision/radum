@@ -43,7 +43,11 @@ module RADUM
     # unit in Active Directory equivalent to the distinguished_name attribute
     # for container or organizational unit without the root portion. The
     # :directory argument is the AD object that owns the Container. A
-    # RuntimeError is raised if either of these arguments are missing.
+    # RuntimeError is raised if either of these arguments are missing. The
+    # argument types required follow:
+    #
+    # * :name [String]
+    # * :directory [AD]
     #
     # Spaces are removed from the :name argument. The Container must not
     # already be in the AD or a RuntimeError is raised. Note that you can

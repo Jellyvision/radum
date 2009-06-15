@@ -51,7 +51,12 @@ module RADUM
     # argument must be one of the RADUM group type constants. The :rid argument
     # should not be set directly except from the AD#load method itself.
     # The Group object automatically adds itself to the Container object
-    # specified by the :container argument.
+    # specified by the :container argument. The argument types required follow:
+    #
+    # * :name [String]
+    # * :container [Container]
+    # * :type [RADUM group type constant]
+    # * :rid [integer]
     def initialize(args = {})
       @rid = args[:rid] || nil
       @container = args[:container] or raise "Group :container argument" +
@@ -220,7 +225,7 @@ module RADUM
     # * :container => The UNIXGroup object's associated Container [required]
     # * :type => The RADUM group type [default GROUP_GLOBAL_SECURITY]
     # * :rid => The RID of the UNIXGroup object [optional]
-    # * :gid => The UNIXGroup object GID attribute [required]
+    # * :gid => The UNIXGroup GID attribute [required]
     # * :nis_domain => The UNIXGroup NIS domain attribute [default "radum"]
     #
     # The :name argument (case-insensitive) and the :rid argument must be
@@ -234,7 +239,14 @@ module RADUM
     # set the right attributes in Active Directory and use LDAP on clients to
     # access that data, but specifying an NIS domain allows for easy editing
     # of UNIX attributes using the GUI tools in Windows, thus the use of a
-    # default value.
+    # default value. The argument types required follow:
+    #
+    # * :name [String]
+    # * :container [Container]
+    # * :type [RADUM group type constant]
+    # * :rid [integer]
+    # * :gid [integer]
+    # * :nis_domain [String]
     def initialize(args = {})
       super args
       @gid = args[:gid] or raise "UNIXGroup :gid argument required."

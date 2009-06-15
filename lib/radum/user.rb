@@ -31,37 +31,65 @@ module RADUM
     # removed.
     attr_accessor :removed
     
-    # The User object automatically adds itself to the Container object
-    # specified. The rid should not be set directly. The rid should only be
-    # set by the AD object when loading users from Active Directory. The
-    # username (case-insensitive) and the rid must be unique in the AD object,
-    # otherwise a RuntimeError is raised. The primary_group must be of the
-    # RADUM group type GROUP_GLOBAL_SECURITY or GROUP_UNIVERSAL_SECURITY
-    # or a RuntimeError is raised. Note that a User will not be forced to change
-    # their Windows password on their first login unless this is changed by
-    # calling the toggle_must_change_password method. If no password is set
-    # for the User, a random password will be generated. The random password
-    # will probably meet Group Policy password security requirements, but it
-    # is suggested that a password be set to ensure this is the case, otherwise
-    # setting the User password during Active Directory creation might fail,
-    # which results in a disabled user account that has no password.
-    def initialize(username, container, primary_group, disabled = false,
-                   rid = nil) # :doc:
+    # Create a new User object that represents a Windows user in Active
+    # Directory. This method takes a Hash containing arguments, some of which
+    # are required and others optional. The supported arguments follow:
+    #
+    # * :username => The User object's username [required]
+    # * :container => The User object's associated Container [required]
+    # * :primary_group => The User object's primary Windows group [required]
+    # * :disabled => User object disabled flag [default false]
+    # * :rid => The RID of the User object [optional]
+    #
+    # The :username argument (case-insensitive) and the :rid argument must be
+    # unique in the AD object, otherwise a RuntimeError is raised. The
+    # :primary_group argument must be of the RADUM type GROUP_GLOBAL_SECURITY
+    # or GROUP_UNIVERSAL_SECURITY, otherwise a RuntimeError is raised. The
+    # :disabled argument indicates if the User object should be disabled, and
+    # it defaults to false. The :rid argument should not be set directly except
+    # from the AD#load method itself. The User object automatically adds itself
+    # to the Container object specified by the :container argument. The
+    # argument types required follow:
+    #
+    # * :username [String]
+    # * :container [Container]
+    # * :primary_group [Group or UNIXGroup]
+    # * :disabled [boolean]
+    # * :rid [integer]
+    #
+    # Note that a User will not be forced to change their Windows password on
+    # their first login unless this is changed by calling the
+    # toggle_must_change_password method. If no password is set for the User,
+    # a random password will be generated. The random password will probably
+    # meet Group Policy password security requirements, but it is suggested
+    # that a password be set to ensure this is the case, otherwise setting the
+    # User password during Active Directory creation might fail, which results
+    # in a disabled Active Directory user account that has no password.
+    #
+    # See the documentation for each attribute method for what the default
+    # values of each attribute is based on calling this method.
+    def initialize(args = {})
+      @rid = args[:rid] || nil
+      @container = args[:container] or raise "User :container argument" +
+                                             " required."
+      
       # The RID must be unique.
-      if container.directory.rids.include? rid
+      if @container.directory.rids.include? @rid
         raise "RID #{rid} is already in use in the directory."
       end
+      
+      @username = args[:username] or raise "User :username argument required."
       
       # The username (sAMAccountName) must be unique (case-insensitive). This
       # is needed in case someone tries to make the same username in two
       # different containers.
-      if container.directory.find_user_by_username username
+      if @container.directory.find_user_by_username @username
         raise "User is already in the directory."
       end
       
-      @username = username
-      @common_name = username
-      @container = container
+      @common_name = @username
+      @primary_group = args[:primary_group] or raise "User :primary_group" +
+                                                     "argument required."
       
       # The primary group must be of one of these two types. It appears you can
       # change a group's type to GROUP_DOMAIN_LOCAL_SECURITY in the AD Users and
@@ -71,20 +99,18 @@ module RADUM
       # "Distribution" most definitely. The AD group type must be "Security"
       # for primary groups. I am just going to avoid as much confusion as
       # possible unless someone were to complain.
-      unless primary_group.type == GROUP_GLOBAL_SECURITY ||
-             primary_group.type == GROUP_UNIVERSAL_SECURITY
+      unless @primary_group.type == GROUP_GLOBAL_SECURITY ||
+             @primary_group.type == GROUP_UNIVERSAL_SECURITY
              raise "User primary group must be of type GROUP_GLOBAL_SECURITY" +
              " or GROUP_UNIVERSAL_SECURITY."
       end
       
-      @primary_group = primary_group
-      @disabled = disabled
-      @rid = rid
+      @disabled = args[:disabled] || false
       @distinguished_name = "cn=" + @common_name + "," + @container.name +
                             "," + @container.directory.root
       @groups = []
       @removed_groups = []
-      @first_name = username
+      @first_name = @username
       @middle_name = nil
       @surname = nil
       @password = nil
@@ -377,25 +403,66 @@ module RADUM
     # UNIXUser.unix_main_group= method.
     attr_reader :gid
     
-    # The UNIXUser object automatically adds itself to the Container object
-    # specified. The rid should not be set directly. The rid should only be
-    # set by the AD object when loading users from Active Directory. The
-    # username (case-insensitive), rid, and uid must be unique in the AD
-    # object, otherwise a RuntimeError is raised. The primary_group must be of
-    # the RADUM group type GROUP_GLOBAL_SECURITY or GROUP_UNIVERSAL_SECURITY
-    # or a RuntimeError is raised. The unix_main_group must be an instance of
-    # UNIXGroup or a RuntimeError is raised.
-    def initialize(username, container, primary_group, uid, unix_main_group,
-                   shell, home_directory, nis_domain = "radum",
-                   disabled = false, rid = nil)
+    # Create a new UNIXUser object that represents a UNIX user in Active
+    # Directory. This method takes a Hash containing arguments, some of which
+    # are required and others optional. The supported arguments follow:
+    #
+    # * :username => The UNIXUser object's username [required]
+    # * :container => The UNIXUser object's associated Container [required]
+    # * :primary_group => The UNIXUser object's primary Windows group [required]
+    # * :disabled => UNIXUser object disabled flag [default false]
+    # * :rid => The RID of the UNIXUser object [optional]
+    # * :uid => The UNIXUser UID attribute [required]
+    # * :unix_main_group => The UNIXUser object's UNIX main group [required]
+    # * :shell => The UNIXUser shell attribute [required]
+    # * :home_directory => The UNIXUser home directory attribute [required]
+    # * :nis_domain => The UNIXUser NIS domain attribute [default "radum"]
+    #
+    # The :username argument (case-insensitive) and the :rid argument must be
+    # unique in the AD object, otherwise a RuntimeError is raised. The
+    # :primary_group argument must be of the RADUM type GROUP_GLOBAL_SECURITY
+    # or GROUP_UNIVERSAL_SECURITY, otherwise a RuntimeError is raised. The
+    # :disabled argument indicates if the UNIXUser object should be disabled,
+    # and it defaults to false. The :rid argument should not be set directly
+    # except from the AD#load method itself. The :unix_main_group argument
+    # must be a UNIXGroup object or a RuntimeError is raised. The UNIXUser
+    # object automatically adds itself to the Container object specified by
+    # the :container argument. The argument types required follow:
+    #
+    # * :username [String]
+    # * :container [Container]
+    # * :primary_group [Group or UNIXGroup]
+    # * :disabled [boolean]
+    # * :rid [integer]
+    # * :uid [integer]
+    # * :unix_main_group [UNIXGroup]
+    # * :shell [String]
+    # * :home_directory [String]
+    # * :nis_domain [String]
+    #
+    # Note that a User will not be forced to change their Windows password on
+    # their first login unless this is changed by calling the
+    # toggle_must_change_password method. If no password is set for the User,
+    # a random password will be generated. The random password will probably
+    # meet Group Policy password security requirements, but it is suggested
+    # that a password be set to ensure this is the case, otherwise setting the
+    # User password during Active Directory creation might fail, which results
+    # in a disabled Active Directory user account that has no password.
+    #
+    # See the documentation for each attribute method for what the default
+    # values of each attribute is based on calling this method.
+    def initialize(args = {})
+      super args
+      @uid = args[:uid] or raise "UNIXUser :uid attribute required."
+      
       # The UID must be unique.
-      if container.directory.uids.include? uid
+      if @container.directory.uids.include? @uid
         raise "UID #{uid} is already in use in the directory."
       end
       
-      super username, container, primary_group, disabled, rid
-      @uid = uid
-      @unix_main_group = unix_main_group
+      @unix_main_group = args[:unix_main_group] or raise "UNIXUser" +
+                                                         " :unix_main_group" +
+                                                         " argument required."
       
       if @container.directory == @unix_main_group.container.directory
         unless @unix_main_group.instance_of? UNIXGroup
@@ -403,16 +470,20 @@ module RADUM
         else
           @gid = @unix_main_group.gid
           @container.add_group @unix_main_group
-          add_group @unix_main_group
+          # The UNIXUser is already a member of their primary Windows group
+          # implicitly.
+          add_group @unix_main_group unless @unix_main_group == @primary_group
         end
       else
         raise "UNIXUser unix_main_group must be in the same directory."
       end
       
-      @shell = shell
-      @home_directory = home_directory
-      @nis_domain = nis_domain
-      @gecos = username
+      @shell = args[:shell] or raise "UNIXUser :shell argument required."
+      @home_directory = args[:home_directory] or raise "UNIXUser" +
+                                                       " :home_directory" +
+                                                       " argument required."
+      @nis_domain = args[:nis_domain] || "radum"
+      @gecos = @username
       @unix_password = "*"
       @shadow_expire = nil
       @shadow_flag = nil

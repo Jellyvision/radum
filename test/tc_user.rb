@@ -20,8 +20,12 @@ class TC_User < Test::Unit::TestCase
                                        :gid => 1001
     @ug2_c3_ad2 = RADUM::UNIXGroup.new :name => "class", :container => @c3_ad2,
                                        :gid => 1001
-    @u1_c1_ad1 = RADUM::User.new("user", @c1_ad1, @g4_c1_ad1, false, 1834)
-    @u2_c3_ad2 = RADUM::User.new("user", @c3_ad2, @g5_c3_ad2, false, 1834)
+    @u1_c1_ad1 = RADUM::User.new :username => "user", :container => @c1_ad1,
+                                 :primary_group => @g4_c1_ad1,
+                                 :disabled => false, :rid => 1834
+    @u2_c3_ad2 = RADUM::User.new :username => "user", :container => @c3_ad2,
+                                 :primary_group => @g5_c3_ad2,
+                                 :disabled => false, :rid => 1834
   end
   
   def test_removed_flag_false
@@ -30,7 +34,9 @@ class TC_User < Test::Unit::TestCase
   
   def test_duplicate_rid_exception
     assert_raise RuntimeError do
-      RADUM::User.new("test", @c1_ad1, @g4_c1_ad1, false, 1834)
+      RADUM::User.new :username => "test", :container => @c1_ad1,
+                      :primary_group => @g4_c1_ad1, :disabled => false,
+                      :rid => 1834
     end
   end
   
@@ -44,19 +50,22 @@ class TC_User < Test::Unit::TestCase
   
   def test_equal_exception
     assert_raise RuntimeError do
-      RADUM::User.new("user", @c1_ad1, @g4_c1_ad1)
+      RADUM::User.new :username => "user", :container => @c1_ad1,
+                      :primary_group => @g4_c1_ad1
     end
   end
   
   def test_equal_container_difference_exception
     assert_raise RuntimeError do
-      RADUM::User.new("user", @c2_ad1, @g4_c1_ad1)
+      RADUM::User.new :username => "user", :container => @c2_ad1,
+                      :primary_group => @g4_c1_ad1
     end
   end
   
   def test_equal_name_case_exception
     assert_raise RuntimeError do
-      RADUM::User.new("User", @c1_ad1, @g4_c1_ad1)
+      RADUM::User.new :username => "User", :container => @c1_ad1,
+                      :primary_group => @g4_c1_ad1
     end
   end
   
