@@ -143,7 +143,7 @@ module RADUM
       @domain = @root.gsub(/dc=/, "").gsub(/,/, ".")
       @user = args[:user] || "cn=Administrator,cn=Users"
       @password = args[:password]
-      @server = args[:server] = "localhost"
+      @server = args[:server] || "localhost"
       @containers = []
       @removed_containers = []
       @min_uid = 1000
@@ -310,61 +310,74 @@ module RADUM
       all_removed_users
     end
     
+    # Find a User or UNIXUser in the AD object. The first argument is a boolean
+    # that indicates if the search should be for removed users. It is optional
+    # and defaults to false. The second required argument is a block.
+    # The block is passed each User and UNIXUser object and contains the
+    # desired testing expression. Attributes for either User or UNIXUser
+    # objects can be used without worrying about the accessor methods existing.
+    # Examples follow:
+    #
+    # * Find a User or UNIXUser by username:
+    #  find_user { |user| user.username == "username" }
+    # * Find a UNIXUser by gid:
+    #  find_user { |user| user.gid = 1002 }
+    # * Find a removed User or UNIXUser by username:
+    #  find_user true { |user| user.username = "username" }
+    # * Find a removed UNIXUser by gid:
+    #  find_user true { |user| user.gid == 1002 }
+    #
+    # If no block is given the method returns nil. If the User or UNIXUser is
+    # not found, the method also returns nil. Otherwise the User or UNIXUser
+    # object found is returned.
+    #
+    # There are convenient find_user_by_<attribute> methods defined that take
+    # care of the example cases here as well, but this method allows any block
+    # test to be given.
+    def find_user(removed = false)
+      if block_given?
+        if removed
+          search_users = removed_users
+        else
+          search_users = users
+        end
+        
+        found = search_users.find do |user|
+          begin
+            yield user
+          rescue NoMethodError
+          end
+        end
+        
+        return found if found
+        return nil
+      end
+      
+      return nil
+    end
+    
     # Find a User or UNIXUser in the AD by username. The search is
     # case-insensitive. The User or UNIXUser is returned if found, otherwise
     # nil is returned. Specify the second argument as true if you wish to
     # search for removed User or UNIXUser objects.
-    def find_user(username, removed = false)
-      if removed
-        search_users = removed_users
-      else
-        search_users = users
-      end
-      
-      found = search_users.find do |user|
-        # This relies on the fact that usernames (sAMAccountName) must be
-        # unique in a directory.
+    def find_user_by_username(username, removed = false)
+      find_user removed do |user|
         user.username.downcase == username.downcase
       end
-      
-      return found if found
-      return nil
     end
     
     # Find a User or UNIXUser in the AD by RID. The User or UNIXUser is
     # returned if found, otherwise nil is returned. Specify the second argument
     # as true if you wish to search for removed User or UNIXUser objects.
     def find_user_by_rid(rid, removed = false)
-      if removed
-        search_users = removed_users
-      else
-        search_users = users
-      end
-      
-      found = search_users.find do |user|
-        user.rid == rid
-      end
-      
-      return found if found
-      return nil
+      find_user(removed) { |user| user.rid == rid }
     end
     
     # Find a UNIXUser in the AD by UID. The UNIXUser is returned if found,
     # otherwise nil is returned. Specify the second argument as true if you
     # wish to search for removed UNIXUser objects.
     def find_user_by_uid(uid, removed = false)
-      if removed
-        search_users = removed_users
-      else
-        search_users = users
-      end
-      
-      found = search_users.find do |user|
-        user.uid == uid if user.instance_of? UNIXUser
-      end
-      
-      return found if found
-      return nil
+      find_user(removed) { |user| user.uid == uid }
     end
     
     # Find a User or UNIXUser in the AD by distinguished name. The User or
@@ -372,18 +385,9 @@ module RADUM
     # second argument as true if you wish to search for removed User or
     # UNIXUser objects.
     def find_user_by_dn(dn, removed = false)
-      if removed
-        search_users = removed_users
-      else
-        search_users = users
-      end
-      
-      found = search_users.find do |user|
+      find_user removed do |user|
         user.distinguished_name.downcase == dn.downcase
       end
-      
-      return found if found
-      return nil
     end
     
     # Returns an Array of all Group and UNIXGroup objects in all Containers
@@ -415,61 +419,74 @@ module RADUM
       all_removed_groups
     end
     
+    # Find a Group or UNIXGroup in the AD object. The first argument is a
+    # boolean that indicates if the search should be for removed groups. It is
+    # optional and defaults to false. The second required argument is a block.
+    # The block is passed each Group and UNIXGroup object and contains the
+    # desired testing expression. Attributes for either Group or UNIXGroup
+    # objects can be used without worrying about the accessor methods existing.
+    # Examples follow:
+    #
+    # * Find a Group or UNIXGroup by name:
+    #  find_group { |group| group.name == "name" }
+    # * Find a UNIXGroup by gid:
+    #  find_group { |group| group.gid = 1002 }
+    # * Find a removed Group or UNIXGroup by name:
+    #  find_group(true) { |group| group.name = "name" }
+    # * Find a removed UNIXGroup by gid:
+    #  find_group(true) { |group| group.gid == 1002 }
+    #
+    # If no block is given the method returns nil. If the Group or UNIXGroup is
+    # not found, the method also returns nil. Otherwise the Group or UNIXGroup
+    # object found is returned.
+    #
+    # There are convenient find_group_by_<attribute> methods defined that take
+    # care of the example cases here as well, but this method allows any block
+    # test to be given.
+    def find_group(removed = false)
+      if block_given?
+        if removed
+          search_groups = removed_groups
+        else
+          search_groups = groups
+        end
+        
+        found = search_groups.find do |group|
+          begin
+            yield group
+          rescue NoMethodError
+          end
+        end
+        
+        return found if found
+        return nil
+      end
+      
+      return nil
+    end
+    
     # Find a Group or UNIXGroup in the AD by name. The search is
     # case-insensitive. The Group or UNIXGroup is returned if found, otherwise
     # nil is returned. Specify the second argument as true if you wish to
     # search for removed Group or UNIXGroup objects.
-    def find_group(name, removed = false)
-      if removed
-        search_groups = removed_groups
-      else
-        search_groups = groups
-      end
-      
-      found = search_groups.find do |group|
-        # This relies on the fact that group names must be unique in a
-        # directory.
+    def find_group_by_name(name, removed = false)
+      find_group removed do |group|
         group.name.downcase == name.downcase
       end
-      
-      return found if found
-      return nil
     end
     
     # Find a Group or UNIXGroup in the AD by RID. The Group or UNIXGroup is
     # returned if found, otherwise nil is returned. Specify the second argument
     # as true if you wish to search for removed Group or UNIXGroup objects.
     def find_group_by_rid(rid, removed = false)
-      if removed
-        search_groups = removed_groups
-      else
-        search_groups = groups
-      end
-      
-      found = search_groups.find do |group|
-        group.rid == rid
-      end
-      
-      return found if found
-      return nil
+      find_group(removed) { |group| group.rid == rid }
     end
     
     # Find a UNIXGroup in the AD by GID. The UNIXGroup is returned if found,
     # otherwise nil is returned. Specify the second argument as true if you
     # wish to search for removed UNIXGroup objects.
     def find_group_by_gid(gid, removed = false)
-      if removed
-        search_groups = removed_groups
-      else
-        search_groups = groups
-      end
-      
-      found = search_groups.find do |group|
-        group.gid == gid if group.instance_of? UNIXGroup
-      end
-      
-      return found if found
-      return nil
+      find_group(removed) { |group| group.gid == gid }
     end
     
     # Find a Group or UNIXGroup in the AD by distinguished name. The Group or
@@ -477,18 +494,9 @@ module RADUM
     # second argument as true if you wish to search for removed Group or
     # UNIXGroup objects.
     def find_group_by_dn(dn, removed = false)
-      if removed
-        search_groups = removed_groups
-      else
-        search_groups = groups
-      end
-      
-      found = search_groups.find do |group|
+      find_group removed do |group|
         group.distinguished_name.downcase == dn.downcase
       end
-      
-      return found if found
-      return nil
     end
     
     # Load all user and group objects in Active Directory that are in the AD
@@ -528,11 +536,14 @@ module RADUM
           # Note that groups add themselves to their container.
           if attr[:gid]
             attr[:nis_domain] = "radum" unless attr[:nis_domain]
-            group = UNIXGroup.new(attr[:name], container, attr[:gid],
-                                  attr[:type], attr[:nis_domain], attr[:rid])
+            group = UNIXGroup.new :name => attr[:name], :container => container,
+                                  :gid => attr[:gid], :type => attr[:type],
+                                  :nis_domain => attr[:nis_domain],
+                                  :rid => attr[:rid]
             group.unix_password = attr[:unix_password] if attr[:unix_password]
           else
-            Group.new(attr[:name], container, attr[:type], attr[:rid])
+            Group.new :name => attr[:name], :container => container,
+                      :type => attr[:type], :rid => attr[:rid]
           end 
         end
       end
@@ -1603,7 +1614,7 @@ module RADUM
           # group first (as a member in the member attribute for the group)
           # before attempting to set their primaryGroupID attribute or Active
           # Directory will refuse to do it.
-          unless rid == find_group("Domain Users").rid
+          unless rid == find_group_by_name("Domain Users").rid
             ops = [
               [:add, :member, user.distinguished_name]
             ]
@@ -1632,7 +1643,7 @@ module RADUM
             # Windows group. This has been handled in Active Directory for us,
             # but now we want to reflect that in the Domain Users Group object
             # here.
-            find_group("Domain Users").add_user user
+            find_group_by_name("Domain Users").add_user user
           end
           
           # At this point the user is the equivalent as a loaded user.

@@ -55,7 +55,7 @@ module RADUM
       # The username (sAMAccountName) must be unique (case-insensitive). This
       # is needed in case someone tries to make the same username in two
       # different containers.
-      if container.directory.find_user username
+      if container.directory.find_user_by_username username
         raise "User is already in the directory."
       end
       

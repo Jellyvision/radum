@@ -67,7 +67,7 @@ module RADUM
       # The group name (like a user) must be unique (case-insensitive). This
       # is needed in case someone tries to make the same group name in two
       # different containers.
-      if @container.directory.find_group @name
+      if @container.directory.find_group_by_name @name
         raise "Group is already in the directory."
       end
       
