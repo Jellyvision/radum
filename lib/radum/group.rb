@@ -10,14 +10,14 @@ module RADUM
     attr_reader :container
     # The RADUM group type of the Group or UNIXGroup. This corresponds to the
     # LDAP groupType attribute. This defaults to GROUP_GLOBAL_SECURITY when
-    # a Group or UNIXGroup is created using Group#new or UNIXGroup#new, but
+    # a Group or UNIXGroup is created using Group.new or UNIXGroup.new, but
     # it is set to the correct value when a Group or UNIXGroup is loaded by
     # AD#load from the AD object the Container belongs to.
     attr_reader :type
     # The RID of the Group or UNIXGroup object. This correponds to part of the
     # LDAP objectSid attribute. This is set when the Group or UNIXGroup is
     # loaded by AD#load from the AD object the Container belongs to. This
-    # attribute should not be specified in the Group#new or UNIXGroup#new
+    # attribute should not be specified in the Group.new or UNIXGroup.new
     # methods when creating a new Group or UNIXGroup by hand.
     attr_reader :rid
     # The LDAP distinguishedName attribute for this Group or UNIXGroup.
@@ -288,7 +288,7 @@ module RADUM
     # Set the UNIXGroup UNIX NIS domain. This corresponds to the LDAP
     # msSFU30NisDomain attribute. This needs to be set even if NIS services
     # are not being used. This defaults to "radum" when a UNIXGroup is created
-    # using UNIXGroup#new, but it is set to the correct value when the UNIXGroup
+    # using UNIXGroup.new, but it is set to the correct value when the UNIXGroup
     # is loaded by AD#load from the AD object the Container belongs to.
     def nis_domain=(nis_domain)
       @nis_domain = nis_domain
@@ -304,7 +304,7 @@ module RADUM
     # (or whatever your system supports potentially - Windows works with crypt
     # and MD5 in Microsoft Identity Management for UNIX). This corresponds to
     # the LDAP unixUserPassword attribute. The unix_password value defaults
-    # to "*" when a UNIXGroup is created using UNIXGroup#new, but it is set
+    # to "*" when a UNIXGroup is created using UNIXGroup.new, but it is set
     # to the correct value when the UNIXGroup is loaded by AD#load from the AD
     # object the Container belongs to.
     #

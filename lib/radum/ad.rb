@@ -9,6 +9,17 @@
 # used in any way, so this will work from other platforms such as Mac OS X
 # and Linux in addition to Windows.
 #
+# The general RADUM pattern is:
+#
+# * AD.new(...)
+# * Container.new(...) [for any Containers of interest]
+# * AD#load()
+# * Create, update, or remove existing loaded objects.
+# * AD#sync()
+#
+# See the class documenation for more details, especially the AD#load and
+# AD#sync methods.
+#
 # Author:: Shaun Rowland <mailto:rowand@shaunrowland.com>
 # Copyright:: Copyright 2009 Shaun Rowland. All rights reserved.
 # License:: BSD License included in the project LICENSE file.
@@ -80,10 +91,10 @@ module RADUM
     # The Active Directory user used to connect to the Active Directory. This
     # is specified using an LDAP path to the user account, without the root
     # component, such as "cn=Administrator,cn=Users". This defaults to
-    # "cn=Administrator,cn=Users" when an AD is created using AD#new.
+    # "cn=Administrator,cn=Users" when an AD is created using AD.new.
     attr_reader :user
     # The server hostname or IP address of the Active Directory server. This
-    # defaults to "localhost" when an AD is created using AD#new.
+    # defaults to "localhost" when an AD is created using AD.new.
     attr_reader :server
     # The minimum UID value to use if no other UIDs are found. This defaults to
     # 1000.
@@ -515,6 +526,20 @@ module RADUM
     # is not found during the load. Warning messages are printed in each
     # case. Make sure all required Containers are in the AD before loading
     # data from Active Directory to avoid this problem.
+    #
+    # You generally should call AD#load to ensure the RADUM system has a valid
+    # representation of the Active Directory objects. You can call AD#sync
+    # without calling AD#load first, but your object values are authoritative.
+    # Unless you set every attribute correctly, unset object attributes will
+    # overwrite current values in Active Directory. Note that AD#sync will
+    # not touch Active Directory group memberships it does not know about
+    # explicitly, so at least that is safe. The general RADUM pattern is:
+    #
+    # * AD.new(...)
+    # * Container.new(...) [for any Containers of interest]
+    # * AD#load()
+    # * Create, update, or remove existing loaded objects.
+    # * AD#sync()
     def load
       # TO DO: WE SHOULD NOT ALLOW LOADING MORE THAN ONCE? SEE THE OTHER TO DO
       # COMMENTS IN THIS CODE. I THINK WE SHOULD JUST SET ANY ATTRIBUTES WE
@@ -751,6 +776,20 @@ module RADUM
     # unset attributes will be removed, and modified attributes will be
     # updated automatically. Removed objects will be deleted from Active
     # Directory.
+    #
+    # You generally should call AD#load to ensure the RADUM system has a valid
+    # representation of the Active Directory objects. You can call AD#sync
+    # without calling AD#load first, but your object values are authoritative.
+    # Unless you set every attribute correctly, unset object attributes will
+    # overwrite current values in Active Directory. Note that AD#sync will
+    # not touch Active Directory group memberships it does not know about
+    # explicitly, so at least that is safe. The general RADUM pattern is:
+    #
+    # * AD.new(...)
+    # * Container.new(...) [for any Containers of interest]
+    # * AD#load()
+    # * Create, update, or remove existing loaded objects.
+    # * AD#sync()
     def sync
       RADUM::logger.log("[AD #{self.root}] entering sync()", LOG_DEBUG)
       
