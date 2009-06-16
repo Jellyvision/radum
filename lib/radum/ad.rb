@@ -1527,6 +1527,7 @@ module RADUM
       @ldap.delete :dn => user.distinguished_name
       check_ldap_result
       RADUM::logger.log("\tDestroying user <#{user.username}>.", LOG_DEBUG)
+      user.container.destroy_user user
     end
     
     # Create a User or UNIXUser in Active Directory. The User or UNIXUser
