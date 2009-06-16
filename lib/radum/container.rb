@@ -153,6 +153,10 @@ module RADUM
     def destroy_user(user)
       if self == user.container
         @users.delete user
+        # Removed users can be destroyed as well, so we want to make sure all
+        # references are removed. If this was called from remove_user, the user
+        # will be added to removed_users explicitly.
+        @removed_users.delete user
         @directory.rids.delete user.rid if user.rid
         @directory.uids.delete user.uid if user.instance_of? UNIXUser
         # This needs to be set so that there is no error when removing the user
@@ -246,6 +250,10 @@ module RADUM
         end
 
         @groups.delete group
+        # Removed groups can be destroyed as well, so we want to make sure all
+        # references are removed. If this was called from remove_group, the
+        # group will be added to removed_groups explicitly.
+        @removed_groups.delete group
         @directory.rids.delete group.rid if group.rid
         @directory.gids.delete group.gid if group.instance_of? UNIXGroup
 

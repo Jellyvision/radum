@@ -247,7 +247,8 @@ module RADUM
     # objects from Active Directory as possible.
     #
     # This method refuses to remove the "cn=Users" container as a safety
-    # measure.
+    # measure. There is no error raised in this case, but a warning is logged
+    # using RADUM::logger with a log level of LOG_NORMAL.
     def remove_container(container)
       if container == @cn_users
         RADUM::logger.log("Cannot remove #{container.name} - safety measure.",
@@ -295,6 +296,19 @@ module RADUM
         RADUM::logger.log("Cannot fully remove container #{container.name}.",
                           LOG_NORMAL)
       end
+    end
+    
+    # Destroy all references to a Container. This can be called regardless of
+    # any other status because all internal references to User, UNIXUser,
+    # Group, and UNIXGroup objects is done implicitly from the AD collection
+    # of Container objects. Once the Container reference is gone, its objects
+    # will no longer be seen. Destroying a Container will not implicilty
+    # remove its objects. They simply will no longer be processed at all.
+    def destroy_container(container)
+      @containers.delete container
+      # Removed Containers can be destroyed as well, so we want to make sure
+      # all references are removed.
+      @removed_containers.delete container
     end
     
     # Returns an Array of all User and UNIXUser objects in all Containers
@@ -540,14 +554,19 @@ module RADUM
     # * AD#load()
     # * Create, update, or remove existing loaded objects.
     # * AD#sync()
+    #
+    # This methods will sliently ignore objects that already exist in the AD
+    # object unless the Logger default_level is set to LOG_DEBUG. Therefore,
+    # it is possible to load new Container objects after calling this method
+    # previously to create new objects. Anything that previously exists will
+    # be ignored.
     def load
-      # TO DO: WE SHOULD NOT ALLOW LOADING MORE THAN ONCE? SEE THE OTHER TO DO
-      # COMMENTS IN THIS CODE. I THINK WE SHOULD JUST SET ANY ATTRIBUTES WE
-      # CAN TO THEIR ACTIVE DIRECTORY VALUES - THIS REQUIRES CHECKING THE
-      # CURRENT CLASS OF THE GROUP. THINK OF THIS AS A FILTER THAT IGNORES ANY
-      # ATTRIBUTES THAT DON'T MATCH THE CLASS AS IS.
-      
       RADUM::logger.log("[AD #{self.root}] entering load()", LOG_DEBUG)
+      # This method can be called more than once. After loading users and
+      # groups, we just want to work with those after they are created. This
+      # allows the method to be called more than once.
+      loaded_users = []
+      loaded_groups = []
       # Find all the groups first. We might need one to represent the main
       # group of a UNIX user.
       group_filter = Net::LDAP::Filter.eq("objectclass", "group")
@@ -558,10 +577,13 @@ module RADUM
                      :scope => Net::LDAP::SearchScope_SingleLevel) do |entry|
           attr = group_ldap_entry_attr entry
           
-          # TO DO: WHAT IF THE USER ALREADY CREATED A GROUP OR UNIXGROUP THAT
-          # WE ARE TRYING TO LOAD NOW? THE NEW WILL FAIL IN THAT CASE. SHOULD
-          # WE OVERWRITE THAT OR WHAT? THE SAME PROBLEM IS PRESENT IN THE
-          # CREATE_GROUP() METHOD.
+          # Skip any Group or UNIXGroup objects that already exist (have this
+          # :name attribute).
+          if find_group_by_name(attr[:name])
+            RADUM::logger.log("\tNot loading group <#{attr[:name]}>: already" +
+                              " exists.", LOG_DEBUG)
+            next
+          end
           
           # Note that groups add themselves to their container.
           if attr[:gid]
@@ -571,9 +593,11 @@ module RADUM
                                   :nis_domain => attr[:nis_domain],
                                   :rid => attr[:rid]
             group.unix_password = attr[:unix_password] if attr[:unix_password]
+            loaded_groups.push group
           else
-            Group.new :name => attr[:name], :container => container,
-                      :type => attr[:type], :rid => attr[:rid]
+            group = Group.new :name => attr[:name], :container => container,
+                              :type => attr[:type], :rid => attr[:rid]
+            loaded_groups.push group
           end 
         end
       end
@@ -588,10 +612,13 @@ module RADUM
                      :scope => Net::LDAP::SearchScope_SingleLevel) do |entry|
           attr = user_ldap_entry_attr entry
           
-          # TO DO: WHAT IF THE USER ALREADY CREATED A USER OR UNIXUSER THAT
-          # WE ARE TRYING TO LOAD NOW? THE NEW WILL FAIL IN THAT CASE. SHOULD
-          # WE OVERWRITE THAT OR WHAT? THE SAME PROBLEM IS PRESENT IN THE
-          # CREATE_USER() METHOD.
+          # Skip any User or UNIXUser objects that already exist (have this
+          # :username attribute).
+          if find_user_by_username(attr[:username])
+            RADUM::logger.log("\tNot loading user <#{attr[:username]}>:" +
+                              " already exists.", LOG_DEBUG)
+            next
+          end
           
           # Note that users add themselves to their container. We have to have
           # found the primary_group already, or we can't make the user. The
@@ -632,6 +659,7 @@ module RADUM
                 user.shadow_min = attr[:shadow_min] if attr[:shadow_min]
                 user.shadow_warning = attr[:shadow_warning] if
                                       attr[:shadow_warning]
+                loaded_users.push user
               else
                 RADUM::logger.log("Warning: Main UNIX group could not be " +
                                   "found for: " + attr[:username], LOG_NORMAL)
@@ -647,6 +675,7 @@ module RADUM
               user.first_name = attr[:first_name] if attr[:first_name]
               user.middle_name = attr[:middle_name] if attr[:middle_name]
               user.surname = attr[:surname] if attr[:surname]
+              loaded_users.push user
             end
           else
             RADUM::logger.log("Warning: Windows primary group not found for: " +
@@ -658,7 +687,14 @@ module RADUM
       
       # Add users to groups, which also adds the groups to the user, etc. The
       # Windows primary_group was taken care of when creating the users
-      # previously.
+      # previously. This can happen even if this method is called multiple
+      # times because it is safe to add users to groups (and vice versa)
+      # more than once. If the membership already exists, nothing happens.
+      # Note that in this case, we do have to process all groups again in case
+      # some of the new users are in already processed groups.
+      #
+      # Here it is key to process all groups, even if they were already
+      # loaded once.
       groups.each do |group|
         entry = @ldap.search(:base => group.distinguished_name,
                              :filter => group_filter,
@@ -686,12 +722,21 @@ module RADUM
       
       # Set all users and groups as loaded. This has to be done last to make
       # sure the modified attribute is correct. The modified attribute needs
-      # to be false, and it is hidden from direct access by the loaded method.
-      groups.each do |group|
+      # to be false, and it is hidden from direct access by the set_loaded
+      # method. In this case "all users and groups" means ones we explicitly
+      # processed because this method can be called more than once. If the
+      # original object was loaded, but then modified, we don't want to reset
+      # the modified attribute as well. We also don't want to set the loaded
+      # attribute and reset the modified attribute for objects that were
+      # created after an initial call to this method and were skipped on
+      # later calls.
+      #
+      # Here it is key to only touch things explicitly loaded in this call.
+      loaded_groups.each do |group|
         group.set_loaded
       end
         
-      users.each do |user|
+      loaded_users.each do |user|
         user.set_loaded
       end
       
@@ -1125,6 +1170,12 @@ module RADUM
                         " delete_container(<#{container.name}>)", LOG_DEBUG)
       @ldap.delete :dn => container.distinguished_name
       check_ldap_result
+      # Now that the Container has been removed from Active Directory, it is
+      # destroyed from the AD it belongs to. There is no need to care about
+      # it anymore. Any Container that can be deleted from Active Directory
+      # can be destroyed.
+      RADUM::logger.log("\tDestroying group <#{container.name}>.", LOG_DEBUG)
+      destroy_container container
     end
     
     # Create a Container in Active Directory. Each Container is searched for
@@ -1229,27 +1280,32 @@ module RADUM
       end
       
       if found_primary.empty? && found_unix.empty?
-        RADUM::logger.log("\tDeleted group #{group.name}.", LOG_DEBUG)
+        RADUM::logger.log("\tDeleted group <#{group.name}>.", LOG_DEBUG)
         @ldap.delete :dn => group.distinguished_name
         check_ldap_result
+        # Now that the group has been removed from Active Directory, it is
+        # destroyed from the Container it belongs to. There is no need to
+        # care about it anymore.
+        RADUM::logger.log("\tDestroying group <#{group.name}>.", LOG_DEBUG)
+        group.container.destroy_group group
       else
-        RADUM::logger.log("\tCannot delete group #{group.name}:", LOG_DEBUG)
+        RADUM::logger.log("\tCannot delete group <#{group.name}>:", LOG_DEBUG)
         
         unless found_primary.empty?
           RADUM::logger("\t#{group.name} is the primary Windows group for the" +
                         " users:", LOG_DEBUG)
           
           found_primary.each do |user|
-            RADUM::logger.log("\t\t#{user.username}", LOG_DEBUG)
+            RADUM::logger.log("\t\t<#{user.username}>", LOG_DEBUG)
           end
         end
         
         unless found_unix.empty?
-          RADUM::logger.log("\t#{group.name} is the UNIX main group for the" +
+          RADUM::logger.log("\t#<{group.name}> is the UNIX main group for the" +
                             " users:", LOG_DEBUG)
           
           found_unix.each do |user|
-            RADUM::logger.log("\t\t#{user.username}", LOG_DEBUG)
+            RADUM::logger.log("\t\t<#{user.username}>", LOG_DEBUG)
           end
         end
       end
@@ -1311,9 +1367,6 @@ module RADUM
           # point because we have not handled any group memberships that might
           # have been set. Users at this poing in the create_user() method
           # can be considered loaded. Just noting this for my own reference.
-          
-          # TO DO: SHOULD WE OVERWRITE THE GROUP OR WHAT? SEE THE LOAD() METHOD
-          # COMMENT.
         end
       end
     end
@@ -1457,6 +1510,12 @@ module RADUM
           # this flags that fact as well as setting the hidden modified
           # attribute to false since we are up to date now.
           group.set_loaded
+        else
+          # The group did not need to be updated, so it can also be considered
+          # loaded.
+          group.set_loaded
+          RADUM::logger.log("\tNo need to update group <#{group.name}>.",
+                            LOG_DEBUG)
         end
       end
     end
@@ -1467,6 +1526,7 @@ module RADUM
                         " delete_user(<#{user.username}>)", LOG_DEBUG)
       @ldap.delete :dn => user.distinguished_name
       check_ldap_result
+      RADUM::logger.log("\tDestroying user <#{user.username}>.", LOG_DEBUG)
     end
     
     # Create a User or UNIXUser in Active Directory. The User or UNIXUser
@@ -1512,8 +1572,9 @@ module RADUM
           end
           
           if rid.nil?
-            RADUM::logger.log("SYNC ERROR: RID of #{user.primary_group.name}" +
-                              " not found.", LOG_NORMAL)
+            RADUM::logger.log("SYNC ERROR: RID of " +
+                              " <#{user.primary_group.name}> not found.",
+                              LOG_NORMAL)
             return
           end
           
@@ -1629,7 +1690,7 @@ module RADUM
           if user.password.nil?
             user.password = random_password
             RADUM::logger.log("\tGenerated password #{user.password} for" +
-                              " #{user.username}.", LOG_DEBUG)
+                              " <#{user.username}>.", LOG_DEBUG)
           end
           
           ops = [
@@ -1704,9 +1765,6 @@ module RADUM
           # that the groups attribute is still not 100% accurate. It will
           # be dealt with later when groups are dealt with.
           user.set_loaded
-          
-          # TO DO: SHOULD WE OVERWRITE THE USER OR WHAT? SEE THE LOAD() METHOD
-          # COMMENT.
         end
       end
     end
@@ -1813,6 +1871,12 @@ module RADUM
           # this flags that fact as well as setting the hidden modified
           # attribute to false since we are up to date now.
           user.set_loaded
+        else
+          # The user did not need to be updated, so it can also be considered
+          # loaded.
+          user.set_loaded
+          RADUM::logger.log("\tNo need to update user <#{user.username}>.",
+                            LOG_DEBUG)
         end
       end
     end

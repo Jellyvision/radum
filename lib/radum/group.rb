@@ -168,14 +168,13 @@ module RADUM
       @modified = true
     end
     
-    # Set the loaded flag. Calling this only has an effect once. This is only
-    # callled by AD#load when a Group or UNIXGroup is initially loaded.
+    # Set the loaded flag. This also clears the modified flag. This should only
+    # be called from AD#load and AD#sync unless you really know what you are
+    # doing.
     def set_loaded
       # This allows the modified attribute to be hidden.
-      unless @loaded
-        @loaded = true
-        @modified = false
-      end
+      @loaded = true
+      @modified = false
     end
     
     # Check if the Group or UNIXGroup was loaded from Active Directory.
