@@ -304,7 +304,17 @@ module RADUM
     # of Container objects. Once the Container reference is gone, its objects
     # will no longer be seen. Destroying a Container will not implicilty
     # remove its objects. They simply will no longer be processed at all.
+    #
+    # This method refuses to destroy the "cn=Users" container as a safety
+    # measure. There is no error raised in this case, but a warning is logged
+    # using RADUM::logger with a log level of LOG_NORMAL.
     def destroy_container(container)
+      if container == @cn_users
+        RADUM::logger.log("Cannot destroy #{container.name} - safety measure.",
+                          LOG_NORMAL)
+        return
+      end
+      
       @containers.delete container
       # Removed Containers can be destroyed as well, so we want to make sure
       # all references are removed.
