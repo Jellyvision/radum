@@ -655,6 +655,8 @@ module RADUM
                 user.first_name = attr[:first_name] if attr[:first_name]
                 user.middle_name = attr[:middle_name] if attr[:middle_name]
                 user.surname = attr[:surname] if attr[:surname]
+                user.script_path = attr[:script_path] if attr[:script_path]
+                user.profile_path = attr[:profile_path] if attr[:profile_path]
                 user.gecos = attr[:gecos] if attr[:gecos]
                 user.unix_password = attr[:unix_password] if
                                      attr[:unix_password]
@@ -685,6 +687,8 @@ module RADUM
               user.first_name = attr[:first_name] if attr[:first_name]
               user.middle_name = attr[:middle_name] if attr[:middle_name]
               user.surname = attr[:surname] if attr[:surname]
+              user.script_path = attr[:script_path] if attr[:script_path]
+              user.profile_path = attr[:profile_path] if attr[:profile_path]
               loaded_users.push user
             end
           else
@@ -1053,6 +1057,8 @@ module RADUM
       attr[:first_name] = nil
       attr[:middle_name] = nil
       attr[:surname] = nil
+      attr[:script_path] = nil
+      attr[:profile_path] = nil
       attr[:uid] = nil
       attr[:gid] = nil
       attr[:nis_domain] = nil
@@ -1080,6 +1086,16 @@ module RADUM
       
       begin
         attr[:surname] = entry.sn.pop
+      rescue NoMethodError
+      end
+      
+      begin
+        attr[:script_path] = entry.scriptPath.pop
+      rescue NoMethodError
+      end
+      
+      begin
+        attr[:profile_path] = entry.profilePath.pop
       rescue NoMethodError
       end
       
@@ -1638,6 +1654,14 @@ module RADUM
           
           realm = user.username + "@#{@domain}"
           
+          unless user.script_path.nil?
+            attr.merge!({ :scriptPath => user.script_path })
+          end
+          
+          unless user.profile_path.nil?
+            attr.merge!({ :profilePath => user.profile_path })
+          end
+          
           attr.merge!({
             :displayName => display_name,
             :description => description,
@@ -1821,6 +1845,10 @@ module RADUM
               ops.push [:replace, :middleName, obj_value]
             when :surname
               ops.push [:replace, :sn, obj_value]
+            when :script_path
+              ops.push [:replace, :scriptPath, obj_value]
+            when :profile_path
+              ops.push [:replace, :profilePath, obj_value]
             when :primary_group
               @ldap.modify :dn => user.primary_group.distinguished_name,
                            :operations => [[:add, :member,

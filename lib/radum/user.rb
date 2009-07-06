@@ -113,6 +113,13 @@ module RADUM
       @first_name = @username
       @middle_name = nil
       @surname = nil
+      # These are attributes of the Profile tab in Active Directory Users and
+      # Computers.
+      @script_path = nil
+      @profile_path = nil
+      # Password related instance variables. The password itself is not
+      # reflected here unless we are trying to change it to a new value
+      # (otherwise it is just nil).
       @password = nil
       @must_change_password = false
       # A UNIXUser adding itself the container needs to happen at the end of
@@ -192,6 +199,32 @@ module RADUM
     # belongs to.
     def surname=(surname)
       @surname = surname
+      @modified = true
+    end
+    
+    # The path to the User or UNIXUser object's logon script.
+    def script_path
+      @script_path
+    end
+    
+    # Set the User or UNIXUser logon script path. This corresponds to the
+    # LDAP scriptPath attribute and is the "Logon script" setting in the
+    # Profile tab of the Active Directory Users and Computers tool.
+    def script_path=(script_path)
+      @script_path = script_path
+      @modified = true
+    end
+    
+    # The path to the User or UNIXUser object's Windows profile.
+    def profile_path
+      @profile_path
+    end
+    
+    # Set the User or UNIXUser profile path. This corresponds to the LDAP
+    # profilePath attribute and is the "Profile path" setting in the Profile
+    # tab of the Active Directory Users and Computers tool.
+    def profile_path=(profile_path)
+      @profile_path = profile_path
       @modified = true
     end
     
