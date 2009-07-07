@@ -657,6 +657,13 @@ module RADUM
                 user.surname = attr[:surname] if attr[:surname]
                 user.script_path = attr[:script_path] if attr[:script_path]
                 user.profile_path = attr[:profile_path] if attr[:profile_path]
+                
+                if attr[:local_drive] && attr[:local_path]
+                  user.connect_drive_to(attr[:local_drive], attr[:local_path])
+                elsif attr[:local_path]
+                  user.local_path = attr[:local_path]
+                end
+                
                 user.gecos = attr[:gecos] if attr[:gecos]
                 user.unix_password = attr[:unix_password] if
                                      attr[:unix_password]
@@ -689,6 +696,13 @@ module RADUM
               user.surname = attr[:surname] if attr[:surname]
               user.script_path = attr[:script_path] if attr[:script_path]
               user.profile_path = attr[:profile_path] if attr[:profile_path]
+              
+              if attr[:local_drive] && attr[:local_path]
+                user.connect_drive_to(attr[:local_drive], attr[:local_path])
+              elsif attr[:local_path]
+                user.local_path = attr[:local_path]
+              end
+              
               loaded_users.push user
             end
           else
@@ -1059,6 +1073,8 @@ module RADUM
       attr[:surname] = nil
       attr[:script_path] = nil
       attr[:profile_path] = nil
+      attr[:local_path] = nil
+      attr[:local_drive] = nil
       attr[:uid] = nil
       attr[:gid] = nil
       attr[:nis_domain] = nil
@@ -1096,6 +1112,16 @@ module RADUM
       
       begin
         attr[:profile_path] = entry.profilePath.pop
+      rescue NoMethodError
+      end
+      
+      begin
+        attr[:local_path] = entry.homeDirectory.pop
+      rescue NoMethodError
+      end
+      
+      begin
+        attr[:local_drive] = entry.homeDrive.pop
       rescue NoMethodError
       end
       
@@ -1654,6 +1680,13 @@ module RADUM
           
           realm = user.username + "@#{@domain}"
           
+          attr.merge!({
+            :displayName => display_name,
+            :description => description,
+            :name => name,
+            :userPrincipalName => realm,
+          })
+          
           unless user.script_path.nil?
             attr.merge!({ :scriptPath => user.script_path })
           end
@@ -1662,12 +1695,14 @@ module RADUM
             attr.merge!({ :profilePath => user.profile_path })
           end
           
-          attr.merge!({
-            :displayName => display_name,
-            :description => description,
-            :name => name,
-            :userPrincipalName => realm,
-          })
+          if user.local_drive && user.local_path
+            attr.merge!({
+              :homeDrive => user.local_drive,
+              :homeDirectory => user.local_path
+            })
+          elsif user.local_path
+            attr.merge!({ :homeDirectory => user.local_path })
+          end
           
           attr.merge!({
             :gecos => user.gecos,
@@ -1849,6 +1884,10 @@ module RADUM
               ops.push [:replace, :scriptPath, obj_value]
             when :profile_path
               ops.push [:replace, :profilePath, obj_value]
+            when :local_path
+              ops.push [:replace, :homeDirectory, obj_value]
+            when :local_drive
+              ops.push [:replace, :homeDrive, obj_value]
             when :primary_group
               @ldap.modify :dn => user.primary_group.distinguished_name,
                            :operations => [[:add, :member,

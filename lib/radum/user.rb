@@ -117,6 +117,24 @@ module RADUM
       # Computers.
       @script_path = nil
       @profile_path = nil
+      # The local_path variable is set alone if it represents the "Local
+      # path" part of the Home folder section of the Profile tab. In this
+      # case, local_drive should be left nil. If it is used to represent the
+      # "Connect" part of the Home folder section of the Profile tab,
+      # local_path and local_drive should both be set. Note that these
+      # two options in the Home folder section of the Profile tab are mutually
+      # exclusive. This is enforced in the setter methods. Also note these
+      # variables represent the following LDAP attributes:
+      #
+      # local_path  --> homeDirectory
+      # local_drive --> homeDrive
+      #
+      # I am using these names because there is a home_directory instance
+      # variable to represent UNIX home directories, and the way these are
+      # set with the methods defined in this class better reflect the Active
+      # Directory Users and Computers tool.
+      @local_path = nil
+      @local_drive = nil
       # Password related instance variables. The password itself is not
       # reflected here unless we are trying to change it to a new value
       # (otherwise it is just nil).
@@ -225,6 +243,64 @@ module RADUM
     # tab of the Active Directory Users and Computers tool.
     def profile_path=(profile_path)
       @profile_path = profile_path
+      @modified = true
+    end
+    
+    # The "Local path" represented in the Active Directory Users and Computers
+    # Profile tab Home folder section. This also represents the path value
+    # used in the User#connect_drive_to method and is used in conjunction with
+    # User#local_drive in the case User#connect_drive_to was called instead of
+    # simply calling the User#local_path= method.
+    def local_path
+      @local_path
+    end
+    
+    # Set the User or UNIXUser "Local path" in the Active Directory Users and
+    # Computers Profile tab Home folder section. One can either set the "Local
+    # path" or set the "Connect ... To" part of the Home folder section. This
+    # sets the LDAP homeDirectory attribute only. If you want to connect a drive
+    # to a path for the Home folder, use then User#connect_drive_to method
+    # instead. Note that this method makes sure that the homeDrive LDAP
+    # attribute is not set to enforce the proper behavior on the LDAP side.
+    def local_path=(path)
+      @local_drive = nil
+      @local_path = path
+      @modified = true
+    end
+    
+    # The drive used in the User#connect_drive_to method when setting the
+    # "Connect ... To" Home folder section of the Active Directory Users
+    # and Computers Profile tab section. This value should be used in
+    # conjunction with the User#local_path value if the User#connect_drive_to
+    # method was called.
+    def local_drive
+      @local_drive
+    end
+    
+    # Set the User or UNIXUser "Connect ... To" in the Active Directory Users
+    # and Computers Profile tab Home folder section. One can either set the
+    # "Connect ... To" or set the "Local path" part of the Home folder section.
+    # This sets the LDAP homeDrive and homeDirectory attributes. If you want to
+    # simply set a "Local path" for the Home folder, use the User#local_path=
+    # method instead.
+    #
+    # As an example, to connect drive Z: to \\\\server\\share, do the following
+    # on a User or UNIXUser object named user:
+    #
+    #  user.connect_drive_to "Z:", "\\\\server\\share"
+    #
+    # These values can be retrived using:
+    #
+    #  user.local_drive   # --> "Z:"
+    #  user.local_path    # --> "\\server\share"
+    #
+    # The user.local_path value is also used by itself if only the "Local path"
+    # was set for the Home folder section of the Profile tab in Active Directory
+    # Users and Computers using the User#local_path= method, but here it is
+    # also used in this case as well.
+    def connect_drive_to(drive, path)
+      @local_drive = drive
+      @local_path = path
       @modified = true
     end
     
