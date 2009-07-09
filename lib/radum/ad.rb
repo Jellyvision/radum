@@ -1409,17 +1409,20 @@ module RADUM
           RADUM::logger.log("\n" + attr.to_yaml + "\n\n", LOG_DEBUG)
           @ldap.add :dn => group.distinguished_name, :attributes => attr
           check_ldap_result
-          # At this point, we need to pull the RID value back out and set it
-          # because it is needed later.
-          entry = @ldap.search(:base => group.distinguished_name,
-                               :filter => group_filter,
-                               :scope => Net::LDAP::SearchScope_BaseObject).pop
-          group.set_rid sid2rid_int(entry.objectSid.pop)
-          # Note: unlike a user, the group cannot be considered loaded at this
-          # point because we have not handled any group memberships that might
-          # have been set. Users at this poing in the create_user() method
-          # can be considered loaded. Just noting this for my own reference.
         end
+        
+        # At this point, we need to pull the RID value back out and set it
+        # because it is needed later. This is needed even if the group was
+        # found and not created because it had not been loaded yet. Later
+        # calls like create_user() look for the RID of the primary_group.
+        entry = @ldap.search(:base => group.distinguished_name,
+                             :filter => group_filter,
+                             :scope => Net::LDAP::SearchScope_BaseObject).pop
+        group.set_rid sid2rid_int(entry.objectSid.pop)
+        # Note: unlike a user, the group cannot be considered loaded at this
+        # point because we have not handled any group memberships that might
+        # have been set. Users at this poing in the create_user() method
+        # can be considered loaded. Just noting this for my own reference.
       end
     end
     
@@ -1606,27 +1609,18 @@ module RADUM
         if found == false
           RADUM::logger.log("[AD #{self.root}]" +
                             " create_user(<#{user.username}>)", LOG_DEBUG)
-          # We need the RID of the user's primary Windows group. If the primary
-          # Windows group has true for its loaded attribute, it knows its RID
-          # already. If not, we need to search Active Directory to find it
-          # because it might have been created.
+          # We need the RID of the user's primary Windows group, and at this
+          # point the create_group() method has grabbed the RID for any group
+          # that was not loaded. Only groups in the RADUM environment can be
+          # specified as the primary group, so this should always give the
+          # primary group RID.
           rid = user.primary_group.rid
           
-          # If the group was loaded, we don't need to search for the group's
-          # RID as the step above would have the right value.
-          unless user.primary_group.loaded?
-            group_filter = Net::LDAP::Filter.eq("objectclass", "group")
-            
-            @ldap.search(:base => user.primary_group.distinguished_name,
-                         :filter => group_filter,
-                         :scope => Net::LDAP::SearchScope_BaseObject) do |entry|
-              rid = sid2rid_int(entry.objectSid.pop)
-            end
-          end
-          
+          # We want to be sure though! The RID stuff is here so that we don't
+          # even create a user if there is a primary Windows group RID issue.
           if rid.nil?
             RADUM::logger.log("SYNC ERROR: RID of " +
-                              " <#{user.primary_group.name}> not found.",
+                              " <#{user.primary_group.name}> was nil.",
                               LOG_NORMAL)
             return
           end
@@ -1796,8 +1790,12 @@ module RADUM
           # primary Windows group, it is necessary to add the user to that
           # group first (as a member in the member attribute for the group)
           # before attempting to set their primaryGroupID attribute or Active
-          # Directory will refuse to do it.
-          unless rid == find_group_by_name("Domain Users").rid
+          # Directory will refuse to do it. Note that there is no guarentee
+          # that AD#load() has been called yet, so the Domain Users group
+          # might not even be in the RADUM system. The safest way to check
+          # if the user's primary Windows group is Domain Users is as done
+          # below.
+          unless user.primary_group.name == "Domain Users"
             ops = [
               [:add, :member, user.distinguished_name]
             ]
@@ -1814,21 +1812,24 @@ module RADUM
             RADUM::logger.log("\n" + ops.to_yaml + "\n\n", LOG_DEBUG)
             @ldap.modify :dn => user.distinguished_name, :operations => ops
             check_ldap_result
-            # At this point, we need to pull the RID value back out and set it
-            # because it is needed later. Actually, it isn't for users, but
-            # I am pretending it is just as important because I am tracking
-            # RIDs anyway (they are in a flat namespace).
-            entry = @ldap.search(:base => user.distinguished_name,
-                                :filter => user_filter,
-                                :scope => Net::LDAP::SearchScope_BaseObject).pop
-            user.set_rid sid2rid_int(entry.objectSid.pop)
             # The user has now been made a regular member of the Domain Users
             # Windows group. This has been handled in Active Directory for us,
             # but now we want to reflect that in the Domain Users Group object
-            # here.
-            find_group_by_name("Domain Users").add_user user
+            # here. There is a problem however. It is possible that the
+            # Domain Users group has not been loaded into the RADUM environment
+            # yet. Therefore, we check first before trying.
+            domain_users = find_group_by_name("Domain Users")
+            domain_users.add_user user if domain_users
           end
           
+          # At this point, we need to pull the RID value back out and set it
+          # because it is needed later. Actually, it isn't for users, but
+          # I am pretending it is just as important because I am tracking
+          # RIDs anyway (they are in a flat namespace).
+          entry = @ldap.search(:base => user.distinguished_name,
+                              :filter => user_filter,
+                              :scope => Net::LDAP::SearchScope_BaseObject).pop
+          user.set_rid sid2rid_int(entry.objectSid.pop)
           # At this point the user is the equivalent as a loaded user.
           # Calling this flags that fact as well as setting the hidden
           # modified attribute to false since we are up to date now. Note
