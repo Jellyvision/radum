@@ -642,7 +642,7 @@ module RADUM
     # object returned. Supported arguments follow:
     #
     # * :group => The Group to convert to a UNIXGroup [required]
-    # * :remove_unix_users => Remove UNIXUser object members [default true]
+    # * :remove_unix_users => Remove UNIXUser object members [default false]
     # 
     # The :group argument is the UNIXGroup to convert. If the :group argument
     # is not a UNIXGroup object, a RuntimeError is raised. The
@@ -651,7 +651,7 @@ module RADUM
     # should be removed as members when converting to a Group object. UNIXUser
     # objects are members from the Windows perspective as well by default
     # because they are members from the UNIX perspective. This is the default
-    # behavior in RADUM. The default action is to remove their Windows user
+    # behavior in RADUM. The default action is to not remove their Windows user
     # memberships when converting a UNIXGroup to a Group. The argument types
     # required follow:
     #
@@ -674,6 +674,8 @@ module RADUM
       unless args[:group].instance_of? UNIXGroup
         raise "group_to_unix_group :group argument just be a UNIXGroup object."
       end
+      
+      remove_unix_users = args[:remove_unix_users] || false
       
       # Group attributes.
       name = group.name
@@ -736,7 +738,7 @@ module RADUM
       end
       
       # An extra step to remove any UNIXUser objects if that was requested.
-      if args[:remove_unix_users]
+      if remove_unix_users
         group.users.clone.each do |user|
           group.remove_user user if user.instance_of? UNIXUser
         end
