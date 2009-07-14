@@ -539,6 +539,212 @@ module RADUM
       end
     end
     
+    # Convert a Group to a UNIXGroup. This method returns the new UNIXGroup
+    # if successful, otherwise there will be a RuntimeError somewhere first.
+    # The original Group is destroyed with Container#destroy_group and a new
+    # UNIXGroup is created with the same information. New UNIX attributes will
+    # be added to Active Directory. Any external references to the old Group
+    # should be discarded and replaced with the new UNIXGroup object returned.
+    # Supported arguments follow:
+    #
+    # * :group => The Group to convert to a UNIXGroup [required]
+    # * :gid => The UNIXGroup GID attribute [required]
+    # * :nis_domain => The UNIXGroup NIS domain attribute [default "radum"]
+    #
+    # The :gid argument specifies the UNIX GID value of the UNIXGroup. The
+    # :nis_domain defaults to "radum". The use of an NIS domain is not
+    # strictly required as one could simply set the right attributes in Active
+    # Directory and use LDAP on clients to access that data, but specifying an
+    # NIS domain allows for easy editing of UNIX attributes using the GUI tools
+    # in Windows, thus the use of a default value. The argument types required
+    # follow:
+    #
+    # * :group [Group]
+    # * :gid [integer]
+    # * :nis_domain [String]
+    #
+    # If the :group argument is not a Group object, a RuntimeError is raised.
+    # The :gid attribute is also checked first in case it already is in use
+    # so that the original group is not destroyed by accident due to an error.
+    # Note that Container#destroy_group checks to make sure the group is not
+    # the primary Windows group for any User or UNIXUser first, so the :group
+    # must not be the primary Windows group for any users. If the group is
+    # someone's primary Windows group, you will have to modify it by hand in
+    # Active Directory.
+    #
+    # No changes to the Group happen until AD#sync is called.
+    def group_to_unix_group(args = {})
+      group = args[:group]
+      
+      # Make sure we are working with a Group object only.
+      unless args[:group].instance_of? Group
+        raise "group_to_unix_group :group argument just be a Group object."
+      end
+      
+      gid = args[:gid]
+      
+      # The GID must be unique.
+      if @gids.include? args[:gid]
+        raise "GID #{gid} is already in use in the directory."
+      end
+      
+      nis_domain = args[:nis_domain]
+      # Group attributes.
+      name = group.name
+      container = group.container
+      type = group.type
+      rid = group.rid
+      users = group.users.clone
+      groups = group.users.clone
+      removed_users = group.removed_users.clone
+      removed_groups = group.removed_groups.clone
+      loaded = group.loaded?
+      
+      # Destroy the group now that we have its information.
+      container.destroy_group group
+      group = UNIXGroup.new :name => name, :container => container,
+                            :type => type, :rid => rid, :gid => gid,
+                            :nis_domain => nis_domain
+      
+      # Set the group to loaded if it was loaded orginally. This sets the
+      # modified attribute to false, but the actions below will ensure the
+      # modified attribute is actually true when we are done, which is required
+      # in order to update the attributes in Active Directory through AD#sync.
+      group.set_loaded if loaded
+      
+      (users + removed_users).each do |user_member|
+        group.add_user user_member
+      end
+      
+      removed_users.each do |user_member|
+        group.remove_user user_member
+      end
+      
+      (groups + removed_groups).each do |group_member|
+        group.add_group group_member
+      end
+      
+      removed_groups.each do |group_member|
+        group.remove_group group_member
+      end
+      
+      group
+    end
+    
+    # Convert a UNIXGroup to a Group. This method returns the new Group
+    # if successful, otherwise there will be a RuntimeError somewhere first.
+    # The original UNIXGroup is destroyed with Container#destroy_group and a
+    # new Group is created with the same information where applicable. Old
+    # UNIX attributes will be removed from Active Directory if possible
+    # immediately (not waiting on AD#sync because AD#sync will think this is
+    # now only a Group object with no UNIX attributes). Any external references
+    # to the old UNIXGroup should be discarded and replaced with the new Group
+    # object returned. Supported arguments follow:
+    #
+    # * :group => The Group to convert to a UNIXGroup [required]
+    # * :remove_unix_users => Remove UNIXUser object members [default true]
+    # 
+    # The :group argument is the UNIXGroup to convert. If the :group argument
+    # is not a UNIXGroup object, a RuntimeError is raised. The
+    # :remove_unix_users object is a boolean flag that determines if UNIXUser
+    # objects who were members of the UNIXGroup from the Windows perspective
+    # should be removed as members when converting to a Group object. UNIXUser
+    # objects are members from the Windows perspective as well by default
+    # because they are members from the UNIX perspective. This is the default
+    # behavior in RADUM. The default action is to remove their Windows user
+    # memberships when converting a UNIXGroup to a Group. The argument types
+    # required follow:
+    #
+    # * :group [UNIXGroup]
+    # * :remove_unix_users [boolean]
+    #
+    # Note that Container#destroy_group checks to make sure the group is not
+    # the primary Windows group or UNIX main group for any User or UNIXUser,
+    # so the :group must not be the primary Windows group or UNIX main group
+    # for any users. If the group is someone's primary Windows group or UNIX
+    # main group, you will have to modify it by hand in Active Directory.
+    #
+    # UNIX attributes are removed from Active Directory immedately if it is
+    # actually possible to destroy the UNIXGroup properly without waiting for
+    # AD%sync to be called.
+    def unix_group_to_group(args = {})
+      group = args[:group]
+      
+      # Make sure we are working with a Group object only.
+      unless args[:group].instance_of? UNIXGroup
+        raise "group_to_unix_group :group argument just be a UNIXGroup object."
+      end
+      
+      # Group attributes.
+      name = group.name
+      container = group.container
+      type = group.type
+      rid = group.rid
+      users = group.users.clone
+      groups = group.users.clone
+      removed_users = group.removed_users.clone
+      removed_groups = group.removed_groups.clone
+      loaded = group.loaded?
+      
+      # Destroy the group now that we have its information.
+      container.destroy_group group
+      
+      # If the group was destroyed and we got this far, we need to remove
+      # any of its UNIX attributes in Active Directory directly. We do need
+      # to make sure it is actually there first of course.
+      group_filter = Net::LDAP::Filter.eq("objectclass", "group")
+      found = @ldap.search(:base => group.distinguished_name,
+                           :filter => group_filter,
+                           :scope => Net::LDAP::SearchScope_BaseObject,
+                           :return_result => false)
+      
+      unless found == false
+        ops = [
+          [:replace, :msSFU30NisDomain, nil],
+          [:replace, :unixUserPassword, nil],
+          [:replace, :memberUid, nil],
+          [:replace, :msSFU30PosixMember, nil]
+        ]
+        
+        @ldap.modify :dn => group.distinguished_name, :operations => ops
+        check_ldap_result
+      end
+      
+      group = Group.new :name => name, :container => container,
+                        :type => type, :rid => rid
+      
+      # Set the group to loaded if it was loaded orginally. This sets the
+      # modified attribute to false, but the actions below will ensure the
+      # modified attribute is actually true when we are done, which is required
+      # in order to update the attributes in Active Directory through AD#sync.
+      group.set_loaded if loaded
+      
+      (users + removed_users).each do |user_member|
+        group.add_user user_member
+      end
+      
+      removed_users.each do |user_member|
+        group.remove_user user_member
+      end
+      
+      (groups + removed_groups).each do |group_member|
+        group.add_group group_member
+      end
+      
+      removed_groups.each do |group_member|
+        group.remove_group group_member
+      end
+      
+      # An extra step to remove any UNIXUser objects if that was requested.
+      if args[:remove_unix_users]
+        group.users.clone.each do |user|
+          group.remove_user user if user.instance_of? UNIXUser
+        end
+      end
+      
+      group
+    end
+      
     # Load all user and group objects in Active Directory that are in the AD
     # object's Containers. This automatically creates User, UNIXUser, Group,
     # and UNIXGroup objects as needed and sets all of their attributes
@@ -724,11 +930,18 @@ module RADUM
       # Here it is key to process all groups, even if they were already
       # loaded once.
       groups.each do |group|
-        entry = @ldap.search(:base => group.distinguished_name,
-                             :filter => group_filter,
-                             :scope => Net::LDAP::SearchScope_BaseObject).pop
-        
         begin
+          # Note that this takes care of the case where a group was created
+          # and then AD#load is called before AD#sync. In that case, the group
+          # is not even in Active Directory yet and the pop method call will
+          # not be possible because it does not exist. There are other ways
+          # to check this, but I don't really care if it was not found because
+          # I assume the user knows what they are doing if they do this type
+          # of pattern.
+          entry = @ldap.search(:base => group.distinguished_name,
+                               :filter => group_filter,
+                               :scope => Net::LDAP::SearchScope_BaseObject).pop
+          
           entry.member.each do |member|
             # Groups can have groups or users as members, unlike UNIX where
             # groups cannot contain group members.
@@ -1529,30 +1742,35 @@ module RADUM
         (group.users + group.groups).each do |item|
           # As in the above begin block, the member attribute might not exist.
           # We have to take that into account.
+          found = false
+          
           begin
             found = entry.member.find do |member|
               item.distinguished_name.downcase == member.downcase
             end
           rescue NoMethodError
-            found = false
           end
           
           ops.push [:add, :member, item.distinguished_name] unless found
           
           if item.instance_of?(UNIXUser) && group.instance_of?(UNIXGroup) &&
              group != item.unix_main_group
+            # As with the member attribute, the msSFU30PosixMember attribute
+            # might not exist yet either.
+            found = false
+            
             begin
               # We should really also search the memberUid attribute, but
               # really... it should always match up with msSFU30PosixMember.
               found = entry.msSFU30PosixMember.find do |member|
                 item.distinguished_name.downcase == member.downcase
               end
-              
-              unless found
-                ops.push [:add, :memberUid, item.username]
-                ops.push [:add, :msSFU30PosixMember, item.distinguished_name]
-              end
             rescue NoMethodError
+            end
+            
+            unless found
+              ops.push [:add, :memberUid, item.username]
+              ops.push [:add, :msSFU30PosixMember, item.distinguished_name]
             end
           end
         end
