@@ -430,6 +430,285 @@ module RADUM
       end
     end
     
+    # Convert a User to a UNIXUser. This method returns the new UNIXUser
+    # if successful, otherwise there will be a RuntimeError somewhere first.
+    # The original User is destroyed with Container#destroy_user and a new
+    # UNIXUser is created with the same information. New UNIX attributes will
+    # be added to Active Directory. Any external references to the old User
+    # should be discarded and replaced with the new UNIXUser object returned.
+    # Supported arguments follow:
+    #
+    # * :user => The User to convert to a UNIXUser [required]
+    # * :uid => The UNIXUser UID attribute [required]
+    # * :unix_main_group => The UNIXUser object's UNIX main group [required]
+    # * :shell => The UNIXUser shell attribute [required]
+    # * :home_directory => The UNIXUser home directory attribute [required]
+    # * :nis_domain => The UNIXUser NIS domain attribute [default "radum"]
+    #
+    # The :uid argument specifies the UNIX UID value of the UNIXUser. The
+    # :unix_main_group argument must be a UNIXGroup object or a RuntimeError
+    # is raised. The :nis_domain defaults to "radum". The use of an NIS domain
+    # is not strictly required as one could simply set the right attributes in
+    # Active Directory and use LDAP on clients to access that data, but
+    # specifying an NIS domain allows for easy editing of UNIX attributes
+    # using the GUI tools in Windows, thus the use of a default value. The
+    # argument types required follow:
+    #
+    # * :user [User]
+    # * :uid [integer]
+    # * :unix_main_group [UNIXGroup]
+    # * :shell [String]
+    # * :home_directory [String]
+    # * :nis_domain [String]
+    #
+    # If the :user argument is not a User object, a RuntimeError is raised.
+    # If the User has already been removed a RuntimeError is raised.
+    # The :uid attribute is also checked first in case it already is in use
+    # so that the original user is not destroyed by accident due to an error.
+    #
+    # No changes to the User happen until AD#sync is called.
+    def user_to_unix_user(args = {})
+      user = args[:user]
+      
+      # Make sure we are working with a User object only.
+      unless user.instance_of? User
+        raise "user_to_unix_user :user argument just be a User object."
+      end
+      
+      if user.removed
+        raise "user_to_unix_user :user has been removed."
+      end
+      
+      uid = args[:uid]
+      
+      # The UID must be unique.
+      if @uids.include? uid
+        raise "UID #{uid} is already in use in the directory."
+      end
+      
+      unix_main_group = args[:unix_main_group]
+      
+      unless unix_main_group.instance_of? UNIXGroup
+        raise "user_to_unix_user :unix_main_group is not a UNIXGroup object."
+      end
+      
+      shell = args[:shell]
+      home_directory = args[:home_directory]
+      nis_domain = args[:nis_domain]
+      # User attributes.
+      username = user.username
+      container = user.container
+      primary_group = user.primary_group
+      disabled = user.disabled?
+      rid = user.rid
+      first_name = user.first_name
+      middle_name = user.middle_name
+      surname = user.surname
+      script_path = user.script_path
+      profile_path = user.profile_path
+      local_path = user.local_path
+      local_drive = user.local_drive
+      password = user.password
+      must_change_password = user.must_change_password?
+      common_name = user.common_name
+      groups = user.groups.clone
+      removed_groups = user.removed_groups.clone
+      loaded = user.loaded?
+      
+      # Destroy the user now that we have its information.
+      container.destroy_user user
+      user = UNIXUser.new :username => username, :container => container,
+                          :primary_group => primary_group,
+                          :disabled => disabled, :rid => rid, :uid => uid,
+                          :unix_main_group => unix_main_group,
+                          :shell => shell, :home_directory => home_directory,
+                          :nis_domain => nis_domain
+      
+      # Set the user to loaded if it was loaded orginally. This sets the
+      # modified attribute to false, but the actions below will ensure the
+      # modified attribute is actually true when we are done, which is required
+      # in order to update the attributes in Active Directory through AD#sync.
+      user.set_loaded if loaded
+      
+      # Set other User attributes.
+      user.first_name = first_name
+      user.middle_name = middle_name
+      user.surname = surname
+      user.script_path = script_path
+      user.profile_path = profile_path
+      
+      # Figure out the Windows home directory type attributes.
+      if local_path && local_drive
+        user.connect_drive_to local_drive, local_path
+      elsif local_path
+        user.local_path = local_path
+      end
+      
+      user.password = password
+      
+      if must_change_password
+        user.force_change_password
+      end
+      
+      user.common_name = common_name
+      
+      (groups + removed_groups).each do |group_member|
+        user.add_group group_member
+      end
+      
+      removed_groups.each do |group_member|
+        user.remove_group group_member
+      end
+      
+      user
+    end
+    
+    # Convert a UNIXUser to a User. This method returns the new User
+    # if successful, otherwise there will be a RuntimeError somewhere first.
+    # The original UNIXUser is destroyed with Container#destroy_user and a
+    # new User is created with the same information where applicable. Old
+    # UNIX attributes will be removed from Active Directory if possible
+    # immediately (not waiting on AD#sync because AD#sync will think this is
+    # now only a User object with no UNIX attributes). Any external references
+    # to the old UNIXUser should be discarded and replaced with the new User
+    # object returned. Supported arguments follow:
+    #
+    # * :user => The UNIXUser to convert to a User [required]
+    # * :remove_unix_groups => Remove UNIXGroup memberships [default false]
+    #
+    # The :user argument is the UNIXUser to convert. If the :user argument
+    # is not a UNIXUser object, a RuntimeError is raised. If the UNIXUser
+    # has already been removed a RuntimeError is raised. The :remove_unix_groups
+    # argument is a boolean flag that determines if the new User object should
+    # continue to be a member of the UNIXGroup objects it was previously.
+    # UNIXUser objects are members of their UNIXGroup objects from the Windows
+    # perspective by default because they are members from the UNIX perspective.
+    # This is the default behavior in RADUM. The default action is to not remove
+    # their Windows group memberships when converting a UNIXUser to a User.
+    # The argument types required follow:
+    #
+    # * :user [UNIXUser]
+    # * :remove_unix_groups [boolean]
+    #
+    # UNIX attributes are removed from Active Directory immedately if it is
+    # actually possible to destroy the UNIXUser properly without waiting for
+    # AD%sync to be called.
+    def unix_user_to_user(args = {})
+      user = args[:user]
+      
+      # Make sure we are working with a UNIXUser object only.
+      unless user.instance_of? UNIXUser
+        raise "unix_user_to_user :user argument just be a UNIXUser object."
+      end
+      
+      if user.removed
+        raise "unix_user_to_user :user has been removed."
+      end
+      
+      remove_unix_groups = args[:remove_unix_groups] || false
+      
+      # User attributes.
+      container = user.container
+      primary_group = user.primary_group
+      disabled = user.disabled?
+      rid = user.rid
+      first_name = user.first_name
+      middle_name = user.middle_name
+      surname = user.surname
+      script_path = user.script_path
+      profile_path = user.profile_path
+      local_path = user.local_path
+      local_drive = user.local_drive
+      password = user.password
+      must_change_password = user.must_change_password?
+      common_name = user.common_name
+      groups = user.groups.clone
+      removed_groups = user.removed_groups.clone
+      loaded = user.loaded?
+      
+      # Destroy the user now that we have its information.
+      container.destroy_user user
+      
+      # If the user was destroyed and we got this far, we need to remove
+      # any of its UNIX attributes in Active Directory directly. We do need
+      # to make sure it is actually there first of course.
+      user_filter = Net::LDAP::Filter.eq("objectclass", "user")
+      found = @ldap.search(:base => user.distinguished_name,
+                           :filter => user_filter,
+                           :scope => Net::LDAP::SearchScope_BaseObject,
+                           :return_result => false)
+      
+      unless found == false
+        ops = [
+          [:replace, :loginShell, nil],
+          [:replace, :unixHomeDirectory, nil],
+          [:replace, :msSFU30NisDomain, nil],
+          [:replace, :gecos, nil],
+          [:replace, :unixUserPassword, nil],
+          [:replace, :shadowExpire, nil],
+          [:replace, :shadowFlag, nil],
+          [:replace, :shadowInactive, nil],
+          [:replace, :shadowLastChange, nil],
+          [:replace, :shadowMax, nil],
+          [:replace, :shadowMin, nil],
+          [:replace, :shadowWarning, nil],
+          [:replace, :gidNumber, nil]
+        ]
+        
+        @ldap.modify :dn => user.distinguished_name, :operations => ops
+        check_ldap_result
+      end
+      
+      user = User.new :username => username, :container => container,
+                      :primary_group => primary_group, :disabled => disabled,
+                      :rid => rid
+      
+      # Set the user to loaded if it was loaded orginally. This sets the
+      # modified attribute to false, but the actions below will ensure the
+      # modified attribute is actually true when we are done, which is required
+      # in order to update the attributes in Active Directory through AD#sync.
+      user.set_loaded if loaded
+      
+      # Set other User attributes.
+      user.first_name = first_name
+      user.middle_name = middle_name
+      user.surname = surname
+      user.script_path = script_path
+      user.profile_path = profile_path
+      
+      # Figure out the Windows home directory type attributes.
+      if local_path && local_drive
+        user.connect_drive_to local_drive, local_path
+      elsif local_path
+        user.local_path = local_path
+      end
+      
+      user.password = password
+      
+      if must_change_password
+        user.force_change_password
+      end
+      
+      user.common_name = common_name
+      
+      (groups + removed_groups).each do |group_member|
+        user.add_group group_member
+      end
+      
+      removed_groups.each do |group_member|
+        user.remove_group group_member
+      end
+      
+      # An extra step to remove any UNIXGroup objects if that was requested.
+      if remove_unix_groups
+        user.groups.clone.each do |group|
+          user.remove_group group if group.instance_of? UNIXGroup
+        end
+      end
+      
+      user
+    end
+    
     # Returns an Array of all Group and UNIXGroup objects in all Containers
     # in the AD.
     def groups
@@ -589,7 +868,7 @@ module RADUM
       gid = args[:gid]
       
       # The GID must be unique.
-      if @gids.include? args[:gid]
+      if @gids.include? gid
         raise "GID #{gid} is already in use in the directory."
       end
       
@@ -600,7 +879,7 @@ module RADUM
       type = group.type
       rid = group.rid
       users = group.users.clone
-      groups = group.users.clone
+      groups = group.groups.clone
       removed_users = group.removed_users.clone
       removed_groups = group.removed_groups.clone
       loaded = group.loaded?
@@ -646,7 +925,7 @@ module RADUM
     # to the old UNIXGroup should be discarded and replaced with the new Group
     # object returned. Supported arguments follow:
     #
-    # * :group => The Group to convert to a UNIXGroup [required]
+    # * :group => The UNIXGroup to convert to a Group [required]
     # * :remove_unix_users => Remove UNIXUser object members [default false]
     # 
     # The :group argument is the UNIXGroup to convert. If the :group argument
@@ -676,13 +955,13 @@ module RADUM
     def unix_group_to_group(args = {})
       group = args[:group]
       
-      # Make sure we are working with a Group object only.
+      # Make sure we are working with a UNIXGroup object only.
       unless group.instance_of? UNIXGroup
-        raise "group_to_unix_group :group argument just be a UNIXGroup object."
+        raise "unix_group_to_group :group argument just be a UNIXGroup object."
       end
       
       if group.removed
-        raise "group_to_unix_group :group has been removed."
+        raise "unix_group_to_group :group has been removed."
       end
       
       remove_unix_users = args[:remove_unix_users] || false
@@ -693,7 +972,7 @@ module RADUM
       type = group.type
       rid = group.rid
       users = group.users.clone
-      groups = group.users.clone
+      groups = group.groups.clone
       removed_users = group.removed_users.clone
       removed_groups = group.removed_groups.clone
       loaded = group.loaded?
