@@ -263,7 +263,7 @@ module RADUM
           end
         end
 
-        group.removed = true        
+        group.removed = true
       else
         raise "Group must be in this container."
       end
