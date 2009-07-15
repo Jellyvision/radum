@@ -564,6 +564,7 @@ module RADUM
     # * :nis_domain [String]
     #
     # If the :group argument is not a Group object, a RuntimeError is raised.
+    # If the Group has already been removed a RuntimeError is raised.
     # The :gid attribute is also checked first in case it already is in use
     # so that the original group is not destroyed by accident due to an error.
     # Note that Container#destroy_group checks to make sure the group is not
@@ -577,8 +578,12 @@ module RADUM
       group = args[:group]
       
       # Make sure we are working with a Group object only.
-      unless args[:group].instance_of? Group
+      unless group.instance_of? Group
         raise "group_to_unix_group :group argument just be a Group object."
+      end
+      
+      if group.removed
+        raise "group_to_unix_group :group has been removed."
       end
       
       gid = args[:gid]
@@ -645,13 +650,14 @@ module RADUM
     # * :remove_unix_users => Remove UNIXUser object members [default false]
     # 
     # The :group argument is the UNIXGroup to convert. If the :group argument
-    # is not a UNIXGroup object, a RuntimeError is raised. The
-    # :remove_unix_users object is a boolean flag that determines if UNIXUser
-    # objects who were members of the UNIXGroup from the Windows perspective
-    # should be removed as members when converting to a Group object. UNIXUser
-    # objects are members from the Windows perspective as well by default
-    # because they are members from the UNIX perspective. This is the default
-    # behavior in RADUM. The default action is to not remove their Windows user
+    # is not a UNIXGroup object, a RuntimeError is raised. If the UNIXGroup
+    # has already been removed a RuntimeError is raised. The :remove_unix_users
+    # argument is a boolean flag that determines if UNIXUser objects who were
+    # members of the UNIXGroup from the Windows perspective should be removed
+    # as members when converting to a Group object. UNIXUser objects are
+    # members from the Windows perspective as well by default because they are
+    # members from the UNIX perspective. This is the default behavior in
+    # RADUM. The default action is to not remove their Windows user
     # memberships when converting a UNIXGroup to a Group. The argument types
     # required follow:
     #
@@ -671,8 +677,12 @@ module RADUM
       group = args[:group]
       
       # Make sure we are working with a Group object only.
-      unless args[:group].instance_of? UNIXGroup
+      unless group.instance_of? UNIXGroup
         raise "group_to_unix_group :group argument just be a UNIXGroup object."
+      end
+      
+      if group.removed
+        raise "group_to_unix_group :group has been removed."
       end
       
       remove_unix_users = args[:remove_unix_users] || false
