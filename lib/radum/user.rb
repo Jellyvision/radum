@@ -15,8 +15,7 @@ module RADUM
     # should not be specified in the User.new method when creating a new User
     # or UNIXUser by hand.
     attr_reader :rid
-    # The LDAP distinguishedName attribute for this User or UNIXUser. This can
-    # be modified by setting the common name using the User.common_name= method.
+    # The LDAP distinguishedName attribute for this User or UNIXUser.
     attr_reader :distinguished_name
     # The Group or UNIXGroup objects the User or UNIXUser is a member of. Users
     # and UNIXUsers are logical members of their primary_group as well, but that
@@ -87,7 +86,6 @@ module RADUM
         raise "User is already in the directory."
       end
       
-      @common_name = @username
       @primary_group = args[:primary_group] or raise "User :primary_group" +
                                                      "argument required."
       
@@ -106,7 +104,7 @@ module RADUM
       end
       
       @disabled = args[:disabled] || false
-      @distinguished_name = "cn=" + @common_name + "," + @container.name +
+      @distinguished_name = "cn=" + @username + "," + @container.name +
                             "," + @container.directory.root
       @groups = []
       @removed_groups = []
@@ -378,28 +376,6 @@ module RADUM
       old_group = @primary_group
       @primary_group = group
       add_group old_group
-      @modified = true
-    end
-    
-    # The common name (cn) portion of the LDAP distinguisedName attribute and
-    # the LDAP cn attribute itself.
-    def common_name
-      @common_name
-    end
-    
-    # The common_name is set to the username by default whe a User or UNIXUser
-    # is created using User.new or UNIXUser.new, but it is set to the correct
-    # value when the User or UNIXUser is loaded by AD#load from the AD object
-    # the Container belongs to. The username value corresponds to the LDAP
-    # sAMAccountName and and msSFU30Name attributes. It is possible for the
-    # LDAP cn attribute to be different than sAMAccountName and msSFU30Name
-    # however, so this allows one to set the LDAP cn attribute directly.
-    # Setting the common_name also changes the distinguished_name accordingly
-    # (which is also built automatically).
-    def common_name=(cn)
-      @distinguished_name = "cn=" + cn + "," + @container.name + "," +
-                            @container.directory.root
-      @common_name = cn
       @modified = true
     end
     

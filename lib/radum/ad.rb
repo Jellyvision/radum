@@ -510,7 +510,6 @@ module RADUM
       local_drive = user.local_drive
       password = user.password
       must_change_password = user.must_change_password?
-      common_name = user.common_name
       groups = user.groups.clone
       removed_groups = user.removed_groups.clone
       loaded = user.loaded?
@@ -549,8 +548,6 @@ module RADUM
       if must_change_password
         user.force_change_password
       end
-      
-      user.common_name = common_name
       
       (groups + removed_groups).each do |group_member|
         user.add_group group_member
@@ -621,7 +618,6 @@ module RADUM
       local_drive = user.local_drive
       password = user.password
       must_change_password = user.must_change_password?
-      common_name = user.common_name
       groups = user.groups.clone
       removed_groups = user.removed_groups.clone
       loaded = user.loaded?
@@ -688,8 +684,6 @@ module RADUM
       if must_change_password
         user.force_change_password
       end
-      
-      user.common_name = common_name
       
       (groups + removed_groups).each do |group_member|
         user.add_group group_member
@@ -1148,7 +1142,6 @@ module RADUM
                                     :nis_domain => attr[:nis_domain],
                                     :disabled => attr[:disabled?],
                                     :rid => attr[:rid]
-                user.common_name = attr[:common_name]
                 user.first_name = attr[:first_name] if attr[:first_name]
                 user.middle_name = attr[:middle_name] if attr[:middle_name]
                 user.surname = attr[:surname] if attr[:surname]
@@ -1187,7 +1180,6 @@ module RADUM
                               :primary_group => attr[:primary_group],
                               :disabled => attr[:disabled?],
                               :rid => attr[:rid]
-              user.common_name = attr[:common_name]
               user.first_name = attr[:first_name] if attr[:first_name]
               user.middle_name = attr[:middle_name] if attr[:middle_name]
               user.surname = attr[:surname] if attr[:surname]
@@ -1699,7 +1691,6 @@ module RADUM
       rescue NoMethodError
       end
       
-      attr[:common_name] = entry.cn.pop
       attr[:disabled?] = entry.userAccountControl.pop.to_i ==
                          UF_NORMAL_ACCOUNT + UF_ACCOUNTDISABLE ? true : false
       attr[:primary_group] = find_group_by_rid entry.primaryGroupID.pop.to_i
@@ -2136,7 +2127,6 @@ module RADUM
           
           # Note that all the attributes need to be strings in this hash.
           attr = {
-            :cn => user.common_name,
             # All users are of the objectclasses "top", "person",
             # "orgainizationalPerson", and "user".
             :objectclass => ["top", "person", "organizationalPerson", "user"],
@@ -2404,8 +2394,6 @@ module RADUM
                                             user.distinguished_name]]
               check_ldap_result
               ops.push [:replace, :primaryGroupID, user.primary_group.rid.to_s]
-            when :common_name
-              ops.push [:replace, :cn, obj_value]
             when :shell
               ops.push [:replace, :loginShell, obj_value]
             when :home_directory
