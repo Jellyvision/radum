@@ -2156,10 +2156,14 @@ module RADUM
             name += "#{user.first_name}"
           end
           
+          unless user.initials.nil?
+            attr.merge!({ :initials => user.initials })
+            display_name += " #{user.initials}."
+            description += " #{user.initials}."
+          end
+          
           unless user.middle_name.nil?
             attr.merge!({ :middleName => user.middle_name })
-            display_name += " #{user.middle_name}"
-            description += " #{user.middle_name}"
           end
           
           unless user.surname.nil?

@@ -63,6 +63,26 @@ module RADUM
     # User password during Active Directory creation might fail, which results
     # in a disabled Active Directory user account that has no password.
     #
+    # One difference with respect to the Active Directory Users and Computers
+    # GUI tool should be noted. When creating user accounts with the GUI tool,
+    # the LDAP cn attribute is set to "first_name initials. surname" and that
+    # is what is displayed in the Name column in the tool. This means you cannot
+    # create user accounts with the same first name, initials, and surname.
+    # RADUM uses the username as the LDAP cn attribute (it really just does
+    # not specify that when the first step is done creating an initial acocunt).
+    # This means that you can have two user accounts with different usernames
+    # but with the same first name, initials, and surname. In the RADUM case,
+    # the Name column in the GUI tool shows the username. RADUM adds the
+    # "first_name initals. surname" string to the LDAP description attribute,
+    # so the GUI tool shows that in the Description column, therefore all the
+    # useful information is there (by default the LDAP description attribute
+    # is blank). This implementation detail was chosen because it seemed like
+    # the best choice, otherwise the username and a combination of other
+    # name attributes would have to be all checked for unique values instead
+    # of just the username itself, and by default having the username and
+    # other name attributes (if set) show up in the GUI tool is more useful
+    # in the opinion of the author.
+    #
     # See the documentation for each attribute method for what the default
     # values of each attribute is based on calling this method.
     def initialize(args = {})
@@ -85,7 +105,7 @@ module RADUM
       end
       
       @primary_group = args[:primary_group] or raise "User :primary_group" +
-                                                     "argument required."
+                                                     " argument required."
       
       # The primary group must be of one of these two types. It appears you can
       # change a group's type to GROUP_DOMAIN_LOCAL_SECURITY in the AD Users and
