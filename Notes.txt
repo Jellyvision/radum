@@ -25,14 +25,12 @@ disabled              userAccontControl (boolean)
 
 first_name            givenName                     displayName
                                                     description
-                                                    name
 
 middle_name           middleName                    displayName
                                                     description
 
 surname               sn                            displayName
                                                     description
-                                                    name
 
 UNIXUser Attribute    Direct LDAP Attribute         Part of LDAP Attribute
 ------------------    ---------------------         ----------------------
@@ -72,7 +70,6 @@ Group Attribute       Direct LDAP Attribute       Part of LDAP Attribute
 ---------------       ---------------------       ----------------------
 name                  cn                          distinguishedName
                       msSFU30Name
-                      name
                       sAMAccountName
 
 type                  groupType

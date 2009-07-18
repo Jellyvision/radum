@@ -1897,9 +1897,7 @@ module RADUM
           
           # Note that all the attributes need to be strings in this hash.
           attr = {
-            :cn => group.name,
             :groupType => group.type.to_s,
-            :name => group.name,
             # All groups are of the objectclasses "top" and "group".
             :objectclass => ["top", "group"],
             :sAMAccountName => group.name
@@ -1911,6 +1909,12 @@ module RADUM
             :msSFU30NisDomain => group.nis_domain,
             :unixUserPassword => group.unix_password
           }) if group.instance_of? UNIXGroup
+          
+          if group.instance_of? UNIXGroup
+            attr.merge!({ :description => "UNIX group #{group.name}" })
+          else
+            attr.merge!({ :description => "Group #{group.name}" })
+          end
           
           RADUM::logger.log("\n" + attr.to_yaml + "\n\n", LOG_DEBUG)
           @ldap.add :dn => group.distinguished_name, :attributes => attr
@@ -2146,19 +2150,16 @@ module RADUM
                                     UF_ACCOUNTDISABLE).to_s
           }
           
-          display_name = description = name = ""
+          description = ""
           
           # These are optional attributes.
           unless user.first_name.nil?
             attr.merge!({ :givenName => user.first_name })
-            display_name += "#{user.first_name}"
             description += "#{user.first_name}"
-            name += "#{user.first_name}"
           end
           
           unless user.initials.nil?
             attr.merge!({ :initials => user.initials })
-            display_name += " #{user.initials}."
             description += " #{user.initials}."
           end
           
@@ -2168,30 +2169,19 @@ module RADUM
           
           unless user.surname.nil?
             attr.merge!({ :sn => user.surname })
-            display_name += " #{user.surname}"
             description += " #{user.surname}"
-            name += " #{user.surname}"
           end
           
           # We should set these to something in case they were not set.
-          if display_name == ""
-            display_name = user.username
-          end
-          
           if description == ""
             description = user.username
-          end
-          
-          if name == ""
-            name = user.username
           end
           
           realm = user.username + "@#{@domain}"
           
           attr.merge!({
-            :displayName => display_name,
+            :displayName => description,
             :description => description,
-            :name => name,
             :userPrincipalName => realm,
           })
           
@@ -2439,6 +2429,28 @@ module RADUM
               ops.push [:replace, :gidNumber, obj_value.to_s]
             end
           end
+        end
+        
+        # Update the LDAP description and displayName attributes. This will
+        # always update the values, but it is the easiest way to deal with
+        # first_name, initials, and surname changes.
+        description = ""
+        
+        unless user.first_name.nil?
+          description = "#{user.first_name}"
+        end
+        
+        unless user.initials.nil?
+          description += " #{user.initials}."
+        end
+        
+        unless user.surname.nil?
+          description += " #{user.surname}"
+        end
+        
+        if description
+          ops.push [:replace, :description, description]
+          ops.push [:replace, :displayName, description]
         end
         
         # If the password is set, change the user's password. Otherwise this
