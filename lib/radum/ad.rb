@@ -1170,6 +1170,11 @@ module RADUM
                 user.shadow_min = attr[:shadow_min] if attr[:shadow_min]
                 user.shadow_warning = attr[:shadow_warning] if
                                       attr[:shadow_warning]
+                
+                if attr[:must_change_password?]
+                  user.force_change_password
+                end
+                
                 loaded_users.push user
               else
                 RADUM::logger.log("Warning: Main UNIX group could not be " +
@@ -1194,6 +1199,10 @@ module RADUM
                 user.connect_drive_to(attr[:local_drive], attr[:local_path])
               elsif attr[:local_path]
                 user.local_path = attr[:local_path]
+              end
+              
+              if attr[:must_change_password?]
+                user.force_change_password
               end
               
               loaded_users.push user
@@ -1703,6 +1712,7 @@ module RADUM
       
       attr[:disabled?] = entry.userAccountControl.pop.to_i ==
                          UF_NORMAL_ACCOUNT + UF_ACCOUNTDISABLE ? true : false
+      attr[:must_change_password?] = entry.pwdLastSet.pop.to_i == 0
       attr[:primary_group] = find_group_by_rid entry.primaryGroupID.pop.to_i
       attr[:rid] = sid2rid_int(entry.objectSid.pop)
       attr[:username] = entry.sAMAccountName.pop
@@ -2427,6 +2437,12 @@ module RADUM
               ops.push [:replace, :shadowWarning, obj_value.to_s]
             when :gid
               ops.push [:replace, :gidNumber, obj_value.to_s]
+            when :must_change_password?
+              if obj_value
+                ops.push [:replace, :pwdLastSet, 0.to_s]
+              else
+                ops.push [:replace, :pwdLastSet, -1.to_s]
+              end
             end
           end
         end
@@ -2461,11 +2477,6 @@ module RADUM
           # means we need to set it, otherwise it should be nil. We just
           # set it, so we don't want the update set to try and set it again.
           user.password = nil
-        end
-        
-        # Force the user to change their password if that was set.
-        if user.must_change_password?
-          ops.push [:replace, :pwdLastSet, 0.to_s]
         end
         
         unless ops.empty?

@@ -396,6 +396,13 @@ module RADUM
       @modified = true
     end
     
+    # Unset a forced password change for a User or UNIXUser. This will clear
+    # the forced password change.
+    def unset_change_password
+      @must_change_password = false
+      @modified = true
+    end
+    
     # The User primary Windows group. This is usually the "Domain Users"
     # Windows group. Users are not members of this group directly. They are
     # members through their LDAP primaryGroupID attribute.
