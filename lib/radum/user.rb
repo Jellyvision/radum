@@ -15,8 +15,6 @@ module RADUM
     # should not be specified in the User.new method when creating a new User
     # or UNIXUser by hand.
     attr_reader :rid
-    # The LDAP distinguishedName attribute for this User or UNIXUser.
-    attr_reader :distinguished_name
     # The Group or UNIXGroup objects the User or UNIXUser is a member of. Users
     # and UNIXUsers are logical members of their primary_group as well, but that
     # is not added to the groups array directly. This matches the implicit
@@ -109,6 +107,7 @@ module RADUM
       @groups = []
       @removed_groups = []
       @first_name = @username
+      @initials = nil
       @middle_name = nil
       @surname = nil
       # These are attributes of the Profile tab in Active Directory Users and
@@ -171,6 +170,24 @@ module RADUM
       end
     end
     
+    # The LDAP distinguishedName attribute for this User or UNIXUser. The
+    # default value is the username, Container, and AD root.
+    def distinguished_name
+      @distinguished_name
+    end
+    
+    # Set the User or UNIXUser LDAP distinguishedName attribute. This can only
+    # be set if the User or UNIXUser has not been loaded from Active Directory
+    # because the distinguishedName attribute cannot be modified. Attempting to
+    # change it for a loaded user results in a RuntimeError.
+    def distinguished_name=(distinguished_name)
+      if @loaded
+        raise "The distinguished name can only be set on new user accounts."
+      end
+      
+      @distinguished_name = distinguished_name
+    end
+    
     # The User or UNIXUser first name.
     def first_name
       @first_name
@@ -183,7 +200,21 @@ module RADUM
     # correct value when a User or UNIXUser is loaded by AD#load from the AD
     # object the Container belongs to.
     def first_name=(first_name)
-      @fisrt_name = first_name
+      @first_name = first_name
+      @modified = true
+    end
+    
+    # The User or UNIXUser middle initials.
+    def initials
+      @initials
+    end
+    
+    # Set the User or UNIXUser middle initials. This is usually what is set
+    # instead of their middle name when creating user accounts using the
+    # Active Directory Users and Computers GUI tool. The "." should not be
+    # added as it will be automatically displayed when necessary.
+    def initials=(initials)
+      @initials = initials
       @modified = true
     end
     

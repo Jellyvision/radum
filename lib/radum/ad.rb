@@ -1142,7 +1142,9 @@ module RADUM
                                     :nis_domain => attr[:nis_domain],
                                     :disabled => attr[:disabled?],
                                     :rid => attr[:rid]
+                user.distinguished_name = attr[:distinguished_name]
                 user.first_name = attr[:first_name] if attr[:first_name]
+                user.initials = attr[:initials] if attr[:initials]
                 user.middle_name = attr[:middle_name] if attr[:middle_name]
                 user.surname = attr[:surname] if attr[:surname]
                 user.script_path = attr[:script_path] if attr[:script_path]
@@ -1180,7 +1182,9 @@ module RADUM
                               :primary_group => attr[:primary_group],
                               :disabled => attr[:disabled?],
                               :rid => attr[:rid]
+              user.distinguished_name = attr[:distinguished_name]
               user.first_name = attr[:first_name] if attr[:first_name]
+              user.initials = attr[:initials] if attr[:initials]
               user.middle_name = attr[:middle_name] if attr[:middle_name]
               user.surname = attr[:surname] if attr[:surname]
               user.script_path = attr[:script_path] if attr[:script_path]
@@ -1565,6 +1569,7 @@ module RADUM
       # other attributes should exist and do not require this level of
       # checking.
       attr[:first_name] = nil
+      attr[:initials] = nil
       attr[:middle_name] = nil
       attr[:surname] = nil
       attr[:script_path] = nil
@@ -1588,6 +1593,11 @@ module RADUM
       
       begin
         attr[:first_name] = entry.givenName.pop
+      rescue NoMethodError
+      end
+      
+      begin
+        attr[:initials] = entry.initials.pop
       rescue NoMethodError
       end
       
@@ -1696,6 +1706,7 @@ module RADUM
       attr[:primary_group] = find_group_by_rid entry.primaryGroupID.pop.to_i
       attr[:rid] = sid2rid_int(entry.objectSid.pop)
       attr[:username] = entry.sAMAccountName.pop
+      attr[:distinguished_name] = entry.distinguishedName.pop
       return attr
     end
     
