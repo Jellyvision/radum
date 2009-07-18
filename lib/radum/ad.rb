@@ -2058,7 +2058,40 @@ module RADUM
           rescue NoMethodError
           end
           
-          ops.push [:add, :member, item.distinguished_name] unless found
+          # There is an order of operations issue here. This method is called
+          # before update_user() is called. If this group was the previous
+          # user's primary Windows group (meaning we changed it), then this
+          # code would try and add the user as a member of that group - as it
+          # should. However, since we've not actually updated the user yet,
+          # they are still a member of this group by way of their user
+          # account primaryGroupID attribute. When that attribute is updated
+          # in the update_user() method, the group membership we are trying
+          # to do here will be done implicitly. Trying to add the user as a
+          # member here will not cause the sync() method to die, but it will
+          # generate an LDAP error return message. We should avoid that.
+          # The solution is to check if the object represented by the member
+          # variable (which is a distinguished name) is:
+          #
+          # 1. A user account.
+          # 2. A user account that has this group as its primaryGroupID still.
+          #
+          # If those two cases are true, we won't add the user as a member here
+          # to avoid an LDAP error return message. Instead, the membership will
+          # be implicitly dealt with when update_user() updates the user account
+          # attributes.
+          #
+          # We don't have to worry about this with the UNIX group membership
+          # attributes msSFU30PosixMember and memberUid.
+          curr_primary_group_id = nil
+          user_filter = Net::LDAP::Filter.eq("objectclass", "user")
+          obj = @ldap.search(:base => item.distinguished_name,
+                             :filter => user_filter,
+                             :scope => Net::LDAP::SearchScope_BaseObject).pop
+          curr_primary_group_id = obj.primaryGroupID.pop.to_i if obj
+          
+          unless found || curr_primary_group_id == group.rid
+            ops.push [:add, :member, item.distinguished_name]
+          end
           
           if item.instance_of?(UNIXUser) && group.instance_of?(UNIXGroup) &&
              group != item.unix_main_group

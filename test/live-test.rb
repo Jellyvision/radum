@@ -53,6 +53,8 @@ class TC_Live < Test::Unit::TestCase
     @domain_users = @ad.find_group_by_name("Domain Users")
     puts "Using Container: #{@cn.name}"
     puts
+    puts "Don't forget to check the live-test.txt debug log file for errors."
+    puts
   end
   
   # Get a new AD object to test the current values of modified objects from the
@@ -72,6 +74,7 @@ class TC_Live < Test::Unit::TestCase
     RADUM::logger.log("----------------------", RADUM::LOG_DEBUG)
     u = RADUM::User.new :username => "win-user-" + $$.to_s, :container => @cn,
                         :primary_group => @domain_users
+    
     # Test setting all attributes.
     u.first_name = "First Name"
     u.initials = "M"
@@ -162,5 +165,24 @@ class TC_Live < Test::Unit::TestCase
     ad2 = new_ad
     u2 = ad2.find_user_by_username "win-user-" + $$.to_s
     assert(u2.disabled? == false, "disabled? should be false")
+    
+    # Test changing the primary Windows group.
+    du = ad2.find_group_by_name("Domain Users")
+    assert(u2.primary_group == du, "primary_group should be #{du}")
+    g = RADUM::Group.new :name => "win-group-" + $$.to_s, :container => @cn
+    u.primary_group = g
+    @ad.sync
+    ad2 = new_ad
+    u2 = ad2.find_user_by_username "win-user-" + $$.to_s
+    du = ad2.find_group_by_name("Domain Users")
+    g = ad2.find_group_by_name("win-group-" + $$.to_s)
+    assert(u2.primary_group == g, "primary_group should be #{g}")
+    u.primary_group = @domain_users
+    @ad.sync
+    ad2 = new_ad
+    u2 = ad2.find_user_by_username "win-user-" + $$.to_s
+    du = ad2.find_group_by_name("Domain Users")
+    assert(u2.primary_group == du, "primary_group should be #{du}")
+    
   end
 end
