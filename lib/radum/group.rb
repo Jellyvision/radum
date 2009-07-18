@@ -171,7 +171,7 @@ module RADUM
     # Set the loaded flag. This also clears the modified flag. This should only
     # be called from AD#load and AD#sync unless you really know what you are
     # doing.
-    def set_loaded
+    def set_loaded # :nodoc:
       # This allows the modified attribute to be hidden.
       @loaded = true
       @modified = false
@@ -193,7 +193,7 @@ module RADUM
     # class when doing synchronization. Once there is a RID value, it can be
     # set. This is not meant for general use. It will only set the rid attribute
     # if it has not already been set.
-    def set_rid(rid)
+    def set_rid(rid) # :nodoc:
       if @rid.nil?
         @rid = rid
         @container.directory.rids.push rid

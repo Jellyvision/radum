@@ -191,7 +191,9 @@ module RADUM
     end
     
     # The LDAP distinguishedName attribute for this User or UNIXUser. The
-    # default value is the username, Container, and AD root.
+    # default value is the username, Container, and AD root. The value
+    # should only be different if an account is loaded that was created
+    # by the Active Directory Users and Computers tool or some other mechanism.
     def distinguished_name
       @distinguished_name
     end
@@ -199,8 +201,11 @@ module RADUM
     # Set the User or UNIXUser LDAP distinguishedName attribute. This can only
     # be set if the User or UNIXUser has not been loaded from Active Directory
     # because the distinguishedName attribute cannot be modified. Attempting to
-    # change it for a loaded user results in a RuntimeError.
-    def distinguished_name=(distinguished_name)
+    # change it for a loaded user results in a RuntimeError. Note that it is
+    # easy to mess up the LDAP distinguishedName attribute, so this is not
+    # documented and should only be used by AD#load or only if you really know
+    # what you are doing.
+    def distinguished_name=(distinguished_name) # :nodoc:
       if @loaded
         raise "The distinguished name can only be set on new user accounts."
       end
@@ -491,7 +496,7 @@ module RADUM
     # Set the loaded flag. This also clears the modified flag. This should only
     # be called from AD#load and AD#sync unless you really know what you are
     # doing.
-    def set_loaded
+    def set_loaded # :nodoc:
       # This allows the modified attribute to be hidden.
       @loaded = true
       @modified = false
@@ -513,7 +518,7 @@ module RADUM
     # class when doing synchronization. Once there is a RID value, it can be
     # set. This is not meant for general use. It will only set the rid attribute
     # if it has not already been set.
-    def set_rid(rid)
+    def set_rid(rid) # :nodoc:
       if @rid.nil?
         @rid = rid
         @container.directory.rids.push rid

@@ -2391,6 +2391,8 @@ module RADUM
               ops.push [:replace, :userAccountControl, user_status.to_s]
             when :first_name
               ops.push [:replace, :givenName, obj_value]
+            when :initials
+              ops.push [:replace, :initials, obj_value]
             when :middle_name
               ops.push [:replace, :middleName, obj_value]
             when :surname

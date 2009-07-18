@@ -103,6 +103,13 @@ class TC_User < Test::Unit::TestCase
     end
   end
   
+  def test_modify_distiguished_name_loaded_exception
+    assert_raise RuntimeError do
+      @u1_c1_ad1.set_loaded
+      @u1_c1_ad1.distinguished_name = "cn=error,ou=crazy,dc=fool,dc=com"
+    end
+  end
+  
   def test_change_primary_group_add_old_group
     assert_block("Should have added user to old primary group on change") do
       # The primary group is currently @g4_c1_ad1. Changing it below should
