@@ -2099,7 +2099,6 @@ module RADUM
           # be implicitly dealt with when update_user() updates the user account
           # attributes. If this is not the case, we do add them as a member.
           if item.instance_of?(User) || item.instance_of?(UNIXUser)
-            curr_primary_group_id = nil
             user_filter = Net::LDAP::Filter.eq("objectclass", "user")
             obj = @ldap.search(:base => item.distinguished_name,
                               :filter => user_filter,
