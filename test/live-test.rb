@@ -67,14 +67,13 @@ class TC_Live < Test::Unit::TestCase
     entry = @ad.ldap.search(:base => group.distinguished_name,
                             :filter => group_filter,
                             :scope => Net::LDAP::SearchScope_BaseObject).pop
-    found = true
+    found = false
     
     begin
       found = entry.msSFU30PosixMember.find do |member|
         user.distinguished_name.downcase == member.downcase
       end
     rescue NoMethodError
-      found = false
     end
     
     !found
