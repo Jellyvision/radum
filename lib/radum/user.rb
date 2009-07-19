@@ -157,13 +157,11 @@ module RADUM
       # (otherwise it is just nil).
       @password = nil
       @must_change_password = false
-      # A UNIXUser adding itself the container needs to happen at the end of
-      # the initializer in that class instead because the UID value is needed.
-      # The removed flag must be set to true first since we are not in the
-      # container yet.
-      @removed = true
-      @container.add_user self unless instance_of? UNIXUser
+      # This has to be set first before adding the User to the Container. This
+      # is delayed for a UNIXUser because it needs the rest of its attributes
+      # set before adding to the Container.
       @removed = false
+      @container.add_user self unless instance_of? UNIXUser
       @modified = true
       @loaded = false
     end
@@ -616,7 +614,6 @@ module RADUM
           raise "UNIXUser unix_main_group must be a UNIXGroup."
         else
           @gid = @unix_main_group.gid
-          @container.add_group @unix_main_group
           # The UNIXUser is already a member of their primary Windows group
           # implicitly.
           add_group @unix_main_group unless @unix_main_group == @primary_group
@@ -639,9 +636,6 @@ module RADUM
       @shadow_max = nil
       @shadow_min = nil
       @shadow_warning = nil
-      # The removed flag must be set to true first since we are not in the
-      # container yet.
-      @removed = true
       @container.add_user self
       @removed = false
     end
@@ -870,7 +864,6 @@ module RADUM
         if @container.directory == group.container.directory
           @unix_main_group = group
           @gid = group.gid
-          @container.add_group group
           # The UNIXUser is already a member of their primary Windows group
           # implicitly.
           add_group group unless group == @primary_group

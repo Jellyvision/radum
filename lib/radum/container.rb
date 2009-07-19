@@ -84,27 +84,21 @@ module RADUM
       end
       
       @distinguished_name = @name + "," + @directory.root
-      # The removed flag must be set to true first since we are not in the
-      # directory yet.
-      @removed = true
-      @directory.add_container self
+      # This has to be set first before adding the Container to the AD.
       @removed = false
+      @directory.add_container self
       @users = []
       @removed_users = []
       @groups = []
       @removed_groups = []
     end
     
-    # Add User and UNIXUser objects which were previously removed and had
-    # their removed attribute set. User and UNIXUser objects automatically
-    # add themselves to their Container object, so this is only needed when
-    # adding a removed User or UNIXUser object back into the Container.
-    # A removed User or UNIXUser object must have been a member of the
-    # Container in order to be added back into it. If this is not true, a
-    # RuntimeError is raised. If successful, the User or UNIXUser object's
-    # removed attribute is set to false.
+    # Add User and UNIXUser objects to the Container. User and UNIXUser objects
+    # that were removed or destroyed cannot be added back again and are ignored.
+    # The User or UNIXUser must have the Container as its container attribute
+    # or a RuntimeError is raised.
     def add_user(user)
-      if user.removed
+      unless user.removed
         if self == user.container
           # Someone could have manaually set the removed flag as well, so
           # we still check.
@@ -114,8 +108,6 @@ module RADUM
             @directory.rids.push user.rid if user.rid
             @directory.uids.push user.uid if user.instance_of? UNIXUser
           end
-          
-          user.removed = false
         else
           raise "User must be in this container."
         end
@@ -128,11 +120,11 @@ module RADUM
     # from Active Directory. Any Groups or UNIXGroups the User or UNIXUser
     # belongs to will have their membership removed as well. This means
     # that the User or UNIXUser will have their Group or UNIXGroup memberships
-    # removed for each Group or UNIXGroup they were in as well. Adding the
-    # User or UNIXUser back will mean their previous Group or UNIXGroup
-    # memberships wiped out. Only remove Users or UNIXUsers if you really want
-    # them deleted from Active Directory. The User or UNIXUser must be in
-    # the Container or a RuntimeError is raised.
+    # removed for each Group or UNIXGroup they were in as well. The User or
+    # UNIXUser cannot be added back after removed, but it will only be
+    # removed from Active Directory after AD#sync is called. Any references
+    # to the User or UNIXUser should be discarded. The User or UNIXUser must
+    # be in the Container or a RuntimeError is raised.
     def remove_user(user)
       destroy_user user
       # This is the only difference between remove_user and destroy_user.
@@ -149,7 +141,9 @@ module RADUM
     # it does remove all references to the User or UNIXUser from the system.
     # The User or UNIXUser must be in the Container or a RuntimeError is
     # raised. This does set the User or UNIXUser object's removed attribute
-    # to true, but any references to the User or UNIXUser should be discarded.
+    # to true and any references to the User or UNIXUser should be discarded.
+    # Once a User or UNIXUser is destroyed it cannot be added back to the
+    # Container.
     def destroy_user(user)
       if self == user.container
         @users.delete user
@@ -173,16 +167,12 @@ module RADUM
       end
     end
     
-    # Add Group and UNIXGroup objects which were previously removed and had
-    # their removed attribute set. Group and UNIXGroup objects automatically
-    # add themselves to their Container object, so this is only needed when
-    # adding a removed Group or UNIXGroup object back into the Container.
-    # A removed Group or UNIXGroup object must have been a member of the
-    # Container in order to be added back into it. If this is not true, a
-    # RuntimeError is raised. If successful, the Group or UNIXGroup object's
-    # removed attribute is set to false.
+    # Add Group and UNIXGroup objects to the Container. Group and UNIXGroup
+    # objects that were removed or destroyed cannot be added back again and are
+    # ignored. The Group or UNIXGroup must have the Container as its container
+    # attribute or a RuntimeError is raised.
     def add_group(group)
-      if group.removed
+      unless group.removed
         if self == group.container
           # Someone could have manaually set the removed flag as well, so
           # we still check.
@@ -192,8 +182,6 @@ module RADUM
             @directory.rids.push group.rid if group.rid
             @directory.gids.push group.gid if group.instance_of? UNIXGroup
           end
-          
-          group.removed = false
         else
           raise "Group must be in this container."
         end
@@ -210,9 +198,9 @@ module RADUM
     # UNIXGroup belongs to will have their membership removed as well. This
     # means that the Group or UNIXGroup will have their Group or UNIXGroup
     # memberships removed for each Group or UNIXGroup they were in as well.
-    # Adding the Group or UNIXGroup back will mean their previous Group or
-    # UNIXGroup memberships wiped out. Only remove Groups or UNIXGroups if
-    # you really want them deleted from Active Directory. The Group or
+    # The Group or UNIXGroup cannot be added back after removed, but it will
+    # only be removed from Active Directory after AD#sync is called. Any
+    # references to the Group or UNIXGroup should be discarded. The Group or
     # UNIXGroup must be in the Container or a RuntimeError is raised.
     def remove_group(group)
       destroy_group group
@@ -231,6 +219,8 @@ module RADUM
     # The Group or UNIXGroup must be in the Container or a RuntimeError is
     # raised. This does set the Group or UNIXGroup object's removed attribute
     # to true, but any references to the Group or UNIXGroup should be discarded.
+    # Once a Group or UNIXGroup is destroyed it cannot be added back to the
+    # Container.
     def destroy_group(group)
       if self == group.container
         # We cannot remove of destroy a group that still has a user referencing

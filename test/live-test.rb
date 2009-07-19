@@ -169,14 +169,14 @@ class TC_Live < Test::Unit::TestCase
     # Test changing the primary Windows group.
     du = ad2.find_group_by_name("Domain Users")
     assert(u2.primary_group == du, "primary_group should be #{du}")
-    g = RADUM::Group.new :name => "win-group-" + $$.to_s, :container => @cn
-    u.primary_group = g
+    g1 = RADUM::Group.new :name => "win-group-" + $$.to_s, :container => @cn
+    u.primary_group = g1
     @ad.sync
     ad2 = new_ad
     u2 = ad2.find_user_by_username "win-user-" + $$.to_s
     du = ad2.find_group_by_name("Domain Users")
-    g = ad2.find_group_by_name("win-group-" + $$.to_s)
-    assert(u2.primary_group == g, "primary_group should be #{g}")
+    pg = ad2.find_group_by_name("win-group-" + $$.to_s)
+    assert(u2.primary_group == pg, "primary_group should be #{pg}")
     u.primary_group = @domain_users
     @ad.sync
     ad2 = new_ad
@@ -184,5 +184,61 @@ class TC_Live < Test::Unit::TestCase
     du = ad2.find_group_by_name("Domain Users")
     assert(u2.primary_group == du, "primary_group should be #{du}")
     
+    # Test group membership additions and removals.
+    g2 = RADUM::Group.new :name => "win-group2-" + $$.to_s, :container => @cn
+    g3 = RADUM::Group.new :name => "win-group3-" + $$.to_s, :container => @cn
+    u.add_group g2
+    g3.add_user u
+    @ad.sync
+    ad2 = new_ad
+    u2 = ad2.find_user_by_username "win-user-" + $$.to_s
+    assert(u2.member_of?(ad2.find_group_by_name("win-group2-" + $$.to_s)) ==
+           true, "user should be a member of new group 2")
+    assert(u2.member_of?(ad2.find_group_by_name("win-group3-" + $$.to_s)) ==
+           true, "user should be a member of new group 3")
+    u.remove_group g2
+    g3.remove_user u
+    @ad.sync
+    ad2 = new_ad
+    u2 = ad2.find_user_by_username "win-user-" + $$.to_s
+    assert(u2.member_of?(ad2.find_group_by_name("win-group2-" + $$.to_s)) ==
+           false, "user should not be a member of new group 2")
+    assert(u2.member_of?(ad2.find_group_by_name("win-group3-" + $$.to_s)) ==
+           false, "user should not be a member of new group 3")
+    
+    # Test removing then adding back the user and groups created (they should
+    # not be added back).
+    @cn.remove_user u
+    @cn.remove_group g1
+    @cn.remove_group g2
+    @cn.remove_group g3
+    @ad.sync
+    ad2 = new_ad
+    assert(ad2.find_user_by_username("win-user-" + $$.to_s) == nil,
+           "user should not have been found after removal")
+    assert(ad2.find_group_by_name("win-group-" + $$.to_s) == nil,
+           "group 1 should not have been found after removal")
+    assert(ad2.find_group_by_name("win-group2-" + $$.to_s) == nil,
+           "group 2 should not have been found after removal")
+    assert(ad2.find_group_by_name("win-group3-" + $$.to_s) == nil,
+           "group 3 should not have been found after removal")
+    @cn.add_user u
+    @cn.add_group g1
+    @cn.add_group g2
+    @cn.add_group g3
+    @ad.sync
+    ad2 = new_ad
+    assert(ad2.find_user_by_username("win-user-" + $$.to_s) == nil,
+           "user should not have been found after adding back when removed")
+    assert(ad2.find_group_by_name("win-group-" + $$.to_s) == nil,
+           "group 1 should not have been found after adding back when removed")
+    assert(ad2.find_group_by_name("win-group2-" + $$.to_s) == nil,
+           "group 2 should not have been found after adding back when removed")
+    assert(ad2.find_group_by_name("win-group2-" + $$.to_s) == nil,
+           "group 3 should not have been found after adding back when removed")
+    
+    # Remove the Container now that we are done.
+    @ad.remove_container @cn
+    @ad.sync
   end
 end

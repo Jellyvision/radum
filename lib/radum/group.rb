@@ -83,13 +83,11 @@ module RADUM
       @removed_users = []
       @groups = []
       @removed_groups = []
-      # A UNIXGroup adding itself the container needs to happen at the end of
-      # the initializer in that class instead because the GID value is needed.
-      # The removed flag must be set to true first since we are not in the
-      # container yet.
-      @removed = true
-      @container.add_group self unless instance_of? UNIXGroup
+      # This has to be set first before adding the Group to the Container. This
+      # is delayed for a UNIXGroup because it needs the rest of its attributes
+      # set before adding to the Container.
       @removed = false
+      @container.add_group self unless instance_of? UNIXGroup
       @modified = true
       @loaded = false
     end
@@ -256,12 +254,7 @@ module RADUM
       end
       
       @nis_domain = args[:nis_domain] || "radum"
-      @unix_password = "*"
-      # The removed flag must be set to true first since we are not in the
-      # container yet.
-      @removed = true
       @container.add_group self
-      @removed = false
     end
     
     # Remove the User or UNIXUser membership in the UNIXGroup. This

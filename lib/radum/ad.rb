@@ -211,20 +211,16 @@ module RADUM
       end
     end
     
-    # Add Container objects which were previously removed and had their removed
-    # attribute set. Containers automatically add themselves to their AD object,
-    # so this is only needed when adding a removed Container object back into
-    # the AD. A Container must have been a member of the AD in order to be
-    # added back into it. If this is not true, a RuntimeError is raised. If
-    # successful, the Container object's removed attribute is set to false.
+    # Add a Container a container to the AD. The Container must have the AD
+    # as its directory attribute or a RuntimeError is raised. Container objects
+    # that were removed cannot be added back and are ignored.
     def add_container(container)
-      if container.removed
+      unless container.removed
         if self == container.directory
           # Someone could have manaually set the removed flag as well, so
           # we still check.
           @containers.push container unless @containers.include? container
           @removed_containers.delete container
-          container.removed = false
         else
           raise "Container must be in the same directory."
         end
@@ -249,11 +245,15 @@ module RADUM
     # This method refuses to remove the "cn=Users" container as a safety
     # measure. There is no error raised in this case, but a warning is logged
     # using RADUM::logger with a log level of LOG_NORMAL.
+    #
+    # Any reference to the Container should be discarded unless it was not
+    # possible to fully remove the Container. This method returns a boolean
+    # that indicates if it was possible to fully remove the Container.
     def remove_container(container)
       if container == @cn_users
         RADUM::logger.log("Cannot remove #{container.name} - safety measure.",
                           LOG_NORMAL)
-        return
+        return false
       end
       
       can_remove = true
@@ -296,6 +296,8 @@ module RADUM
         RADUM::logger.log("Cannot fully remove container #{container.name}.",
                           LOG_NORMAL)
       end
+      
+      can_remove
     end
     
     # Destroy all references to a Container. This can be called regardless of
@@ -308,6 +310,8 @@ module RADUM
     # This method refuses to destroy the "cn=Users" container as a safety
     # measure. There is no error raised in this case, but a warning is logged
     # using RADUM::logger with a log level of LOG_NORMAL.
+    #
+    # Any references to the Container should be discarded.
     def destroy_container(container)
       if container == @cn_users
         RADUM::logger.log("Cannot destroy #{container.name} - safety measure.",
@@ -2480,9 +2484,8 @@ module RADUM
           end
         end
         
-        # Update the LDAP description and displayName attributes. This will
-        # always update the values, but it is the easiest way to deal with
-        # first_name, initials, and surname changes.
+        # Update the LDAP description and displayName attributes. This only
+        # updates them if they are different than what is currently there.
         description = ""
         
         unless user.first_name.nil?
@@ -2497,8 +2500,23 @@ module RADUM
           description += " #{user.surname}"
         end
         
-        if description
+        curr_description = curr_display_name = nil
+        
+        begin
+          curr_description = entry.description.pop
+        rescue NoMethodError
+        end
+        
+        begin
+          curr_display_name = entry.displayName.pop
+        rescue NoMethodError
+        end
+        
+        if description != curr_description
           ops.push [:replace, :description, description]
+        end
+        
+        if description != curr_display_name
           ops.push [:replace, :displayName, description]
         end
         

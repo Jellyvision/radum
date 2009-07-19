@@ -31,9 +31,6 @@ class TC_Ad < Test::Unit::TestCase
   
   def test_add_container_different_directory_exception
     assert_raise RuntimeError do
-      # You have to remove a container from its directory so that its removed
-      # flag is set or the other directory will ignore it.
-      @ad2.remove_container @c2_ad2
       @ad1a.add_container @c2_ad2
     end
   end

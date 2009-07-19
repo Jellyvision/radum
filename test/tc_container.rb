@@ -82,9 +82,6 @@ class TC_Container < Test::Unit::TestCase
   
   def test_add_user_different_container_exception
     assert_raise RuntimeError do
-      # You have to remove a user from its container so that its removed flag
-      # is set or the other container will ignore it.
-      @c4_ad2.remove_user @u2_c4_ad2
       @c1_ad1.add_user @u2_c4_ad2
     end
   end
