@@ -19,9 +19,6 @@ module RADUM
     # An Array of Group or UNIXGroup objects set for removal from this
     # Container.
     attr_reader :removed_groups
-    # True if the Container has been removed from the AD, false
-    # otherwise. This is set by the AD if the Container is removed.
-    attr_accessor :removed
 
     # Create a new Container object that represents an Active Directory
     # container or organizational unit that contains users and groups. This
@@ -98,10 +95,9 @@ module RADUM
     # The User or UNIXUser must have the Container as its container attribute
     # or a RuntimeError is raised.
     def add_user(user)
-      unless user.removed
+      unless user.removed?
         if self == user.container
-          # Someone could have manaually set the removed flag as well, so
-          # we still check.
+          # We don't want to add a user more than once.
           unless @users.include? user
             @users.push user
             @removed_users.delete user
@@ -126,6 +122,7 @@ module RADUM
     # to the User or UNIXUser should be discarded. The User or UNIXUser must
     # be in the Container or a RuntimeError is raised.
     def remove_user(user)
+      return if user.removed?
       destroy_user user
       # This is the only difference between remove_user and destroy_user.
       # Because we keep a reference, the comment about not keeping a reference
@@ -145,6 +142,9 @@ module RADUM
     # Once a User or UNIXUser is destroyed it cannot be added back to the
     # Container.
     def destroy_user(user)
+      # Note you have to allow destruction of users even if they have been
+      # removed because this is the only way removed users are really deleted
+      # from the RADUM environment once they are deleted from Active Directory.
       if self == user.container
         @users.delete user
         # Removed users can be destroyed as well, so we want to make sure all
@@ -153,14 +153,27 @@ module RADUM
         @removed_users.delete user
         @directory.rids.delete user.rid if user.rid
         @directory.uids.delete user.uid if user.instance_of? UNIXUser
-        # This needs to be set so that there is no error when removing the user
-        # from a group if that group is its UNIX main group.
-        user.removed = true
         
+        # If the user was already removed, they will not be a member of any
+        # groups, so there is no need to check their removed status.
         @directory.groups.each do |group|
           if group.users.include? user
-            group.remove_user user
+            if user.instance_of? UNIXUser
+              group.remove_user user unless group == user.unix_main_group
+            else
+              group.remove_user user
+            end
           end
+        end
+        
+        user.set_removed
+        
+        # We have to remove the user first before we can remove the user's
+        # membership in their unix_main_group. It is safe to attempt removing
+        # a user from their unix_main_group if they are already removed (as
+        # noted previously).
+        if user.instance_of? UNIXUser
+          user.unix_main_group.remove_user user
         end
       else
         raise "User must be in this container."
@@ -172,10 +185,9 @@ module RADUM
     # ignored. The Group or UNIXGroup must have the Container as its container
     # attribute or a RuntimeError is raised.
     def add_group(group)
-      unless group.removed
+      unless group.removed?
         if self == group.container
-          # Someone could have manaually set the removed flag as well, so
-          # we still check.
+          # We don't want to add a group more than once.
           unless @groups.include? group
             @groups.push group
             @removed_groups.delete group
@@ -203,6 +215,7 @@ module RADUM
     # references to the Group or UNIXGroup should be discarded. The Group or
     # UNIXGroup must be in the Container or a RuntimeError is raised.
     def remove_group(group)
+      return if group.removed?
       destroy_group group
       # This is the only difference between remove_group and destroy_group.
       # Because we keep a reference, the comment about not keeping a reference
@@ -222,6 +235,9 @@ module RADUM
     # Once a Group or UNIXGroup is destroyed it cannot be added back to the
     # Container.
     def destroy_group(group)
+      # Note you have to allow destruction of groups even if they have been
+      # removed because this is the only way removed groups are really deleted
+      # from the RADUM environment once they are deleted from Active Directory.
       if self == group.container
         # We cannot remove of destroy a group that still has a user referencing
         # it as their primary_group or unix_main_group.
@@ -253,10 +269,20 @@ module RADUM
           end
         end
 
-        group.removed = true
+        group.set_removed
       else
         raise "Group must be in this container."
       end
+    end
+    
+    # True if the Container has been removed from its AD, false otherwise.
+    def removed?
+      @removed
+    end
+    
+    # Set the Container removed flag.
+    def set_removed # :nodoc:
+      @removed = true
     end
     
     # The String representation of the Container object.

@@ -215,15 +215,14 @@ module RADUM
     # as its directory attribute or a RuntimeError is raised. Container objects
     # that were removed cannot be added back and are ignored.
     def add_container(container)
-      unless container.removed
-        if self == container.directory
-          # Someone could have manaually set the removed flag as well, so
-          # we still check.
-          @containers.push container unless @containers.include? container
-          @removed_containers.delete container
-        else
-          raise "Container must be in the same directory."
-        end
+      return if container.removed?
+      
+      if self == container.directory
+        # We don't want to add the Container more than once.
+        @containers.push container unless @containers.include? container
+        @removed_containers.delete container
+      else
+        raise "Container must be in the same directory."
       end
     end
     
@@ -233,7 +232,8 @@ module RADUM
     # dependency, the Container cannot be fully removed either, but all
     # objects that can be removed will be removed. This can happen if a
     # group is another user object's primary Windows group or UNIX main
-    # group and that user is not in the same Container.
+    # group and that user is not in the same Container. Removed Container
+    # objects are ignored.
     #
     # Note that this method might succeed based on the user and group objects
     # it knows about, but it still might fail when AD#sync is called because a
@@ -250,6 +250,8 @@ module RADUM
     # possible to fully remove the Container. This method returns a boolean
     # that indicates if it was possible to fully remove the Container.
     def remove_container(container)
+      return if container.removed?
+      
       if container == @cn_users
         RADUM::logger.log("Cannot remove #{container.name} - safety measure.",
                           LOG_NORMAL)
@@ -291,7 +293,7 @@ module RADUM
           @removed_containers.push container
         end
         
-        container.removed = true
+        container.set_removed
       else
         RADUM::logger.log("Cannot fully remove container #{container.name}.",
                           LOG_NORMAL)
@@ -313,6 +315,9 @@ module RADUM
     #
     # Any references to the Container should be discarded.
     def destroy_container(container)
+      # We have to allow removed Container objects to be destroyed because
+      # that's the only way they are deleted from the RADUM environment
+      # when they are deleted from Active Directory.
       if container == @cn_users
         RADUM::logger.log("Cannot destroy #{container.name} - safety measure.",
                           LOG_NORMAL)
@@ -323,6 +328,7 @@ module RADUM
       # Removed Containers can be destroyed as well, so we want to make sure
       # all references are removed.
       @removed_containers.delete container
+      container.set_removed
     end
     
     # Returns an Array of all User and UNIXUser objects in all Containers
@@ -479,7 +485,7 @@ module RADUM
         raise "user_to_unix_user :user argument just be a User object."
       end
       
-      if user.removed
+      if user.removed?
         raise "user_to_unix_user :user has been removed."
       end
       
@@ -602,7 +608,7 @@ module RADUM
         raise "unix_user_to_user :user argument just be a UNIXUser object."
       end
       
-      if user.removed
+      if user.removed?
         raise "unix_user_to_user :user has been removed."
       end
       
@@ -859,7 +865,7 @@ module RADUM
         raise "group_to_unix_group :group argument just be a Group object."
       end
       
-      if group.removed
+      if group.removed?
         raise "group_to_unix_group :group has been removed."
       end
       
@@ -958,7 +964,7 @@ module RADUM
         raise "unix_group_to_group :group argument just be a UNIXGroup object."
       end
       
-      if group.removed
+      if group.removed?
         raise "unix_group_to_group :group has been removed."
       end
       

@@ -26,7 +26,7 @@ class TC_UNIXUser < Test::Unit::TestCase
   end
   
   def test_removed_flag_false
-    assert(@uu1a_c1_ad1.removed == false, "Removed flag should be false")
+    assert(@uu1a_c1_ad1.removed? == false, "Removed flag should be false")
   end
   
   def test_duplicate_uid_exception
@@ -56,6 +56,13 @@ class TC_UNIXUser < Test::Unit::TestCase
                           :unix_main_group => @g4_c1_ad1,
                           :shell => "/bin/bash",
                           :home_directory => "/home/test"
+    end
+  end
+  
+  def test_removed_unix_main_group_exception
+    assert_raise RuntimeError do
+      @ug2_c1_ad1.set_removed
+      @uu1a_c1_ad1.unix_main_group = @ug2_c1_ad1
     end
   end
   

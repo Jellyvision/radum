@@ -33,9 +33,6 @@ module RADUM
     # An array of Group or UNIXGroup objects removed from the Group or
     # UNIXGroup.
     attr_reader :removed_groups
-    # True if the Group or UNIXGroup has been removed from the Container, false
-    # otherwise. This is set by the Container if the Group is removed.
-    attr_accessor :removed
     
     # Create a new Group object that represents a Windows group in Active
     # Directory. This method takes a Hash containing arguments, some of which
@@ -110,8 +107,15 @@ module RADUM
     # the same AD object.
     #
     # This automatically adds the Group or UNIXGroup to the User or UNIXUser
-    # object's list of groups.
+    # object's list of groups. A RuntimeError is raised if the Group or
+    # UNIXGroup is already the User or UNIXUser object's primary_group,
+    # if the User or UNIXUser is not in the AD, or if the User or UNIXUser
+    # has been removed.
     def add_user(user)
+      if user.removed?
+        raise "Cannot add a removed user."
+      end
+      
       if @container.directory == user.container.directory
         unless self == user.primary_group
           @users.push user unless @users.include? user
@@ -119,7 +123,7 @@ module RADUM
           user.add_group self unless user.groups.include? self
           @modified = true
         else
-          raise "Group is already the User's primary_group."
+          raise "Group is already the user's primary_group."
         end
       else
         raise "User must be in the same directory."
@@ -128,7 +132,12 @@ module RADUM
     
     # Remove the User or UNIXUser membership in the Group. This automatically
     # removes the Group from the User or UNIXUser object's list of groups.
+    # A RuntimeError is raised if the User or UNIXUser has been removed.
     def remove_user(user)
+      if user.removed?
+        raise "Cannot remove a removed user."
+      end
+      
       @users.delete user
       @removed_users.push user unless @removed_users.include? user
       user.remove_group self if user.groups.include? self
@@ -137,6 +146,7 @@ module RADUM
     
     # Determine if the Group or UNIXGroup is a member of the Group or UNIXGroup.
     def member_of?(group)
+      # Memberships are already removed from removed groups.
       @groups.include? group
     end
     
@@ -144,8 +154,13 @@ module RADUM
     # represents the LDAP member attribute for the Group or UNIXGroup. A
     # RuntimeError is raised if the Group or UNIXGroup is the same as the
     # current Group or UNIXGroup (cannot be a member of itself) or the Group
-    # or UNIXGroup is not in the same AD object.
+    # or UNIXGroup is not in the same AD object. A RuntimeError is raised
+    # if the Group or UNIXGroup has been removed.
     def add_group(group)
+      if group.removed?
+        raise "Cannot add a removed group."
+      end
+      
       unless @container.directory == group.container.directory
         raise "Group must be in the same directory."
       end
@@ -160,7 +175,12 @@ module RADUM
     end
     
     # Remove the Group or UNIXGroup membership in the Group or UNIXGroup.
+    # A RuntimeError is raised if the Group or UNIXGroup has been removed.
     def remove_group(group)
+      if group.removed?
+        raise "Cannot remove a removed group."
+      end
+      
       @groups.delete group
       @removed_groups.push group unless @removed_groups.include? group
       @modified = true
@@ -196,6 +216,17 @@ module RADUM
         @rid = rid
         @container.directory.rids.push rid
       end
+    end
+    
+    # True if the Group or UNIXGroup has been removed from its Container, false
+    # otherwise.
+    def removed?
+      @removed
+    end
+    
+    # Set the Group or UNIXGroup removed flag.
+    def set_removed # :nodoc:
+      @removed = true
     end
     
     # The String representation of the Group object.
@@ -254,6 +285,7 @@ module RADUM
       end
       
       @nis_domain = args[:nis_domain] || "radum"
+      @unix_password = "*"
       @container.add_group self
     end
     
@@ -264,12 +296,25 @@ module RADUM
     # be removed for the UNIXUser object's UNIX main group because RADUM
     # enforces Windows group membership in the UNIX main group.
     def remove_user(user)
-      if !user.removed && user.instance_of?(UNIXUser) &&
+      if !user.removed? && user.instance_of?(UNIXUser) &&
          self == user.unix_main_group
         raise "A UNIXUser cannot be removed from their unix_main_group."
       end
       
-      super user
+      # Removing a user from its unix_main_group is a special case due to
+      # the complicated logic. When called from Container#remove_user the
+      # user's removed flag is set to true when a removal from the user's
+      # unix_main_group is attempted. This catches that special case and
+      # does the right thing. This is needed because of all my checks for
+      # not working with removed objects.
+      if user.removed? && user.instance_of?(UNIXUser) &&
+        self == user.unix_main_group
+        @users.delete user
+        user.remove_group self if user.groups.include? self
+        @modified = true
+      else
+        super user
+      end
     end
     
     # The UNIXGroup UNIX NIS domain.

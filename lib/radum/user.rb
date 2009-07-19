@@ -23,10 +23,6 @@ module RADUM
     # An array of Group or UNIXGroup objects removed from the User or
     # UNIXUser.
     attr_reader :removed_groups
-    # True if the User or UNIXUser has been removed from the Container, false
-    # otherwise. This is set by the Container if the User or UNIXUser is
-    # removed.
-    attr_accessor :removed
     
     # Create a new User object that represents a Windows user in Active
     # Directory. This method takes a Hash containing arguments, some of which
@@ -41,12 +37,12 @@ module RADUM
     # The :username argument (case-insensitive) and the :rid argument must be
     # unique in the AD object, otherwise a RuntimeError is raised. The
     # :primary_group argument must be of the RADUM type GROUP_GLOBAL_SECURITY
-    # or GROUP_UNIVERSAL_SECURITY, otherwise a RuntimeError is raised. The
-    # :disabled argument indicates if the User object should be disabled, and
-    # it defaults to false. The :rid argument should not be set directly except
-    # from the AD#load method itself. The User object automatically adds itself
-    # to the Container object specified by the :container argument. The
-    # argument types required follow:
+    # or GROUP_UNIVERSAL_SECURITY and not a removed group, otherwise a
+    # RuntimeError is raised. The :disabled argument indicates if the User
+    # object should be disabled, and it defaults to false. The :rid argument
+    # should not be set directly except from the AD#load method itself. The
+    # User object automatically adds itself to the Container object specified
+    # by the :container argument. The argument types required follow:
     #
     # * :username [String]
     # * :container [Container]
@@ -106,6 +102,10 @@ module RADUM
       
       @primary_group = args[:primary_group] or raise "User :primary_group" +
                                                      " argument required."
+      
+      if @primary_group.removed?
+        raise "User primary_group cannot be a removed group."
+      end
       
       # The primary group must be of one of these two types. It appears you can
       # change a group's type to GROUP_DOMAIN_LOCAL_SECURITY in the AD Users and
@@ -417,12 +417,17 @@ module RADUM
     # automatically remove membership in the Group or UNIXGroup specified
     # if necessary as Users or UNIXUsers are not members of the Group or
     # UNIXGroup directly. The Group or UNIXGroup specified must be in the
-    # same AD object or a RuntimeError is raised.
+    # same AD object or a RuntimeError is raised. A RuntimeError is raised
+    # if the Group or UNIXGroup has been removed.
     #
     # When a User or UNIXUser changes their primary Windows group, they are
     # automatically given normal group membershipt in the old primary Windows
     # group by Active Directory. This method does the same.
     def primary_group=(group)
+      if group.removed?
+        raise "Cannot set a removed group as the primary_group."
+      end
+      
       unless @container.directory == group.container.directory
         raise "Group must be in the same directory."
       end
@@ -456,11 +461,16 @@ module RADUM
     # their unix_main_group from the Windows perspective. A RuntimeError is
     # raised if the User or UNIXUser already has this Group or UNIXGroup as
     # their primary_group or if the Group or UNIXGroup is not in the same AD
-    # object.
+    # object. A RuntimeError is raised if the Group or UNIXGroup has been
+    # removed.
     #
     # This automatically adds the User or UNIXUser to the Group or UNIXGroup
     # object's list of users.
     def add_group(group)
+      if group.removed?
+        raise "Cannot add a removed group."
+      end
+      
       if @container.directory == group.container.directory
         unless @primary_group == group
           @groups.push group unless @groups.include? group
@@ -476,7 +486,12 @@ module RADUM
     
     # Remove the User membership in the Group or UNIXGroup. This automatically
     # removes the User from the Group or UNIXGroup object's list of users.
+    # A RuntimeError is raised if the Group or UNIXGroup has been removed.
     def remove_group(group)
+      if group.removed?
+        raise "Cannot remove a removed group."
+      end
+      
       # This method can be called on a primary_group change. If the user was a
       # member of the primary_group, we want to make sure we remove that
       # membership. It is also possible the user was not already a member of
@@ -495,6 +510,8 @@ module RADUM
     # This also evaluates to true if the Group or UNIXGroup is the
     # User or UNIXUser object's primary_group.
     def member_of?(group)
+      # Group memberships are removed when groups are removed so there is
+      # no need to check the group's removed status.
       @groups.include? group || @primary_group == group
     end
     
@@ -528,6 +545,17 @@ module RADUM
         @rid = rid
         @container.directory.rids.push rid
       end
+    end
+    
+    # True if the User or UNIXUser has been removed from its Container, false
+    # otherwise.
+    def removed?
+      @removed
+    end
+    
+    # Set the User or UNIXUser removed flag.
+    def set_removed # :nodoc:
+      @removed = true
     end
     
     # The String representation of the User object.
@@ -566,13 +594,14 @@ module RADUM
     # The :username argument (case-insensitive) and the :rid argument must be
     # unique in the AD object, otherwise a RuntimeError is raised. The
     # :primary_group argument must be of the RADUM type GROUP_GLOBAL_SECURITY
-    # or GROUP_UNIVERSAL_SECURITY, otherwise a RuntimeError is raised. The
-    # :disabled argument indicates if the UNIXUser object should be disabled,
-    # and it defaults to false. The :rid argument should not be set directly
-    # except from the AD#load method itself. The :unix_main_group argument
-    # must be a UNIXGroup object or a RuntimeError is raised. The UNIXUser
-    # object automatically adds itself to the Container object specified by
-    # the :container argument. The argument types required follow:
+    # or GROUP_UNIVERSAL_SECURITY and not a removed group, otherwise a
+    # RuntimeError is raised. The :disabled argument indicates if the UNIXUser
+    # object should be disabled, and it defaults to false. The :rid argument
+    # should not be set directly except from the AD#load method itself. The
+    # :unix_main_group argument must be a UNIXGroup object and not removed or
+    # a RuntimeError is raised. The UNIXUser object automatically adds itself
+    # to the Container object specified by the :container argument. The
+    # argument types required follow:
     #
     # * :username [String]
     # * :container [Container]
@@ -610,6 +639,10 @@ module RADUM
                                                          " argument required."
       
       if @container.directory == @unix_main_group.container.directory
+        if @unix_main_group.removed?
+          raise "UNIXUser unix_main_group cannot be a removed UNIXGroup."
+        end
+        
         unless @unix_main_group.instance_of? UNIXGroup
           raise "UNIXUser unix_main_group must be a UNIXGroup."
         else
@@ -637,7 +670,6 @@ module RADUM
       @shadow_min = nil
       @shadow_warning = nil
       @container.add_user self
-      @removed = false
     end
     
     # The UNIXUser UNIX shell.
@@ -715,7 +747,8 @@ module RADUM
       @modified = true
     end
     
-    # The UNIXUser UNIX shadow file expire field.
+    # The UNIXUser UNIX shadow file expire field. This field is an integer
+    # in Active Directory and resturned as an integer.
     def shadow_expire
       @shadow_expire
     end
@@ -727,12 +760,16 @@ module RADUM
     # only needs to be set if the shadow file information is really needed.
     # It would not be needed most of the time. This corresponds to the LDAP
     # shadowExpire attribute.
+    #
+    # This field is an integer in Active Directory and should be passed to
+    # this method as either a string representing an integer or an integer.
     def shadow_expire=(shadow_expire)
       @shadow_expire = shadow_expire
       @modified = true
     end
     
-    # The UNIXUser UNIX shadow file reserved field.
+    # The UNIXUser UNIX shadow file reserved field. This field is an integer
+    # in Active Directory and resturned as an integer.
     def shadow_flag
       @shadow_flag
     end
@@ -744,12 +781,16 @@ module RADUM
     # only needs to be set if the shadow file information is really needed.
     # It would not be needed most of the time. This corresponds to the LDAP
     # shadowFlag attribute.
+    #
+    # This field is an integer in Active Directory and should be passed to
+    # this method as either a string representing an integer or an integer.
     def shadow_flag=(shadow_flag)
       @shadow_flag = shadow_flag
       @modified = true
     end
     
-    # The UNIXUser UNIX shadow file inactive field.
+    # The UNIXUser UNIX shadow file inactive field. This field is an integer
+    # in Active Directory and resturned as an integer.
     def shadow_inactive
       @shadow_inactive
     end
@@ -761,12 +802,16 @@ module RADUM
     # only needs to be set if the shadow file information is really needed.
     # It would not be needed most of the time. This corresponds to the LDAP
     # shadowInactive attribute.
+    #
+    # This field is an integer in Active Directory and should be passed to
+    # this method as either a string representing an integer or an integer.
     def shadow_inactive=(shadow_inactive)
       @shadow_inactive = shadow_inactive
       @modified = true
     end
     
-    # The UNIXUser UNIX shadow file last change field.
+    # The UNIXUser UNIX shadow file last change field. This field is an integer
+    # in Active Directory and resturned as an integer.
     def shadow_last_change
       @shadow_last_change
     end
@@ -778,12 +823,16 @@ module RADUM
     # only needs to be set if the shadow file information is really needed.
     # It would not be needed most of the time. This corresponds to the LDAP
     # shadowLastChange attribute.
+    #
+    # This field is an integer in Active Directory and should be passed to
+    # this method as either a string representing an integer or an integer.
     def shadow_last_change=(shadow_last_change)
       @shadow_last_change = shadow_last_change
       @modified = true
     end
     
-    # The UNIXUser UNIX shadow file max field.
+    # The UNIXUser UNIX shadow file max field. This field is an integer
+    # in Active Directory and resturned as an integer.
     def shadow_max
       @shadow_max
     end
@@ -795,12 +844,16 @@ module RADUM
     # only needs to be set if the shadow file information is really needed.
     # It would not be needed most of the time. This corresponds to the LDAP
     # shadowMax attribute.
+    #
+    # This field is an integer in Active Directory and should be passed to
+    # this method as either a string representing an integer or an integer.
     def shadow_max=(shadow_max)
       @shadow_max = shadow_max
       @modified = true
     end
     
-    # The UNIXUser UNIX shadow file min field.
+    # The UNIXUser UNIX shadow file min field. This field is an integer
+    # in Active Directory and resturned as an integer.
     def shadow_min
       @shadow_min
     end
@@ -812,12 +865,16 @@ module RADUM
     # only needs to be set if the shadow file information is really needed.
     # It would not be needed most of the time. This corresponds to the LDAP
     # shadowMin attribute.
+    #
+    # This field is an integer in Active Directory and should be passed to
+    # this method as either a string representing an integer or an integer.
     def shadow_min=(shadow_min)
       @shadow_min = shadow_min
       @modified = true
     end
     
-    # The UNIXUser UNIX shadow file warning field.
+    # The UNIXUser UNIX shadow file warning field. This field is an integer
+    # in Active Directory and resturned as an integer.
     def shadow_warning
       @shadow_warning
     end
@@ -829,6 +886,9 @@ module RADUM
     # only needs to be set if the shadow file information is really needed.
     # It would not be needed most of the time. This corresponds to the LDAP
     # shadowWarning attribute.
+    #
+    # This field is an integer in Active Directory and should be passed to
+    # this method as either a string representing an integer or an integer.
     def shadow_warning=(shadow_warning)
       @shadow_warning = shadow_warning
       @modified = true
@@ -841,7 +901,7 @@ module RADUM
     # cannot be removed for the UNIXUser object's UNIX main group because RADUM
     # enforces Windows group membership in the UNIX main group.
     def remove_group(group)
-      if !self.removed && group.instance_of?(UNIXGroup) &&
+      if !@removed && group.instance_of?(UNIXGroup) &&
          group == @unix_main_group
         raise "A UNIXUser cannot be removed from their unix_main_group."
       end
@@ -857,9 +917,14 @@ module RADUM
     
     # Set the UNIXUser UNIX main group. This also sets the UNIXUser gid
     # attribute. The group must be of the type UNIXGroup and in the same AD
-    # object or a RuntimeError is raised. This method does not automatically
+    # object or a RuntimeError is raised. A RuntimeError is raised
+    # if the UNIXGroup has been removed. This method does not automatically
     # remove membership in the previous unix_main_group UNIXGroup.
     def unix_main_group=(group)
+      if group.removed?
+        raise "Cannot set unix_main_group to a removed group."
+      end
+      
       if group.instance_of? UNIXGroup
         if @container.directory == group.container.directory
           @unix_main_group = group

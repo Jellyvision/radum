@@ -30,12 +30,6 @@ class TC_Live < Test::Unit::TestCase
       raise "LIVE_SERVER environment variable not set."
     end
     
-    puts "Conducting live test with the following settings:\n\n"
-    puts "AD Root: #{@root}"
-    puts "AD User: #{@user}"
-    puts "AD Password: #{@password}"
-    puts "AD Server: #{@server}"
-    
     RADUM::logger.default_level = RADUM::LOG_DEBUG
     RADUM::logger.output_file "live-test.txt"
     # The first AD object to create objects and modify them for testing. This
@@ -51,10 +45,6 @@ class TC_Live < Test::Unit::TestCase
     # we're interested in the Domain Users group specifically.
     @ad.load
     @domain_users = @ad.find_group_by_name("Domain Users")
-    puts "Using Container: #{@cn.name}"
-    puts
-    puts "Don't forget to check the live-test.txt debug log file for errors."
-    puts
   end
   
   # Get a new AD object to test the current values of modified objects from the
@@ -69,13 +59,13 @@ class TC_Live < Test::Unit::TestCase
     ad_new
   end
   
-  def test_user_attributes
-    RADUM::logger.log("\ntest_user_attributes()", RADUM::LOG_DEBUG)
-    RADUM::logger.log("----------------------", RADUM::LOG_DEBUG)
+  def test_user_attributes_groups
+    RADUM::logger.log("\ntest_user_attributes_groups()", RADUM::LOG_DEBUG)
+    RADUM::logger.log("-----------------------------", RADUM::LOG_DEBUG)
     u = RADUM::User.new :username => "win-user-" + $$.to_s, :container => @cn,
                         :primary_group => @domain_users
     
-    # Test setting all attributes.
+    # Test setting all User attributes.
     u.first_name = "First Name"
     u.initials = "M"
     u.middle_name = "Middle Name"
@@ -97,7 +87,7 @@ class TC_Live < Test::Unit::TestCase
     assert(u2.local_path == "D:\\Local Path",
            "local_path should be 'D:\\Local Path'")
     
-    # Test modifying all set attributes.
+    # Test modifying all set User attributes.
     u.first_name = "New First Name"
     u.initials = "N"
     u.middle_name = "New Middle Name"
@@ -136,7 +126,9 @@ class TC_Live < Test::Unit::TestCase
     assert(u2.local_path == "D:\\A Path", "local_path should be 'D:\\A Path'")
     
     # Test must change password logic. First check that it is really false to
-    # begin with when we've not employed this logic whatsoever.
+    # begin with when we've not employed this logic whatsoever. Note we can't
+    # really test if setting a password will work here, but I know it does from
+    # testing by hand :-)
     assert(u2.must_change_password? == false,
            "must_change_password? should be false")
     u.force_change_password
@@ -237,7 +229,80 @@ class TC_Live < Test::Unit::TestCase
     assert(ad2.find_group_by_name("win-group2-" + $$.to_s) == nil,
            "group 3 should not have been found after adding back when removed")
     
-    # Remove the Container now that we are done.
+    # Remove the Container now that we are done with it.
+    @ad.remove_container @cn
+    @ad.sync
+    # Try adding the Container back. This should not work. This is only tested
+    # once, and I wrote this test method first, so here we go...
+    @ad.add_container @cn
+    assert(@ad.find_container(@cn.name) == nil,
+           "container should not have been added when removed")
+    @ad.sync
+  end
+  
+  def test_unix_user_attributes_unix_groups
+    RADUM::logger.log("\ntest_unix_user_attributes_unix_groups()",
+                      RADUM::LOG_DEBUG)
+    RADUM::logger.log("---------------------------------------",
+                      RADUM::LOG_DEBUG)
+    g = RADUM::UNIXGroup.new :name => "unix-group-" + $$.to_s,
+                             :container => @cn, :gid => @ad.load_next_gid,
+                             :nis_domain => "vmware"
+    u = RADUM::UNIXUser.new :username => "unix-user-" + $$.to_s,
+                            :container => @cn, :primary_group => @domain_users,
+                            :uid => @ad.load_next_uid,
+                            :unix_main_group => g, :shell => "/bin/bash",
+                            :home_directory => "/home/unix-user-" + $$.to_s,
+                            :nis_domain => "vmware"
+    
+    # Test setting all UNIXUser attributes.
+    u.gecos = "GECOS"
+    u.unix_password = "password"
+    u.shadow_expire = 1
+    u.shadow_flag = 2
+    u.shadow_inactive = 3
+    u.shadow_last_change = 4
+    u.shadow_max = 5
+    u.shadow_min = 6
+    u.shadow_warning = 7
+    @ad.sync
+    ad2 = new_ad
+    u2 = ad2.find_user_by_username "unix-user-" + $$.to_s
+    assert(u2.gecos == "GECOS", "gecos should be 'GECOS'")
+    assert(u2.unix_password == "password", "password should be 'password'")
+    assert(u2.shadow_expire == 1, "shadow_expire should be 1")
+    assert(u2.shadow_flag == 2, "shadow_flag should be 2")
+    assert(u2.shadow_inactive == 3, "shadow_inactive should be 3")
+    assert(u2.shadow_last_change == 4, "shadow_last_change should be 4")
+    assert(u2.shadow_max == 5, "shadow_max should be 5")
+    assert(u2.shadow_min == 6, "shadow_min should be 6")
+    assert(u2.shadow_warning == 7, "shadow_warning should be 7")
+    
+    # Test modifying all set User attributes. Here the shadow file attributes
+    # are passed as String objects just to make sure that works.
+    u.gecos = "New GECOS"
+    u.unix_password = "*"
+    u.shadow_expire = "11"
+    u.shadow_flag = "12"
+    u.shadow_inactive = "13"
+    u.shadow_last_change = "14"
+    u.shadow_max = "15"
+    u.shadow_min = "16"
+    u.shadow_warning = "17"
+    @ad.sync
+    ad2 = new_ad
+    u2 = ad2.find_user_by_username "unix-user-" + $$.to_s
+    assert(u2.gecos == "New GECOS", "gecos should be 'New GECOS'")
+    assert(u2.unix_password == "*", "password should be '*'")
+    assert(u2.shadow_expire == 11, "shadow_expire should be 11")
+    assert(u2.shadow_flag == 12, "shadow_flag should be 12")
+    assert(u2.shadow_inactive == 13, "shadow_inactive should be 13")
+    assert(u2.shadow_last_change == 14, "shadow_last_change should be 14")
+    assert(u2.shadow_max == 15, "shadow_max should be 15")
+    assert(u2.shadow_min == 16, "shadow_min should be 16")
+    assert(u2.shadow_warning == 17, "shadow_warning should be 17")
+    
+    # Remove the Container now that we are done with it.
     @ad.remove_container @cn
     @ad.sync
   end

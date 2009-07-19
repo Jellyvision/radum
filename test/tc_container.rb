@@ -22,8 +22,8 @@ class TC_Container < Test::Unit::TestCase
                                  :primary_group => @g1_c1_ad1
   end
   
-  def test_ad_removed_flag_false
-    assert(@c1_ad1.removed == false, "ad_removed flag should be false")
+  def test_removed_flag_false
+    assert(@c1_ad1.removed? == false, "ad_removed flag should be false")
   end
   
   def test_no_spaces
@@ -74,7 +74,7 @@ class TC_Container < Test::Unit::TestCase
       # an attempt to add a second time. We want to be totally certain, so the
       # add is done a third time anyway.
       @c1_ad1.add_user @u1_c1_ad1
-      @u1_c1_ad1.removed = true
+      @u1_c1_ad1.set_removed
       @c1_ad1.add_user @u1_c1_ad1
       @c1_ad1.users.length == 1
     end
@@ -95,7 +95,7 @@ class TC_Container < Test::Unit::TestCase
   def test_remove_user_removed_flag_set
     assert_block("Should have set removed user removed flag") do
       @c1_ad1.remove_user @u1_c1_ad1
-      @u1_c1_ad1.removed == true
+      @u1_c1_ad1.removed? == true
     end
   end
   
@@ -116,7 +116,7 @@ class TC_Container < Test::Unit::TestCase
       # an attempt to add a second time. We want to be totally certain, so the
       # add is done a third time anyway.
       @c1_ad1.add_group @g1_c1_ad1
-      @g1_c1_ad1.removed = true
+      @g1_c1_ad1.set_removed
       @c1_ad1.add_group @g1_c1_ad1
       @c1_ad1.groups.length == 1
     end
@@ -159,7 +159,7 @@ class TC_Container < Test::Unit::TestCase
   def test_remove_group_removed_flag_set
     assert_block("Should have set removed group removed flag") do
       @c3_ad1.remove_group @g3_c3_ad1
-      @g3_c3_ad1.removed == true
+      @g3_c3_ad1.removed? == true
     end
   end
   

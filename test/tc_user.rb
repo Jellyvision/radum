@@ -29,7 +29,7 @@ class TC_User < Test::Unit::TestCase
   end
   
   def test_removed_flag_false
-    assert(@u1_c1_ad1.removed == false, "Removed flag should be false")
+    assert(@u1_c1_ad1.removed? == false, "Removed flag should be false")
   end
   
   def test_duplicate_rid_exception
@@ -45,6 +45,13 @@ class TC_User < Test::Unit::TestCase
       @u1_c1_ad1.primary_group = RADUM::Group.new :name => "broken",
                                                   :container => @c1_ad1,
                                                   :type => @type
+    end
+  end
+  
+  def test_removed_primary_group_exception
+    assert_raise RuntimeError do
+      @g1_c1_ad1.set_removed
+      @u1_c1_ad1.primary_group = @g1_c1_ad1
     end
   end
   

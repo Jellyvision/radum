@@ -33,7 +33,7 @@ class TC_Group < Test::Unit::TestCase
   
   def test_removed_flag_false
     assert_block("Removed flags should be false.") do
-      @g1_c1_ad1.removed == false && @ug1_c1_ad1.removed == false
+      @g1_c1_ad1.removed? == false && @ug1_c1_ad1.removed? == false
     end
   end
   
