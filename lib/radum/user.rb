@@ -512,7 +512,7 @@ module RADUM
     def member_of?(group)
       # Group memberships are removed when groups are removed so there is
       # no need to check the group's removed status.
-      @groups.include? group || @primary_group == group
+      @groups.include?(group) || @primary_group == group
     end
     
     # Set the loaded flag. This also clears the modified flag. This should only

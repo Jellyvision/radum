@@ -32,6 +32,7 @@ class TC_Live < Test::Unit::TestCase
     
     RADUM::logger.default_level = RADUM::LOG_DEBUG
     RADUM::logger.output_file "live-test.txt"
+    RADUM::logger.log("\nInitializing...\n\n", RADUM::LOG_DEBUG)
     # The first AD object to create objects and modify them for testing. This
     # is just used for creating new objects, so there is no need to ever call
     # ad.load later - just call ad.sync whenever something new is added. The
@@ -59,6 +60,47 @@ class TC_Live < Test::Unit::TestCase
     ad_new
   end
   
+  # This will return true if the user is not a UNIX member of the group, false
+  # otherwise.
+  def ldap_not_unix_group_member(user, group)
+    group_filter = Net::LDAP::Filter.eq("objectclass", "group")
+    entry = @ad.ldap.search(:base => group.distinguished_name,
+                            :filter => group_filter,
+                            :scope => Net::LDAP::SearchScope_BaseObject).pop
+    found = true
+    
+    begin
+      found = entry.msSFU30PosixMember.find do |member|
+        user.distinguished_name.downcase == member.downcase
+      end
+    rescue NoMethodError
+      found = false
+    end
+    
+    !found
+  end
+  
+  # This will return true if the user is a UNIX member of the group, false
+  # otherwise.
+  def ldap_unix_group_member(user, group)
+    group_filter = Net::LDAP::Filter.eq("objectclass", "group")
+    entry = @ad.ldap.search(:base => group.distinguished_name,
+                            :filter => group_filter,
+                            :scope => Net::LDAP::SearchScope_BaseObject).pop
+    found = false
+    
+    begin
+      found = entry.msSFU30PosixMember.find do |member|
+        user.distinguished_name.downcase == member.downcase
+      end
+    rescue NoMethodError
+    end
+    
+    # The user object is the value of found if found, but we want a boolean
+    # here. This is the easiest way.
+    found != false
+  end
+  
   def test_user_attributes_groups
     RADUM::logger.log("\ntest_user_attributes_groups()", RADUM::LOG_DEBUG)
     RADUM::logger.log("-----------------------------", RADUM::LOG_DEBUG)
@@ -74,6 +116,7 @@ class TC_Live < Test::Unit::TestCase
     u.profile_path = "\\\\profile\\path"
     u.local_path = "D:\\Local Path"
     @ad.sync
+    
     ad2 = new_ad
     u2 = ad2.find_user_by_username "win-user-" + $$.to_s
     assert(u2.first_name == "First Name", "first_name should be 'First Name'")
@@ -96,6 +139,7 @@ class TC_Live < Test::Unit::TestCase
     u.profile_path = "\\\\new\\profile\\path"
     u.local_path = "D:\\New Local Path"
     @ad.sync
+    
     ad2 = new_ad
     u2 = ad2.find_user_by_username "win-user-" + $$.to_s
     assert(u2.first_name == "New First Name",
@@ -113,6 +157,7 @@ class TC_Live < Test::Unit::TestCase
     # Test User#connect_path_to settings are correct.
     u.connect_drive_to "Z:", "\\\\server\\share"
     @ad.sync
+    
     ad2 = new_ad
     u2 = ad2.find_user_by_username "win-user-" + $$.to_s
     assert(u2.local_drive == "Z:", "local_drive should be 'Z:'")
@@ -120,6 +165,7 @@ class TC_Live < Test::Unit::TestCase
            "local_path should be '\\\\server\\share'")
     u.local_path = "D:\\A Path"
     @ad.sync
+    
     ad2 = new_ad
     u2 = ad2.find_user_by_username "win-user-" + $$.to_s
     assert(u2.local_drive == nil, "local_drive should be nil")
@@ -133,12 +179,14 @@ class TC_Live < Test::Unit::TestCase
            "must_change_password? should be false")
     u.force_change_password
     @ad.sync
+    
     ad2 = new_ad
     u2 = ad2.find_user_by_username "win-user-" + $$.to_s
     assert(u2.must_change_password? == true,
            "must_change_password? should be true")
     u.unset_change_password
     @ad.sync
+    
     ad2 = new_ad
     u2 = ad2.find_user_by_username "win-user-" + $$.to_s
     assert(u2.must_change_password? == false,
@@ -149,11 +197,13 @@ class TC_Live < Test::Unit::TestCase
     assert(u2.disabled? == false, "disabled? should be false")
     u.disable
     @ad.sync
+    
     ad2 = new_ad
     u2 = ad2.find_user_by_username "win-user-" + $$.to_s
     assert(u2.disabled? == true, "disabled? should be true")
     u.enable
     @ad.sync
+    
     ad2 = new_ad
     u2 = ad2.find_user_by_username "win-user-" + $$.to_s
     assert(u2.disabled? == false, "disabled? should be false")
@@ -164,6 +214,7 @@ class TC_Live < Test::Unit::TestCase
     g1 = RADUM::Group.new :name => "win-group-" + $$.to_s, :container => @cn
     u.primary_group = g1
     @ad.sync
+    
     ad2 = new_ad
     u2 = ad2.find_user_by_username "win-user-" + $$.to_s
     du = ad2.find_group_by_name("Domain Users")
@@ -171,6 +222,7 @@ class TC_Live < Test::Unit::TestCase
     assert(u2.primary_group == pg, "primary_group should be #{pg}")
     u.primary_group = @domain_users
     @ad.sync
+    
     ad2 = new_ad
     u2 = ad2.find_user_by_username "win-user-" + $$.to_s
     du = ad2.find_group_by_name("Domain Users")
@@ -182,6 +234,7 @@ class TC_Live < Test::Unit::TestCase
     u.add_group g2
     g3.add_user u
     @ad.sync
+    
     ad2 = new_ad
     u2 = ad2.find_user_by_username "win-user-" + $$.to_s
     assert(u2.member_of?(ad2.find_group_by_name("win-group2-" + $$.to_s)) ==
@@ -191,6 +244,7 @@ class TC_Live < Test::Unit::TestCase
     u.remove_group g2
     g3.remove_user u
     @ad.sync
+    
     ad2 = new_ad
     u2 = ad2.find_user_by_username "win-user-" + $$.to_s
     assert(u2.member_of?(ad2.find_group_by_name("win-group2-" + $$.to_s)) ==
@@ -205,6 +259,7 @@ class TC_Live < Test::Unit::TestCase
     @cn.remove_group g2
     @cn.remove_group g3
     @ad.sync
+    
     ad2 = new_ad
     assert(ad2.find_user_by_username("win-user-" + $$.to_s) == nil,
            "user should not have been found after removal")
@@ -219,6 +274,7 @@ class TC_Live < Test::Unit::TestCase
     @cn.add_group g2
     @cn.add_group g3
     @ad.sync
+    
     ad2 = new_ad
     assert(ad2.find_user_by_username("win-user-" + $$.to_s) == nil,
            "user should not have been found after adding back when removed")
@@ -232,6 +288,7 @@ class TC_Live < Test::Unit::TestCase
     # Remove the Container now that we are done with it.
     @ad.remove_container @cn
     @ad.sync
+    
     # Try adding the Container back. This should not work. This is only tested
     # once, and I wrote this test method first, so here we go...
     @ad.add_container @cn
@@ -253,7 +310,7 @@ class TC_Live < Test::Unit::TestCase
                             :uid => @ad.load_next_uid,
                             :unix_main_group => g, :shell => "/bin/bash",
                             :home_directory => "/home/unix-user-" + $$.to_s,
-                            :nis_domain => "vmware"
+                            :nis_domain => "foo"
     
     # Test setting all UNIXUser attributes.
     u.gecos = "GECOS"
@@ -266,8 +323,13 @@ class TC_Live < Test::Unit::TestCase
     u.shadow_min = 6
     u.shadow_warning = 7
     @ad.sync
+    
     ad2 = new_ad
     u2 = ad2.find_user_by_username "unix-user-" + $$.to_s
+    assert(u2.shell == "/bin/bash", "shell should be 'bash'")
+    assert(u2.home_directory == "/home/unix-user-" + $$.to_s,
+           "home_directory should be '/home/unix-user-#{$$.to_s}'")
+    assert(u2.nis_domain == "foo", "nis_domain should be 'foo'")
     assert(u2.gecos == "GECOS", "gecos should be 'GECOS'")
     assert(u2.unix_password == "password", "password should be 'password'")
     assert(u2.shadow_expire == 1, "shadow_expire should be 1")
@@ -280,6 +342,9 @@ class TC_Live < Test::Unit::TestCase
     
     # Test modifying all set User attributes. Here the shadow file attributes
     # are passed as String objects just to make sure that works.
+    u.shell = "/bin/ksh" # You know I can't set that to /bin/tcsh... right?
+    u.home_directory = "/home/foo"
+    u.nis_domain = "vmware"
     u.gecos = "New GECOS"
     u.unix_password = "*"
     u.shadow_expire = "11"
@@ -290,8 +355,13 @@ class TC_Live < Test::Unit::TestCase
     u.shadow_min = "16"
     u.shadow_warning = "17"
     @ad.sync
+    
     ad2 = new_ad
     u2 = ad2.find_user_by_username "unix-user-" + $$.to_s
+    assert(u2.shell == "/bin/ksh", "shell should be 'bash'")
+    assert(u2.home_directory == "/home/foo",
+           "home_directory should be '/home/foo'")
+    assert(u2.nis_domain == "vmware", "nis_domain should be 'vmware'")
     assert(u2.gecos == "New GECOS", "gecos should be 'New GECOS'")
     assert(u2.unix_password == "*", "password should be '*'")
     assert(u2.shadow_expire == 11, "shadow_expire should be 11")
@@ -302,7 +372,112 @@ class TC_Live < Test::Unit::TestCase
     assert(u2.shadow_min == 16, "shadow_min should be 16")
     assert(u2.shadow_warning == 17, "shadow_warning should be 17")
     
-    # Remove the Container now that we are done with it.
+    # Test changing the UNIX main group.
+    assert(u2.gid == g.gid, "GID is not set correctly")
+    ug = ad2.find_group_by_name "unix-group-" + $$.to_s
+    assert(u2.unix_main_group == ug, "unix_main_group should be #{ug}")
+    assert(u2.member_of?(ug) == true,
+           "user should be a Windows member of unix_main_group")
+    assert(ldap_not_unix_group_member(u, g),
+           "should not be a UNIX member of unix_main_group")
+    g2 = RADUM::UNIXGroup.new :name => "unix-group2-" + $$.to_s,
+                             :container => @cn, :gid => @ad.load_next_gid,
+                             :nis_domain => "vmware"
+    u.unix_main_group = g2
+    @ad.sync
+    
+    ad2 = new_ad
+    u2 = ad2.find_user_by_username "unix-user-" + $$.to_s
+    assert(u2.gid == g2.gid, "GID is not set correctly")
+    ug = ad2.find_group_by_name "unix-group2-" + $$.to_s
+    assert(u2.unix_main_group == ug, "unix_main_group should be #{ug}")
+    assert(u2.member_of?(ug) == true,
+           "user should be a Windows member of unix_main_group")
+    assert(ldap_not_unix_group_member(u, g2),
+           "user should not be a UNIX member of unix_main_group")
+    assert(ldap_unix_group_member(u, g),
+           "user should be a UNIX member of unix group")
+    u.unix_main_group = g
+    @ad.sync
+    
+    ad2 = new_ad
+    u2 = ad2.find_user_by_username "unix-user-" + $$.to_s
+    assert(u2.gid == g.gid, "GID is not set correctly")
+    ug = ad2.find_group_by_name "unix-group-" + $$.to_s
+    assert(u2.unix_main_group == ug, "unix_main_group should be #{ug}")
+    assert(u2.member_of?(ug) == true,
+           "user should be a Windows member of unix_main_group")
+    assert(ldap_not_unix_group_member(u, g),
+           "user should not be a UNIX member of unix_main_group")
+    # Because g2 was the previous UNIX main group and it was changed to g.
+    ug2 = ad2.find_group_by_name "unix-group2-" + $$.to_s
+    assert(u2.member_of?(ug2) == true,
+           "user should be a Windows member of unix group 2")
+    assert(ldap_unix_group_member(u, g2),
+           "user should be a UNIX member of unix group 2")
+    
+    # Test UNIX group membership additions and removals.
+    g3 = RADUM::UNIXGroup.new :name => "unix-group3-" + $$.to_s,
+                              :container => @cn, :gid => @ad.load_next_gid,
+                              :nis_domain => "vmware"
+    # The user is still in group g2 because we switched their main group to
+    # g when it was g2 previously.
+    u.add_group g3
+    @ad.sync
+    
+    ad2 = new_ad
+    u2 = ad2.find_user_by_username "unix-user-" + $$.to_s
+    assert(u2.member_of?(ad2.find_group_by_name("unix-group-" + $$.to_s)) ==
+           true, "user should be a Windows member of unix_main_group")
+    assert(ldap_not_unix_group_member(u, g),
+           "user should not be a UNIX member of unix_main_group")
+    assert(u2.member_of?(ad2.find_group_by_name("unix-group2-" + $$.to_s)) ==
+           true, "user should be a Widows member of unix group 2")
+    assert(ldap_unix_group_member(u, g2),
+           "user should be a UNIX member of unix group 2")
+    assert(u2.member_of?(ad2.find_group_by_name("unix-group3-" + $$.to_s)) ==
+           true, "user should be a Windows member of unix group 3")
+    assert(ldap_unix_group_member(u, g3),
+           "user should be a UNIX member of unix group 3")
+    u.remove_group g2
+    g3.remove_user u
+    @ad.sync
+    
+    ad2 = new_ad
+    u2 = ad2.find_user_by_username "unix-user-" + $$.to_s
+    assert(u2.member_of?(ad2.find_group_by_name("unix-group-" + $$.to_s)) ==
+           true, "user should be a Windows member of unix_main_group")
+    assert(ldap_not_unix_group_member(u, g),
+           "user should not be a UNIX member of unix_main_group")
+    assert(u2.member_of?(ad2.find_group_by_name("unix-group2-" + $$.to_s)) ==
+           false, "user should not be a Windows member of unix group 2")
+    assert(ldap_not_unix_group_member(u, g2),
+           "user should not be a UNIX member of unix group 2")
+    assert(u2.member_of?(ad2.find_group_by_name("unix-group3-" + $$.to_s)) ==
+           false, "user should not be a Windows member of unix group 3")
+    assert(ldap_not_unix_group_member(u, g3),
+           "user should not be a UNIX member of unix group 3")
+    
+    # Now do the same group membership additions and removals when one of the
+    # groups is set as the primary Windows group as well.
+    u.primary_group = g2
+    g3.add_user u
+    @ad.sync
+    
+    ad2 = new_ad
+    u2 = ad2.find_user_by_username "unix-user-" + $$.to_s
+    assert(u2.member_of?(ad2.find_group_by_name("unix-group2-" + $$.to_s)) ==
+           true, "user should be a Windows member of unix_main_group")
+    assert(ldap_not_unix_group_member(u, g2),
+           "user should not be a UNIX member of unix_main_group")
+    assert(u2.member_of?(ad2.find_group_by_name("unix-group3-" + $$.to_s)) ==
+           true, "user should be a Windows member of new group 3")
+    assert(ldap_unix_group_member(u, g3),
+           "user should be a UNIX member of unix group 3")
+    
+    # Remove the Container now that we are done with it. We have to change
+    # the test user account's primary Windows group first.
+    u.primary_group = @domain_users
     @ad.remove_container @cn
     @ad.sync
   end

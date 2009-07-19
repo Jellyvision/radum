@@ -82,6 +82,8 @@ module RADUM
   # prefixed with "load" pull data out of the Active Directory and methods
   # prefixed with "sync" push data to the Active Directory as required.
   class AD
+    # A handle the the Net::LDAP object used for this AD.
+    attr_reader :ldap
     # The root of the Active Directory. This is a String representing an LDAP
     # path, such as "dc=example,dc=com".
     attr_reader :root
@@ -1311,7 +1313,7 @@ module RADUM
       
       # This accounts for any GIDs that might not be in Active Directory yet
       # as well.
-      (all_uids + @uids).sort.each do |uid|
+      (all_uids + @uids).uniq.sort.each do |uid|
         if next_uid == 0 || next_uid + 1 == uid
           next_uid = uid
         else
@@ -1347,7 +1349,7 @@ module RADUM
       
       # This accounts for any GIDs that might not be in Active Directory yet
       # as well.
-      (all_gids + @gids).sort.each do |gid|
+      (all_gids + @gids).uniq.sort.each do |gid|
         if next_gid == 0 || next_gid + 1 == gid
           next_gid = gid
         else
@@ -1752,7 +1754,8 @@ module RADUM
       # destroyed from the AD it belongs to. There is no need to care about
       # it anymore. Any Container that can be deleted from Active Directory
       # can be destroyed.
-      RADUM::logger.log("\tDestroying group <#{container.name}>.", LOG_DEBUG)
+      RADUM::logger.log("\tDestroying container <#{container.name}>.",
+                        LOG_DEBUG)
       destroy_container container
     end
     
@@ -1985,7 +1988,13 @@ module RADUM
           ad_value = attr[key]
           RADUM::logger.log("\t#{key}: #{ad_value} =? #{obj_value}", LOG_DEBUG)
           
-          if ad_value != obj_value
+          # Some attributes are integers and some are Strings, but they are
+          # always Strings coming out of Active Directory. This is a safe
+          # step to ensure a correct comparision.
+          #
+          # Note in this case I know these are always Strings, but I am doing
+          # this anyway just in case they aren't someday.
+          if ad_value.to_s != obj_value.to_s
             case key
             when :nis_domain
               ops.push [:replace, :msSFU30NisDomain, obj_value]
@@ -2038,7 +2047,7 @@ module RADUM
                 # really... it should always match up with msSFU30PosixMember.
                 begin
                   found = entry.msSFU30PosixMember.find do |member|
-                    item.distinguished_name.downcase == member.downcase
+                    user.distinguished_name.downcase == member.downcase
                   end
                   
                   if found
@@ -2073,7 +2082,7 @@ module RADUM
           # user's primary Windows group (meaning we changed it), then this
           # code would try and add the user as a member of that group - as it
           # should. However, since we've not actually updated the user yet,
-          # they are still a member of this group by way of their user
+          # they are still a member of this group by way of their user current
           # account primaryGroupID attribute. When that attribute is updated
           # in the update_user() method, the group membership we are trying
           # to do here will be done implicitly. Trying to add the user as a
@@ -2088,21 +2097,22 @@ module RADUM
           # If those two cases are true, we won't add the user as a member here
           # to avoid an LDAP error return message. Instead, the membership will
           # be implicitly dealt with when update_user() updates the user account
-          # attributes.
-          #
-          # We don't have to worry about this with the UNIX group membership
-          # attributes msSFU30PosixMember and memberUid.
-          curr_primary_group_id = nil
-          user_filter = Net::LDAP::Filter.eq("objectclass", "user")
-          obj = @ldap.search(:base => item.distinguished_name,
-                             :filter => user_filter,
-                             :scope => Net::LDAP::SearchScope_BaseObject).pop
-          curr_primary_group_id = obj.primaryGroupID.pop.to_i if obj
+          # attributes. If this is not the case, we do add them as a member.
+          if item.instance_of?(User) || item.instance_of?(UNIXUser)
+            curr_primary_group_id = nil
+            user_filter = Net::LDAP::Filter.eq("objectclass", "user")
+            obj = @ldap.search(:base => item.distinguished_name,
+                              :filter => user_filter,
+                              :scope => Net::LDAP::SearchScope_BaseObject).pop
+            curr_primary_group_id = obj.primaryGroupID.pop.to_i
           
-          unless found || curr_primary_group_id == group.rid
-            ops.push [:add, :member, item.distinguished_name]
+            unless found || curr_primary_group_id == group.rid
+              ops.push [:add, :member, item.distinguished_name]
+            end
           end
           
+          # UNIX main group memberships are handled in update_user() when there
+          # are changes if necessary.
           if item.instance_of?(UNIXUser) && group.instance_of?(UNIXGroup) &&
              group != item.unix_main_group
             # As with the member attribute, the msSFU30PosixMember attribute
@@ -2411,6 +2421,8 @@ module RADUM
                              :scope => Net::LDAP::SearchScope_BaseObject).pop
         attr = user_ldap_entry_attr entry
         ops = []
+        # This for the UNIX group membership corner case below.
+        old_gid = nil
         RADUM::logger.log("\tKey: AD Value =? Object Value", LOG_DEBUG)
         
         attr.keys.each do |key|
@@ -2426,7 +2438,16 @@ module RADUM
           ad_value = attr[key]
           RADUM::logger.log("\t#{key}: #{ad_value} =? #{obj_value}", LOG_DEBUG)
           
-          if ad_value != obj_value
+          # Some attributes are integers and some are Strings, but they are
+          # always Strings coming out of Active Directory. This is a safe
+          # step to ensure a correct comparision.
+          #
+          # Note that in this case there is a comparision of the primary_group
+          # value, which is represented as a Group/UNIXGroup object, but it
+          # has a to_s() method that will work fine here. So yes, what I said
+          # at first is not strictly true, but by "magic" this all works fine.
+          # I mean, have you read this code? :-)
+          if ad_value.to_s != obj_value.to_s
             case key
             when :disabled?
               user_status = UF_NORMAL_ACCOUNT
@@ -2479,6 +2500,7 @@ module RADUM
             when :shadow_warning
               ops.push [:replace, :shadowWarning, obj_value.to_s]
             when :gid
+              old_gid = ad_value.to_i
               ops.push [:replace, :gidNumber, obj_value.to_s]
             when :must_change_password?
               if obj_value
@@ -2534,6 +2556,78 @@ module RADUM
           # means we need to set it, otherwise it should be nil. We just
           # set it, so we don't want the update set to try and set it again.
           user.password = nil
+        end
+        
+        # This is a corner case with the UNIX main group. Due to the
+        # complications in implicit UNIX group membership, primary Windows
+        # groups having users as implicit members, etc. we just make sure
+        # the user is made a UNIX member of the previous UNIX main group
+        # when it was changed just in case they are not already a member.
+        if old_gid
+          group_ops = []
+          group_filter = Net::LDAP::Filter.eq("objectclass", "group")
+          group = find_group_by_gid old_gid
+          entry = @ldap.search(:base => group.distinguished_name,
+                               :filter => group_filter,
+                               :scope => Net::LDAP::SearchScope_BaseObject).pop
+          # Double check to make sure they are not already members. Since this
+          # logic is difficult to deal with, the algorithm is simply to make
+          # sure the UNIXUser is a member of their previous UNIX main group
+          # if that has not been done by the update_group() method.
+          found = false
+          
+          begin
+            found = entry.msSFU30PosixMember.find do |member|
+              user.distinguished_name.downcase == member.downcase
+            end
+          rescue NoMethodError
+          end
+          
+          unless found
+            group_ops.push [:add, :memberUid, user.username]
+            group_ops.push [:add, :msSFU30PosixMember, user.distinguished_name]
+            RADUM::logger.log("\nSpecial case 1: updating old UNIX main group" +
+                              " UNIX membership for group <#{group.name}>.",
+                              LOG_DEBUG)
+            RADUM::logger.log("\n" + group_ops.to_yaml, LOG_DEBUG)
+            @ldap.modify :dn => group.distinguished_name,
+                         :operations => group_ops
+            check_ldap_result
+            RADUM::logger.log("\nSpecial case 1: end.\n\n", LOG_DEBUG)
+          end
+          
+          # In this case, we also have to make sure the user is removed
+          # from the new UNIX main group with respect to UNIX group membership.
+          # This is because there is also a case where the UNIX main group is
+          # being set to the primary Windows group, and thus would not cause
+          # an update because the Windows group membership is implicit.
+          group_ops = []
+          group = user.unix_main_group
+          entry = @ldap.search(:base => group.distinguished_name,
+                               :filter => group_filter,
+                               :scope => Net::LDAP::SearchScope_BaseObject).pop
+          found = false
+          
+          begin
+            found = entry.msSFU30PosixMember.find do |member|
+              user.distinguished_name.downcase == member.downcase
+            end
+          rescue NoMethodError
+          end
+          
+          if found
+            group_ops.push [:delete, :memberUid, user.username]
+            group_ops.push [:delete, :msSFU30PosixMember,
+                            user.distinguished_name]
+            RADUM::logger.log("\nSpecial case 2: removing UNIX main group" +
+                              " UNIX membership for group <#{group.name}>.",
+                              LOG_DEBUG)
+            RADUM::logger.log("\n" + group_ops.to_yaml, LOG_DEBUG)
+            @ldap.modify :dn => group.distinguished_name,
+                         :operations => group_ops
+            check_ldap_result
+            RADUM::logger.log("\nSpecial case 2: end.\n\n", LOG_DEBUG)
+          end
         end
         
         unless ops.empty?
