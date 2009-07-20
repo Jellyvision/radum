@@ -492,9 +492,10 @@ module RADUM
       end
       
       uid = args[:uid]
+      all_uids = ldap_load_uids
       
       # The UID must be unique.
-      if @uids.include? uid
+      if (all_uids + @uids).include? uid
         raise "UID #{uid} is already in use in the directory."
       end
       
@@ -855,8 +856,11 @@ module RADUM
     # Note that Container#destroy_group checks to make sure the group is not
     # the primary Windows group for any User or UNIXUser first, so the :group
     # must not be the primary Windows group for any users. If the group is
-    # someone's primary Windows group, you will have to modify it by hand in
-    # Active Directory.
+    # someone's primary Windows group a RuntimeError is raised. You will have
+    # to modify it by hand in Active Directory if you want to convert it.  The
+    # primary Windows group condition is checked for all users in Active
+    # Directory before attempting to use Container#destroy_group to ensure the
+    # conversion is safe.
     #
     # No changes to the Group happen until AD#sync is called.
     def group_to_unix_group(args = {})
@@ -872,9 +876,10 @@ module RADUM
       end
       
       gid = args[:gid]
+      all_gids = ldap_load_gids
       
       # The GID must be unique.
-      if @gids.include? gid
+      if (all_gids + @gids).include? gid
         raise "GID #{gid} is already in use in the directory."
       end
       
@@ -890,8 +895,17 @@ module RADUM
       removed_groups = group.removed_groups.clone
       loaded = group.loaded?
       
+      # Make sure the group is not someone's primary Windows group for all
+      # users in Active Directory before trying to destroy the group. The
+      # Container#destroy_group method only checks for objects in RADUM
+      # itself.
+      if ldap_is_primary_windows_group? group
+        raise "unix_group_to_group :group is someone's primary Windows group."
+      end
+      
       # Destroy the group now that we have its information.
       container.destroy_group group
+      
       group = UNIXGroup.new :name => name, :container => container,
                             :type => type, :rid => rid, :gid => gid,
                             :nis_domain => nis_domain
@@ -953,7 +967,10 @@ module RADUM
     # the primary Windows group or UNIX main group for any User or UNIXUser,
     # so the :group must not be the primary Windows group or UNIX main group
     # for any users. If the group is someone's primary Windows group or UNIX
-    # main group, you will have to modify it by hand in Active Directory.
+    # main group a RuntimeError will be raised. You will have to modify it by
+    # hand in Active Directory if you want to convert it. These conditions
+    # are checked for all users in Active Directory before attempting to
+    # use Container#destroy_group to ensure the conversion is safe.
     #
     # UNIX attributes are removed from Active Directory immedately if it is
     # actually possible to destroy the UNIXGroup properly without waiting for
@@ -982,6 +999,22 @@ module RADUM
       removed_users = group.removed_users.clone
       removed_groups = group.removed_groups.clone
       loaded = group.loaded?
+      
+      # Make sure the group is not someone's primary Windows group for all
+      # users in Active Directory before trying to destroy the group. The
+      # Container#destroy_group method only checks for objects in RADUM
+      # itself.
+      if ldap_is_primary_windows_group? group
+        raise "unix_group_to_group :group is someone's primary Windows group."
+      end
+      
+      # Make sure the group is not someone's UNIX main group for all users
+      # in Active Directory before trying to destroy the group. The
+      # Container#destroy_group method only checks for objects in RADUM
+      # itself.
+      if ldap_is_unix_main_group? group
+        raise "unix_group_to_group :group is someone's UNIX main group."
+      end
       
       # Destroy the group now that we have its information.
       container.destroy_group group
@@ -1298,17 +1331,7 @@ module RADUM
     # values for UNIXUser objects that might not be in the Active Directory yet.
     # If nothing is found, the min_uid attribute is returned.
     def load_next_uid
-      all_uids = []
-      user_filter = Net::LDAP::Filter.eq("objectclass", "user")
-      
-      @ldap.search(:base => @root, :filter => user_filter) do |entry|
-        begin
-          uid = entry.uidNumber.pop.to_i
-          all_uids.push uid
-        rescue NoMethodError
-        end
-      end
-      
+      all_uids = load_ldap_uids
       next_uid = 0
       
       # This accounts for any GIDs that might not be in Active Directory yet
@@ -1334,17 +1357,7 @@ module RADUM
     # values for UNIXGroup objects that might not be in the Active Directory
     # yet. If nothing is found, the min_gid attribute is returned.
     def load_next_gid
-      all_gids = []
-      group_filter = Net::LDAP::Filter.eq("objectclass", "group")
-      
-      @ldap.search(:base => @root, :filter => group_filter) do |entry|
-        begin
-          gid = entry.gidNumber.pop.to_i
-          all_gids.push gid
-        rescue NoMethodError
-        end
-      end
-      
+      all_gids = load_ldap_gids
       next_gid = 0
       
       # This accounts for any GIDs that might not be in Active Directory yet
@@ -1542,6 +1555,38 @@ module RADUM
     def random_password
       random_lowercase + random_number + random_lowercase + random_uppercase +
       random_symbol + random_number + random_uppercase + random_symbol
+    end
+    
+    # Return an array of all GID values in Active Directory.
+    def load_ldap_gids
+      all_gids = []
+      group_filter = Net::LDAP::Filter.eq("objectclass", "group")
+    
+      @ldap.search(:base => @root, :filter => group_filter) do |entry|
+        begin
+          gid = entry.gidNumber.pop.to_i
+          all_gids.push gid
+        rescue NoMethodError
+        end
+      end
+      
+      all_gids
+    end
+    
+    # Return an array of all UID values in Active Directory.
+    def load_ldap_uids
+      all_uids = []
+      user_filter = Net::LDAP::Filter.eq("objectclass", "user")
+      
+      @ldap.search(:base => @root, :filter => user_filter) do |entry|
+        begin
+          uid = entry.uidNumber.pop.to_i
+          all_uids.push uid
+        rescue NoMethodError
+        end
+      end
+      
+      all_uids
     end
     
     # Return a hash with an Active Directory group's base LDAP attributes. The
@@ -1830,6 +1875,39 @@ module RADUM
       end
     end
     
+    # Determine if the group is anyone's primary Windows group in Active
+    # Directory. Returns true if the group is anyone's primary Windows group,
+    # false otherwise. This works for Group and UNIXGroup objects.
+    def ldap_is_primary_windows_group?(group)
+      user_filter = Net::LDAP::Filter.eq("objectclass", "user")
+      
+      @ldap.search(:base => @root, :filter => user_filter) do |entry|
+        rid = entry.primaryGroupID.pop.to_i
+        return true if rid == group.rid
+      end
+      
+      false
+    end
+    
+    # Determine if the group is anyone's UNIX main group in Active Directory.
+    # Returns true if the group is anyone's UNIX main group, false otherwise.
+    # This works for UNIXGroup objects and returns false for Group objects.
+    def ldap_is_unix_main_group?(group)
+      user_filter = Net::LDAP::Filter.eq("objectclass", "user")
+      
+      if group.instance_of? UNIXGroup
+        @ldap.search(:base => @root, :filter => user_filter) do |entry|
+          begin
+            gid = entry.gidNumber.pop.to_i
+            return true if gid == group.gid
+          rescue NoMethodError
+          end
+        end
+      end
+      
+      false
+    end
+    
     # Delete a Group or UNIXGroup from Active Directory.
     def delete_group(group)
       RADUM::logger.log("[AD #{self.root}]" +
@@ -1843,24 +1921,10 @@ module RADUM
       # the standard Windows Active Directory logic (at least, I have been
       # able to remove a group that was someone's UNIX main group before, but
       # not their primary Windows group).
-      found_primary = []
-      found_unix = []
-      user_filter = Net::LDAP::Filter.eq("objectclass", "user")
+      found_primary = ldap_is_primary_windows_group?(group)
+      found_unix = ldap_is_unix_main_group?(group)
       
-      @ldap.search(:base => @root, :filter => user_filter) do |entry|
-        rid = entry.primaryGroupID.pop.to_i
-        found_primary.push entry.dn if rid == group.rid
-        
-        if group.instance_of? UNIXGroup
-          begin
-            gid = entry.gidNumber.pop.to_i
-            found_unix.push entry.dn if gid == group.gid
-          rescue NoMethodError
-          end
-        end
-      end
-      
-      if found_primary.empty? && found_unix.empty?
+      unless found_primary || found_unix
         RADUM::logger.log("\tDeleted group <#{group.name}>.", LOG_DEBUG)
         @ldap.delete :dn => group.distinguished_name
         check_ldap_result
@@ -1872,22 +1936,14 @@ module RADUM
       else
         RADUM::logger.log("\tCannot delete group <#{group.name}>:", LOG_DEBUG)
         
-        unless found_primary.empty?
-          RADUM::logger("\t#{group.name} is the primary Windows group for the" +
-                        " users:", LOG_DEBUG)
-          
-          found_primary.each do |user|
-            RADUM::logger.log("\t\t<#{user.username}>", LOG_DEBUG)
-          end
+        if found_primary
+          RADUM::logger("\t<#{group.name}> is the primary Windows group for a" +
+                        " user in Active Directory.", LOG_DEBUG)
         end
         
-        unless found_unix.empty?
-          RADUM::logger.log("\t#<{group.name}> is the UNIX main group for the" +
-                            " users:", LOG_DEBUG)
-          
-          found_unix.each do |user|
-            RADUM::logger.log("\t\t<#{user.username}>", LOG_DEBUG)
-          end
+        if found_unix
+          RADUM::logger.log("\t<#{group.name}> is the UNIX main group for a" +
+                            " user in Active Directory.", LOG_DEBUG)
         end
       end
     end

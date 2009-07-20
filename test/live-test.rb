@@ -62,7 +62,7 @@ class TC_Live < Test::Unit::TestCase
   
   # This will return true if the user is not a UNIX member of the group, false
   # otherwise.
-  def ldap_not_unix_group_member(user, group)
+  def ldap_not_unix_group_member?(user, group)
     group_filter = Net::LDAP::Filter.eq("objectclass", "group")
     entry = @ad.ldap.search(:base => group.distinguished_name,
                             :filter => group_filter,
@@ -81,7 +81,7 @@ class TC_Live < Test::Unit::TestCase
   
   # This will return true if the user is a UNIX member of the group, false
   # otherwise.
-  def ldap_unix_group_member(user, group)
+  def ldap_unix_group_member?(user, group)
     group_filter = Net::LDAP::Filter.eq("objectclass", "group")
     entry = @ad.ldap.search(:base => group.distinguished_name,
                             :filter => group_filter,
@@ -98,6 +98,130 @@ class TC_Live < Test::Unit::TestCase
     # The user object is the value of found if found, but we want a boolean
     # here. This is the easiest way.
     found != false
+  end
+  
+  # This will return true if the group has no UNIX attributes defined, false
+  # otherwise
+  def ldap_no_group_unix_attributes?(group)
+    group_filter = Net::LDAP::Filter.eq("objectclass", "group")
+    entry = @ad.ldap.search(:base => group.distinguished_name,
+                            :filter => group_filter,
+                            :scope => Net::LDAP::SearchScope_BaseObject).pop
+    
+    begin
+      entry.gidNumber.pop
+      return false
+    rescue NoMethodError
+    end
+    
+    begin
+      entry.msSFU30NisDomain.pop
+      return false
+    rescue NoMethodError
+    end
+    
+    begin
+      entry.unixUserPassword.pop
+      return false
+    rescue NoMethodError
+    end
+    
+    return true
+  end
+  
+  # This will return true if the user has no UNIX attributes defined, false
+  # otherwise.
+  def ldap_no_user_unix_attributes?(user)
+    user_filter = Net::LDAP::Filter.eq("objectclass", "user")
+    entry = @ad.ldap.search(:base => user.distinguished_name,
+                            :filter => group_filter,
+                            :scope => Net::LDAP::SearchScope_BaseObject).pop
+    
+    begin
+      entry.uidNumber.pop
+      return false
+    rescue NoMethodError
+    end
+    
+    begin
+      entry.gidNumber.pop
+      return false
+    rescue NoMethodError
+    end
+    
+    begin
+      entry.msSFU30NisDomain.pop
+      return false
+    rescue NoMethodError
+    end
+    
+    begin
+      entry.gecos.pop
+      return false
+    rescue NoMethodError
+    end
+    
+    begin
+      entry.unixUserPassword.pop
+      return false
+    rescue NoMethodError
+    end
+    
+    begin
+      entry.shadowExpire.pop
+      return false
+    rescue NoMethodError
+    end
+    
+    begin
+      entry.shadowFlag.pop
+      return false
+    rescue NoMethodError
+    end
+    
+    begin
+      entry.shadowInactive.pop
+      return false
+    rescue NoMethodError
+    end
+    
+    begin
+      entry.shadowLastChange.pop
+      return false
+    rescue NoMethodError
+    end
+    
+    begin
+      entry.shadowMax.pop
+      return false
+    rescue NoMethodError
+    end
+    
+    begin
+      entry.shadowMin.pop
+      return false
+    rescue NoMethodError
+    end
+    
+    begin
+      entry.shadowWarning.pop
+      return false
+    rescue NoMethodError
+    end
+    
+    begin
+      entry.loginShell.pop
+      return false
+    rescue NoMethodError
+    end
+    
+    begin
+      entry.unixHomeDirectory.pop
+      return false
+    rescue NoMethodError
+    end
+    
+    return true
   end
   
   def test_user_attributes_groups
@@ -377,7 +501,7 @@ class TC_Live < Test::Unit::TestCase
     assert(u2.unix_main_group == ug, "unix_main_group should be #{ug}")
     assert(u2.member_of?(ug) == true,
            "user should be a Windows member of unix_main_group")
-    assert(ldap_not_unix_group_member(u, g),
+    assert(ldap_not_unix_group_member?(u, g),
            "should not be a UNIX member of unix_main_group")
     g2 = RADUM::UNIXGroup.new :name => "unix-group2-" + $$.to_s,
                              :container => @cn, :gid => @ad.load_next_gid,
@@ -392,9 +516,9 @@ class TC_Live < Test::Unit::TestCase
     assert(u2.unix_main_group == ug, "unix_main_group should be #{ug}")
     assert(u2.member_of?(ug) == true,
            "user should be a Windows member of unix_main_group")
-    assert(ldap_not_unix_group_member(u, g2),
+    assert(ldap_not_unix_group_member?(u, g2),
            "user should not be a UNIX member of unix_main_group")
-    assert(ldap_unix_group_member(u, g),
+    assert(ldap_unix_group_member?(u, g),
            "user should be a UNIX member of unix group")
     u.unix_main_group = g
     @ad.sync
@@ -406,19 +530,20 @@ class TC_Live < Test::Unit::TestCase
     assert(u2.unix_main_group == ug, "unix_main_group should be #{ug}")
     assert(u2.member_of?(ug) == true,
            "user should be a Windows member of unix_main_group")
-    assert(ldap_not_unix_group_member(u, g),
+    assert(ldap_not_unix_group_member?(u, g),
            "user should not be a UNIX member of unix_main_group")
     # Because g2 was the previous UNIX main group and it was changed to g.
     ug2 = ad2.find_group_by_name "unix-group2-" + $$.to_s
     assert(u2.member_of?(ug2) == true,
            "user should be a Windows member of unix group 2")
-    assert(ldap_unix_group_member(u, g2),
+    assert(ldap_unix_group_member?(u, g2),
            "user should be a UNIX member of unix group 2")
     
     # Test UNIX group membership additions and removals.
     g3 = RADUM::UNIXGroup.new :name => "unix-group3-" + $$.to_s,
                               :container => @cn, :gid => @ad.load_next_gid,
                               :nis_domain => "vmware"
+    
     # The user is still in group g2 because we switched their main group to
     # g when it was g2 previously.
     u.add_group g3
@@ -428,15 +553,15 @@ class TC_Live < Test::Unit::TestCase
     u2 = ad2.find_user_by_username "unix-user-" + $$.to_s
     assert(u2.member_of?(ad2.find_group_by_name("unix-group-" + $$.to_s)) ==
            true, "user should be a Windows member of unix_main_group")
-    assert(ldap_not_unix_group_member(u, g),
+    assert(ldap_not_unix_group_member?(u, g),
            "user should not be a UNIX member of unix_main_group")
     assert(u2.member_of?(ad2.find_group_by_name("unix-group2-" + $$.to_s)) ==
            true, "user should be a Widows member of unix group 2")
-    assert(ldap_unix_group_member(u, g2),
+    assert(ldap_unix_group_member?(u, g2),
            "user should be a UNIX member of unix group 2")
     assert(u2.member_of?(ad2.find_group_by_name("unix-group3-" + $$.to_s)) ==
            true, "user should be a Windows member of unix group 3")
-    assert(ldap_unix_group_member(u, g3),
+    assert(ldap_unix_group_member?(u, g3),
            "user should be a UNIX member of unix group 3")
     u.remove_group g2
     g3.remove_user u
@@ -446,15 +571,15 @@ class TC_Live < Test::Unit::TestCase
     u2 = ad2.find_user_by_username "unix-user-" + $$.to_s
     assert(u2.member_of?(ad2.find_group_by_name("unix-group-" + $$.to_s)) ==
            true, "user should be a Windows member of unix_main_group")
-    assert(ldap_not_unix_group_member(u, g),
+    assert(ldap_not_unix_group_member?(u, g),
            "user should not be a UNIX member of unix_main_group")
     assert(u2.member_of?(ad2.find_group_by_name("unix-group2-" + $$.to_s)) ==
            false, "user should not be a Windows member of unix group 2")
-    assert(ldap_not_unix_group_member(u, g2),
+    assert(ldap_not_unix_group_member?(u, g2),
            "user should not be a UNIX member of unix group 2")
     assert(u2.member_of?(ad2.find_group_by_name("unix-group3-" + $$.to_s)) ==
            false, "user should not be a Windows member of unix group 3")
-    assert(ldap_not_unix_group_member(u, g3),
+    assert(ldap_not_unix_group_member?(u, g3),
            "user should not be a UNIX member of unix group 3")
     
     # Now do the same group membership additions and removals when one of the
@@ -467,11 +592,11 @@ class TC_Live < Test::Unit::TestCase
     u2 = ad2.find_user_by_username "unix-user-" + $$.to_s
     assert(u2.member_of?(ad2.find_group_by_name("unix-group2-" + $$.to_s)) ==
            true, "user should be a Windows member of unix_main_group")
-    assert(ldap_not_unix_group_member(u, g2),
+    assert(ldap_not_unix_group_member?(u, g2),
            "user should not be a UNIX member of unix_main_group")
     assert(u2.member_of?(ad2.find_group_by_name("unix-group3-" + $$.to_s)) ==
            true, "user should be a Windows member of new group 3")
-    assert(ldap_unix_group_member(u, g3),
+    assert(ldap_unix_group_member?(u, g3),
            "user should be a UNIX member of unix group 3")
     
     # Remove the Container now that we are done with it. We have to change
@@ -479,5 +604,48 @@ class TC_Live < Test::Unit::TestCase
     u.primary_group = @domain_users
     @ad.remove_container @cn
     @ad.sync
+  end
+  
+  def foo_test_unix_windows_conversions
+    RADUM::logger.log("\ntest_unix_windows_conversions()", RADUM::LOG_DEBUG)
+    RADUM::logger.log("-------------------------------", RADUM::LOG_DEBUG)
+    wu = RADUM::User.new :username => "win-user-" + $$.to_s, :container => @cn,
+                         :primary_group => @domain_users
+    wg = RADUM::Group.new :name => "win-group-" + $$.to_s, :container => @cn
+    ug = RADUM::UNIXGroup.new :name => "unix-group-" + $$.to_s,
+                          :container => @cn, :gid => @ad.load_next_gid,
+                          :nis_domain => "vmware"
+    uu = RADUM::UNIXUser.new :username => "unix-user-" + $$.to_s,
+                             :container => @cn, :primary_group => @domain_users,
+                             :uid => @ad.load_next_uid,
+                             :unix_main_group => g, :shell => "/bin/bash",
+                             :home_directory => "/home/unix-user-" + $$.to_s,
+                             :nis_domain => "vmware"
+    
+    # Set User attributes.
+    wu.first_name = "First Name"
+    wu.initials = "M"
+    wu.middle_name = "Middle Name"
+    wu.surname = "Surname"
+    wu.script_path = "\\\\script\\path"
+    wu.profile_path = "\\\\profile\\path"
+    wu.local_path = "D:\\Local Path"
+    
+    # Set UNIXUser attributes.
+    uu.gecos = "GECOS"
+    uu.unix_password = "password"
+    uu.shadow_expire = 1
+    uu.shadow_flag = 2
+    uu.shadow_inactive = 3
+    uu.shadow_last_change = 4
+    uu.shadow_max = 5
+    uu.shadow_min = 6
+    uu.shadow_warning = 7
+    @ad.sync
+    
+    
+    
+    ad2 = new_ad
+    u2 = ad2.find_user_by_username "win-user-" + $$.to_s
   end
 end
