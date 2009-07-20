@@ -857,10 +857,12 @@ module RADUM
     # the primary Windows group for any User or UNIXUser first, so the :group
     # must not be the primary Windows group for any users. If the group is
     # someone's primary Windows group a RuntimeError is raised. You will have
-    # to modify it by hand in Active Directory if you want to convert it.  The
-    # primary Windows group condition is checked for all users in Active
-    # Directory before attempting to use Container#destroy_group to ensure the
-    # conversion is safe.
+    # to modify it by hand in Active Directory if you want to convert it. The
+    # primary Windows group check is not done for all users in Active Directory
+    # because it is safe to convert unless RADUM thinks the Group is one of
+    # its User or UNIXUser object's primary Windows group. In that specific
+    # case, you'll have to modify the group in Active Directory by hand
+    # unfortunately.
     #
     # No changes to the Group happen until AD#sync is called.
     def group_to_unix_group(args = {})
@@ -895,15 +897,11 @@ module RADUM
       removed_groups = group.removed_groups.clone
       loaded = group.loaded?
       
-      # Make sure the group is not someone's primary Windows group for all
-      # users in Active Directory before trying to destroy the group. The
-      # Container#destroy_group method only checks for objects in RADUM
-      # itself.
-      if ldap_is_primary_windows_group? group
-        raise "unix_group_to_group :group is someone's primary Windows group."
-      end
-      
-      # Destroy the group now that we have its information.
+      # Destroy the group now that we have its information. This will fail if
+      # the group is someone's primary Windows group from the RADUM perspective
+      # because of the logic I have to employ, but it is fine if the group is
+      # some other user account's primary Windows group that RADUM doesn't
+      # know about.
       container.destroy_group group
       
       group = UNIXGroup.new :name => name, :container => container,
@@ -968,9 +966,14 @@ module RADUM
     # so the :group must not be the primary Windows group or UNIX main group
     # for any users. If the group is someone's primary Windows group or UNIX
     # main group a RuntimeError will be raised. You will have to modify it by
-    # hand in Active Directory if you want to convert it. These conditions
-    # are checked for all users in Active Directory before attempting to
-    # use Container#destroy_group to ensure the conversion is safe.
+    # hand in Active Directory if you want to convert it. The UNIX main group
+    # condition is checked for all users in Active Directory before attempting
+    # to use Container#destroy_group to ensure the conversion is safe. The
+    # primary Windows group check is not done for all users in Active Directory
+    # because it is safe to convert unless RADUM thinks the UNIXGroup
+    # is one of its User or UNIXUser object's primary Windows group. In that
+    # specific case, you'll have to modify the group in Active Directory by
+    # hand unfortunately.
     #
     # UNIX attributes are removed from Active Directory immedately if it is
     # actually possible to destroy the UNIXGroup properly without waiting for
@@ -1000,14 +1003,6 @@ module RADUM
       removed_groups = group.removed_groups.clone
       loaded = group.loaded?
       
-      # Make sure the group is not someone's primary Windows group for all
-      # users in Active Directory before trying to destroy the group. The
-      # Container#destroy_group method only checks for objects in RADUM
-      # itself.
-      if ldap_is_primary_windows_group? group
-        raise "unix_group_to_group :group is someone's primary Windows group."
-      end
-      
       # Make sure the group is not someone's UNIX main group for all users
       # in Active Directory before trying to destroy the group. The
       # Container#destroy_group method only checks for objects in RADUM
@@ -1016,7 +1011,11 @@ module RADUM
         raise "unix_group_to_group :group is someone's UNIX main group."
       end
       
-      # Destroy the group now that we have its information.
+      # Destroy the group now that we have its information. This will fail if
+      # the group is someone's primary Windows group from the RADUM perspective
+      # because of the logic I have to employ, but it is fine if the group is
+      # some other user account's primary Windows group that RADUM doesn't
+      # know about.
       container.destroy_group group
       
       # If the group was destroyed and we got this far, we need to remove
