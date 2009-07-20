@@ -134,7 +134,7 @@ class TC_Live < Test::Unit::TestCase
   def ldap_no_user_unix_attributes?(user)
     user_filter = Net::LDAP::Filter.eq("objectclass", "user")
     entry = @ad.ldap.search(:base => user.distinguished_name,
-                            :filter => group_filter,
+                            :filter => user_filter,
                             :scope => Net::LDAP::SearchScope_BaseObject).pop
     
     begin
@@ -606,7 +606,7 @@ class TC_Live < Test::Unit::TestCase
     @ad.sync
   end
   
-  def foo_test_unix_windows_conversions
+  def test_unix_windows_conversions
     RADUM::logger.log("\ntest_unix_windows_conversions()", RADUM::LOG_DEBUG)
     RADUM::logger.log("-------------------------------", RADUM::LOG_DEBUG)
     wu = RADUM::User.new :username => "win-user-" + $$.to_s, :container => @cn,
@@ -618,7 +618,7 @@ class TC_Live < Test::Unit::TestCase
     uu = RADUM::UNIXUser.new :username => "unix-user-" + $$.to_s,
                              :container => @cn, :primary_group => @domain_users,
                              :uid => @ad.load_next_uid,
-                             :unix_main_group => g, :shell => "/bin/bash",
+                             :unix_main_group => ug, :shell => "/bin/bash",
                              :home_directory => "/home/unix-user-" + $$.to_s,
                              :nis_domain => "vmware"
     
@@ -643,9 +643,41 @@ class TC_Live < Test::Unit::TestCase
     uu.shadow_warning = 7
     @ad.sync
     
+    # Grab the RID values to make sure they do not actually change. This is
+    # used later to make sure the objectSid value has not changed.
+    wu_rid = wu.rid
+    uu_rid = uu.rid
     
+    # Convert the Windows user to a UNIX user. I left off the nis_domain. It
+    # should end up being "vmware".
+    @ad.user_to_unix_user :user => wu, :uid => @ad.load_next_uid,
+                          :unix_main_group => ug, :shell => "/bin/bash",
+                          :home_directory => "/home/foo"
+    
+    # Convert the UNIX user to a Windows user.
+    @ad.unix_user_to_user :user => uu
+    @ad.sync
     
     ad2 = new_ad
-    u2 = ad2.find_user_by_username "win-user-" + $$.to_s
+    wu2 = ad2.find_user_by_username "win-user-" + $$.to_s
+    uu2 = ad2.find_user_by_username "unix-user-" + $$.to_s
+    
+    # The users are now the opposite types.
+    assert(wu2.instance_of?(RADUM::UNIXUser), "user should be a UNIXUser")
+    assert(uu2.instance_of?(RADUM::User), "user should be a User")
+    assert(ldap_no_user_unix_attributes?(uu2),
+           "user should have no UNIX attributes")
+    
+    # Check to make sure the objectSid values have not changed. The RID values
+    # should be the same.
+    assert(wu_rid == wu2.rid, "user objectSid (RID) changed")
+    assert(uu_rid == uu2.rid, "user objectSid (RID) changed")
+    
+    # Make sure each object kept the appropriate attributes.
+    # TO DO: continue here...
+    
+    # Remove the Container now that we are done with it
+    @ad.remove_container @cn
+    @ad.sync
   end
 end

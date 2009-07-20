@@ -492,7 +492,7 @@ module RADUM
       end
       
       uid = args[:uid]
-      all_uids = ldap_load_uids
+      all_uids = load_ldap_uids
       
       # The UID must be unique.
       if (all_uids + @uids).include? uid
@@ -515,6 +515,7 @@ module RADUM
       disabled = user.disabled?
       rid = user.rid
       first_name = user.first_name
+      initials = user.initials
       middle_name = user.middle_name
       surname = user.surname
       script_path = user.script_path
@@ -544,6 +545,7 @@ module RADUM
       
       # Set other User attributes.
       user.first_name = first_name
+      user.initials = initials
       user.middle_name = middle_name
       user.surname = surname
       user.script_path = script_path
@@ -618,11 +620,13 @@ module RADUM
       remove_unix_groups = args[:remove_unix_groups] || false
       
       # User attributes.
+      username = user.username
       container = user.container
       primary_group = user.primary_group
       disabled = user.disabled?
       rid = user.rid
       first_name = user.first_name
+      initials = user.initials
       middle_name = user.middle_name
       surname = user.surname
       script_path = user.script_path
@@ -661,7 +665,8 @@ module RADUM
           [:replace, :shadowMax, nil],
           [:replace, :shadowMin, nil],
           [:replace, :shadowWarning, nil],
-          [:replace, :gidNumber, nil]
+          [:replace, :gidNumber, nil],
+          [:replace, :uidNumber, nil]
         ]
         
         @ldap.modify :dn => user.distinguished_name, :operations => ops
@@ -680,6 +685,7 @@ module RADUM
       
       # Set other User attributes.
       user.first_name = first_name
+      user.initials = initials
       user.middle_name = middle_name
       user.surname = surname
       user.script_path = script_path
@@ -878,7 +884,7 @@ module RADUM
       end
       
       gid = args[:gid]
-      all_gids = ldap_load_gids
+      all_gids = load_ldap_gids
       
       # The GID must be unique.
       if (all_gids + @gids).include? gid
@@ -2475,8 +2481,11 @@ module RADUM
                              :scope => Net::LDAP::SearchScope_BaseObject).pop
         attr = user_ldap_entry_attr entry
         ops = []
-        # This for the UNIX group membership corner case below.
-        old_gid = nil
+        # This for the UNIX group membership corner case below. Note that 0
+        # is the case where the GID has been removed (UNIXUser converted to
+        # a User). No one should have a GID of 0, so this is just to make the
+        # check to proceed easier.
+        old_gid = 0
         RADUM::logger.log("\tKey: AD Value =? Object Value", LOG_DEBUG)
         
         attr.keys.each do |key|
@@ -2556,6 +2565,8 @@ module RADUM
             when :gid
               old_gid = ad_value.to_i
               ops.push [:replace, :gidNumber, obj_value.to_s]
+            when :uid
+              ops.push [:replace, :uidNumber, obj_value.to_s]
             when :must_change_password?
               if obj_value
                 ops.push [:replace, :pwdLastSet, 0.to_s]
@@ -2617,7 +2628,13 @@ module RADUM
         # groups having users as implicit members, etc. we just make sure
         # the user is made a UNIX member of the previous UNIX main group
         # when it was changed just in case they are not already a member.
-        if old_gid
+        #
+        # Note that when converting a UNIXUser to a User, there will be a
+        # gid change, but the gid will be "".to_i (0). In that case, we don't
+        # want to proceed with this logic. This isn't C, so "if 0" is true.
+        # The old_gid variable is initialized to 0 too in order to make this
+        # check easier. None should have a GID of 0.
+        unless old_gid == 0
           group_ops = []
           group_filter = Net::LDAP::Filter.eq("objectclass", "group")
           group = find_group_by_gid old_gid
