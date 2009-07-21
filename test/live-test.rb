@@ -626,12 +626,19 @@ class TC_Live < Test::Unit::TestCase
     wu.first_name = "First Name"
     wu.initials = "M"
     wu.middle_name = "Middle Name"
-    wu.surname = "Surname"
+    wu.surname = "Last Name"
     wu.script_path = "\\\\script\\path"
     wu.profile_path = "\\\\profile\\path"
     wu.local_path = "D:\\Local Path"
     
     # Set UNIXUser attributes.
+    uu.first_name = "First"
+    uu.initials = "M"
+    uu.middle_name = "Middle"
+    uu.surname = "Surname"
+    uu.script_path = "\\\\uu\\script\\path"
+    uu.profile_path = "\\\\uu\\profile\\path"
+    uu.connect_drive_to "Z", "\\\\uu\\local\\path"
     uu.gecos = "GECOS"
     uu.unix_password = "password"
     uu.shadow_expire = 1
@@ -650,7 +657,8 @@ class TC_Live < Test::Unit::TestCase
     
     # Convert the Windows user to a UNIX user. I left off the nis_domain. It
     # should end up being "vmware".
-    @ad.user_to_unix_user :user => wu, :uid => @ad.load_next_uid,
+    wu_uid = @ad.load_next_uid
+    @ad.user_to_unix_user :user => wu, :uid => wu_uid,
                           :unix_main_group => ug, :shell => "/bin/bash",
                           :home_directory => "/home/foo"
     
@@ -660,6 +668,7 @@ class TC_Live < Test::Unit::TestCase
     
     ad2 = new_ad
     wu2 = ad2.find_user_by_username "win-user-" + $$.to_s
+    ug2 = ad2.find_group_by_name "unix-group-" + $$.to_s
     uu2 = ad2.find_user_by_username "unix-user-" + $$.to_s
     
     # The users are now the opposite types.
@@ -673,8 +682,40 @@ class TC_Live < Test::Unit::TestCase
     assert(wu_rid == wu2.rid, "user objectSid (RID) changed")
     assert(uu_rid == uu2.rid, "user objectSid (RID) changed")
     
-    # Make sure each object kept the appropriate attributes.
-    # TO DO: continue here...
+    # Make sure none of the attributes set have been changed.
+    assert(wu2.first_name == "First Name",
+           "user first_name should be 'First Name'")
+    assert(wu2.initials == "M", "user initials should be 'M'")
+    assert(wu2.middle_name == "Middle Name",
+           "user middle_name should be 'Middle Name'")
+    assert(wu2.surname == "Last Name", "user surname should be 'Last Name'")
+    assert(wu2.script_path == "\\\\script\\path",
+           "user script_path should be '\\\\script\\path'")
+    assert(wu2.profile_path == "\\\\profile\\path",
+           "user profile_path should be '\\\\profile\\path'")
+    assert(wu2.local_path == "D:\\Local Path",
+           "user local_path shold be 'D:\\Local Path'")
+    # Also check settings from conversion itself.
+    assert(wu2.uid == wu_uid, "user uid should be #{wu_uid}")
+    assert(wu2.gid == ug2.gid, "user gid should be #{ug2.gid}")
+    assert(wu2.unix_main_group == ug2, "user unix_main_group should be #{ug2}")
+    assert(wu2.shell == "/bin/bash", "user shell should be '/bin/bash'")
+    assert(wu2.home_directory == "/home/foo",
+           "user home_directory should be '/home/foo'")
+    # This is the default value.
+    assert(wu2.nis_domain == "radum", "user nis_domain should be 'radum'")
+    
+    assert(uu2.first_name == "First", "user first_name should be 'First'")
+    assert(uu2.initials == "M", "user initials should be 'M'")
+    assert(uu2.middle_name == "Middle", "user middle_name should be 'Middle'")
+    assert(uu2.surname == "Surname", "user surname should be 'Surname'")
+    assert(uu2.script_path == "\\\\uu\\script\\path",
+           "user script_path should be '\\\\uu\\script\\path'")
+    assert(uu2.profile_path == "\\\\uu\\profile\\path",
+           "user profile_path should be '\\\\uu\\profile\\path'")
+    assert(uu2.local_drive == "Z", "user local_drive should be 'Z'")
+    assert(uu2.local_path == "\\\\uu\\local\\path",
+           "user local_path should be '\\\\uu\\local\\path'")
     
     # Remove the Container now that we are done with it
     @ad.remove_container @cn
