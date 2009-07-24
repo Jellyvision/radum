@@ -22,9 +22,10 @@ module RADUM
     attr_reader :rid
     # The LDAP distinguishedName attribute for this Group or UNIXGroup.
     attr_reader :distinguished_name
-    # The User or UNIXUser objects that are members of the Group or UNIXGroup.
-    # Users or UNIXUsers are not members of the Group or UNIXGroup if the Group
-    # or UNIXGroup is their primary Windows group in Active Directory.
+    # The User or UNIXUser objects the Group or UNIXGroup has a members. Users
+    # and UNIXUsers are implicit members of their primary_group as well, but
+    # they are not added to the users array directly. This matches the implicit
+    # membership in the primary Windows group in Active Directory.
     attr_reader :users
     # An array of User or UNIXUser objects removed from the Group or UNIXGroup.
     attr_reader :removed_users

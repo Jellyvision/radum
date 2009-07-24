@@ -16,8 +16,8 @@ module RADUM
     # or UNIXUser by hand.
     attr_reader :rid
     # The Group or UNIXGroup objects the User or UNIXUser is a member of. Users
-    # and UNIXUsers are logical members of their primary_group as well, but that
-    # is not added to the groups array directly. This matches the implicit
+    # and UNIXUsers are implicit members of their primary_group as well, but
+    # that is not added to the groups array directly. This matches the implicit
     # membership in the primary Windows group in Active Directory.
     attr_reader :groups
     # An array of Group or UNIXGroup objects removed from the User or
@@ -906,7 +906,9 @@ module RADUM
     # respect to UNIX membership). UNIXGroup membership cannot be removed
     # for the UNIXUser object's UNIX main group because RADUM enforces
     # Windows group membership in the UNIX main group,  unless the group
-    # is also the UNIXUser object's primary Windows group.
+    # is also the UNIXUser object's primary Windows group. In that case
+    # UNIX group membership is kept because a UNIXUser is implicitly a
+    # member of their primary Windows group anyway.
     def remove_group(group)
       if !@removed && group.instance_of?(UNIXGroup) &&
          group == @unix_main_group && group != @primary_group
