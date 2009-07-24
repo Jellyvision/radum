@@ -519,7 +519,9 @@ class TC_Live < Test::Unit::TestCase
     assert(ldap_not_unix_group_member?(u, g2),
            "user should not be a UNIX member of unix_main_group")
     assert(ldap_unix_group_member?(u, g),
-           "user should be a UNIX member of unix group")
+           "user should be a UNIX member of old unix_main_group")
+    assert(u2.member_of?(ad2.find_group_by_name("unix-group-" + $$.to_s)) ==
+           true, "user should be a Windows member of old unix_main_group")
     u.unix_main_group = g
     @ad.sync
     
@@ -556,7 +558,7 @@ class TC_Live < Test::Unit::TestCase
     assert(ldap_not_unix_group_member?(u, g),
            "user should not be a UNIX member of unix_main_group")
     assert(u2.member_of?(ad2.find_group_by_name("unix-group2-" + $$.to_s)) ==
-           true, "user should be a Widows member of unix group 2")
+           true, "user should be a Windows member of unix group 2")
     assert(ldap_unix_group_member?(u, g2),
            "user should be a UNIX member of unix group 2")
     assert(u2.member_of?(ad2.find_group_by_name("unix-group3-" + $$.to_s)) ==
@@ -583,21 +585,67 @@ class TC_Live < Test::Unit::TestCase
            "user should not be a UNIX member of unix group 3")
     
     # Now do the same group membership additions and removals when one of the
-    # groups is set as the primary Windows group as well.
-    u.primary_group = g2
+    # groups is set as the primary Windows group as well. The group g is the
+    # UNIX main group as well as the primary Windows group after setting below:
+    u.primary_group = g
     g3.add_user u
     @ad.sync
     
     ad2 = new_ad
     u2 = ad2.find_user_by_username "unix-user-" + $$.to_s
-    assert(u2.member_of?(ad2.find_group_by_name("unix-group2-" + $$.to_s)) ==
-           true, "user should be a Windows member of unix_main_group")
-    assert(ldap_not_unix_group_member?(u, g2),
-           "user should not be a UNIX member of unix_main_group")
+    assert(u2.member_of?(ad2.find_group_by_name("unix-group-" + $$.to_s)) ==
+           true, "user should be a Windows member of new primary group")
+    assert(ldap_not_unix_group_member?(u, g),
+           "user should not be a UNIX member of new primary group")
+    assert(u2.primary_group == u2.unix_main_group,
+           "user primary Windows group should be the same as UNIX main group")
     assert(u2.member_of?(ad2.find_group_by_name("unix-group3-" + $$.to_s)) ==
            true, "user should be a Windows member of new group 3")
     assert(ldap_unix_group_member?(u, g3),
            "user should be a UNIX member of unix group 3")
+    assert(u2.member_of?(ad2.find_group_by_name("Domain Users")) == true,
+           "user should keep Windows membership in old primary group")
+    
+    # Now switch the primary Windows group to g3 and remove membership in
+    # g2.
+    u.primary_group = g3
+    @ad.sync
+    
+    ad2 = new_ad
+    u2 = ad2.find_user_by_username "unix-user-" + $$.to_s
+    assert(u2.member_of?(ad2.find_group_by_name("unix-group-" + $$.to_s)) ==
+           true, "user should be a Windows member of old primary Windows group")
+    assert(ldap_not_unix_group_member?(u, g),
+           "user should not be a UNIX member of UNIX main group")
+    assert(u2.primary_group != u2.unix_main_group,
+           "user primary Windows group should not be same as UNIX main group")
+    assert(u2.member_of?(ad2.find_group_by_name("unix-group3-" + $$.to_s)) ==
+           true, "user should be a Windows member of new primary Windows group")
+    assert(ldap_unix_group_member?(u, g3),
+           "user should be a UNIX member of new primary Windows group")
+    assert(u2.member_of?(ad2.find_group_by_name("Domain Users")) == true,
+           "user should be a Windows member of Domain Users")
+    
+    # Now we switch the UNIX main group to the current group and test.
+    u.unix_main_group = g3
+    @ad.sync
+    
+    ad2 = new_ad
+    u2 = ad2.find_user_by_username "unix-user-" + $$.to_s
+    assert(u2.member_of?(ad2.find_group_by_name("unix-group3-" + $$.to_s)) ==
+           true, "user should be a Windows member of primary group")
+    assert(ldap_not_unix_group_member?(u, g3),
+           "user should not be a UNIX member of primary group")
+    assert(u2.primary_group == u2.unix_main_group,
+           "user primary Windows group should be the same as UNIX main group")
+    assert(u2.member_of?(ad2.find_group_by_name("unix-group-" + $$.to_s)) ==
+           true, "user should be a Windows member of old UNIX main group")
+    assert(ldap_unix_group_member?(u, g),
+           "user should be a UNIX member of old UNIX main group")
+    assert(u2.member_of?(ad2.find_group_by_name("unix-group-" + $$.to_s)) ==
+           true, "user should be a Windows member of old UNIX main group")
+    assert(u2.member_of?(ad2.find_group_by_name("Domain Users")) == true,
+           "user should be a Windows member of Domain Users")
     
     # Remove the Container now that we are done with it. We have to change
     # the test user account's primary Windows group first.
@@ -613,8 +661,8 @@ class TC_Live < Test::Unit::TestCase
                          :primary_group => @domain_users
     wg = RADUM::Group.new :name => "win-group-" + $$.to_s, :container => @cn
     ug = RADUM::UNIXGroup.new :name => "unix-group-" + $$.to_s,
-                          :container => @cn, :gid => @ad.load_next_gid,
-                          :nis_domain => "vmware"
+                              :container => @cn, :gid => @ad.load_next_gid,
+                              :nis_domain => "vmware"
     uu = RADUM::UNIXUser.new :username => "unix-user-" + $$.to_s,
                              :container => @cn, :primary_group => @domain_users,
                              :uid => @ad.load_next_uid,
@@ -661,14 +709,19 @@ class TC_Live < Test::Unit::TestCase
     @ad.user_to_unix_user :user => wu, :uid => wu_uid,
                           :unix_main_group => ug, :shell => "/bin/bash",
                           :home_directory => "/home/foo"
-    
-    # Convert the UNIX user to a Windows user.
+    # Convert the UNIX user to a Windows user, also add a new UNIX group for
+    # further testing.
+    ug_new = RADUM::UNIXGroup.new :name => "unix-group-new-" + $$.to_s,
+                                  :container => @cn, :gid => @ad.load_next_gid,
+                                  :nis_domain => "vmware"
+    uu.add_group ug_new
     @ad.unix_user_to_user :user => uu
     @ad.sync
     
     ad2 = new_ad
     wu2 = ad2.find_user_by_username "win-user-" + $$.to_s
     ug2 = ad2.find_group_by_name "unix-group-" + $$.to_s
+    ug_new = ad2.find_group_by_name "unix-group-new-" + $$.to_s
     uu2 = ad2.find_user_by_username "unix-user-" + $$.to_s
     
     # The users are now the opposite types.
@@ -704,7 +757,7 @@ class TC_Live < Test::Unit::TestCase
            "user home_directory should be '/home/foo'")
     # This is the default value.
     assert(wu2.nis_domain == "radum", "user nis_domain should be 'radum'")
-    
+    # Now the converted UNIX user.
     assert(uu2.first_name == "First", "user first_name should be 'First'")
     assert(uu2.initials == "M", "user initials should be 'M'")
     assert(uu2.middle_name == "Middle", "user middle_name should be 'Middle'")
@@ -716,6 +769,105 @@ class TC_Live < Test::Unit::TestCase
     assert(uu2.local_drive == "Z", "user local_drive should be 'Z'")
     assert(uu2.local_path == "\\\\uu\\local\\path",
            "user local_path should be '\\\\uu\\local\\path'")
+    # Make sure the UNIXGoup Windows membership aspect was not changed but
+    # the UNIXGroup UNIX membership was changed. This is the default for
+    # UNIXUser to User conversions.
+    assert(uu2.member_of?(ug2),
+           "user should still be a Windows member of its old UNIX main group")
+    assert(ldap_not_unix_group_member?(uu2, ug2),
+           "user should only be a member from the Windows perspective")
+    assert(uu2.member_of?(ug_new),
+           "user should still be a Windows member of its old UNIX group")
+    assert(ldap_not_unix_group_member?(uu2, ug_new),
+           "user should only be a member from the Windows perspective.")
+    
+    # We now repeat the same type of conversion, but in this case the UNIX
+    # User is a UNIX member
+    # Remove the Container now that we are done with it
+    @ad.remove_container @cn
+    @ad.sync
+  end
+  
+  def test_group_attributes
+    RADUM::logger.log("\ntest_group_attributes()", RADUM::LOG_DEBUG)
+    RADUM::logger.log("-----------------------", RADUM::LOG_DEBUG)
+    # Group memberships for Users have already been tested, so we'll test to
+    # make sure a Group is a member of a Group correctly. None of the other
+    # attributes (aside from mebers) can be modified after creation, so we'll
+    # just make sure those are fine.
+    group1 = RADUM::Group.new :name => "test1-" + $$.to_s, :container => @cn
+    group2 = RADUM::Group.new :name => "test2-" + $$.to_s, :container => @cn
+    group1.add_group group2
+    @ad.sync
+    
+    # Check group membership in groups.
+    ad2 = new_ad
+    group1 = ad2.find_group_by_name("test1-" + $$.to_s)
+    group2 = ad2.find_group_by_name("test2-" + $$.to_s)
+    assert(group2.member_of?(group1) == true,
+           "group2 should be a member of group1")
+    assert(group1.member_of?(group2) == false,
+           "group1 should not be a member of group2")
+    
+    # Test attributes.
+    assert(group1.type == RADUM::GROUP_GLOBAL_SECURITY,
+           "group should be of type RADUM::GROUP_GLOBAL_SECURITY")
+    RADUM::Group.new :name => "dls-" + $$.to_s, :container => @cn,
+                     :type => RADUM::GROUP_DOMAIN_LOCAL_SECURITY
+    RADUM::Group.new :name => "dld-" + $$.to_s, :container => @cn,
+                     :type => RADUM::GROUP_DOMAIN_LOCAL_DISTRIBUTION
+    RADUM::Group.new :name => "gd-" + $$.to_s, :container => @cn,
+                     :type => RADUM::GROUP_GLOBAL_DISTRIBUTION
+    RADUM::Group.new :name => "us-" + $$.to_s, :container => @cn,
+                     :type => RADUM::GROUP_UNIVERSAL_SECURITY
+    RADUM::Group.new :name => "ud-" + $$.to_s, :container => @cn,
+                     :type => RADUM::GROUP_UNIVERSAL_DISTRIBUTION
+    @ad.sync
+    
+    ad2 = new_ad
+    dls = ad2.find_group_by_name("dls-" + $$.to_s)
+    dld = ad2.find_group_by_name("dld-" + $$.to_s)
+    gd = ad2.find_group_by_name("gd-" + $$.to_s)
+    us = ad2.find_group_by_name("us-" + $$.to_s)
+    ud = ad2.find_group_by_name("ud-" + $$.to_s)
+    assert(dls.type == RADUM::GROUP_DOMAIN_LOCAL_SECURITY,
+           "group should be of type RADUM::GROUP_DOMAIN_LOCAL_SECURITY")
+    assert(dld.type == RADUM::GROUP_DOMAIN_LOCAL_DISTRIBUTION,
+           "group should be of type RADUM::GROUP_DOMAIN_LOCAL_DISTRIBUTION")
+    assert(gd.type == RADUM::GROUP_GLOBAL_DISTRIBUTION,
+           "group should be of type RADUM::GROUP_GLOBAL_DISTRIBUTION")
+    assert(us.type == RADUM::GROUP_UNIVERSAL_SECURITY,
+           "group should be of type RADUM::GROUP_UNIVERSAL_SECURITY")
+    assert(ud.type == RADUM::GROUP_UNIVERSAL_DISTRIBUTION,
+           "group should be of type RADUM::GROUP_UNIVERSAL_DISTRIBUTION")
+    
+    # Remove the Container now that we are done with it
+    @ad.remove_container @cn
+    @ad.sync
+  end
+  
+  def foo_test_unix_group_attributes
+    RADUM::logger.log("\ntest_unix_group_attributes()", RADUM::LOG_DEBUG)
+    RADUM::logger.log("----------------------------", RADUM::LOG_DEBUG)
+    # UNIXGroup memberships have already been tested, and Group mebershipds were
+    # also tested, so we'll just test to make sure the UNIX attributes are
+    # handled correctly.
+    gid = @ad.load_next_gid
+    ug = RADUM::UNIXGroup.new :name => "unix-group-" + $$.to_s,
+                              :container => @cn, :gid => gid
+    @ad.sync
+    
+    ad2 = new_ad
+    ug2 = ad2.find_group_by_name("unix-group-" + $$.to_s)
+    assert(ug2.gid == gid, "UNIXGroup gid is incorrect.")
+    assert(ug2.nis_domain == "vmware", "UNIXGroup NIS domain is incorrect")
+    # Check the one thing we can change (aside from members).
+    ug.nis_domain = "vmware"
+    @ad.sync
+    
+    ad2 = new_ad
+    ug2 = ad2.find_group_by_name("unix-group-" + $$.to_s)
+    assert(ug2.nis_domain == "vmware", "UNIXGroup NIS domain is incorrect")
     
     # Remove the Container now that we are done with it
     @ad.remove_container @cn

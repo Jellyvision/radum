@@ -2099,8 +2099,13 @@ module RADUM
               ops.push [:delete, :member, member]
               user = removed_user || removed_user_membership
               
+              # There is a special case here with the last condition. If the
+              # user is a UNIX member of the group and the group is the primary
+              # Windows group, meaning we've removed their Windows membership
+              # above (because it is implicit), we don't want to blow away the
+              # UNIX membership too.
               if user && user.instance_of?(UNIXUser) &&
-                 group.instance_of?(UNIXGroup)
+                 group.instance_of?(UNIXGroup) && group != user.primary_group
                 # There is a chance the user was never a UNIX member of this
                 # UNIXGroup. This happens if the UNIX main group is changed
                 # and then the user is removed from the group as well. We
@@ -2169,6 +2174,10 @@ module RADUM
             unless found || curr_primary_group_id == group.rid
               ops.push [:add, :member, item.distinguished_name]
             end
+          else
+            # This is a Group or UNIXGroup member, which can just be added if
+            # not already there.
+            ops.push [:add, :member, item.distinguished_name] unless found
           end
           
           # UNIX main group memberships are handled in update_user() when there

@@ -421,7 +421,7 @@ module RADUM
     # if the Group or UNIXGroup has been removed.
     #
     # When a User or UNIXUser changes their primary Windows group, they are
-    # automatically given normal group membershipt in the old primary Windows
+    # automatically given normal group membership in the old primary Windows
     # group by Active Directory. This method does the same.
     def primary_group=(group)
       if group.removed?
@@ -438,9 +438,12 @@ module RADUM
              " or GROUP_UNIVERSAL_SECURITY."
       end
       
-      remove_group group
       old_group = @primary_group
+      # This must be set before calling remove_group() because there is a
+      # special case where the group is also the UNIX main group (in the
+      # UNIXUser remote_group() method).
       @primary_group = group
+      remove_group group
       add_group old_group
       @modified = true
     end
@@ -897,12 +900,16 @@ module RADUM
     # Remove the UNIXUser membership in the Group or UNIXGroup. This
     # automatically removes the UNIXUser from the Group or UNIXGroup object's
     # list of users. This method returns a RuntimeError if the group is a
-    # UNIXGroup and the UNIXUser object's UNIX main group. UNIXGroup membership
-    # cannot be removed for the UNIXUser object's UNIX main group because RADUM
-    # enforces Windows group membership in the UNIX main group.
+    # UNIXGroup and the UNIXUser object's UNIX main group unless it is also
+    # the User UNIXUser object's primary Windows group as well (due to
+    # implicit memberhsip handling, but nothing happens in that case with
+    # respect to UNIX membership). UNIXGroup membership cannot be removed
+    # for the UNIXUser object's UNIX main group because RADUM enforces
+    # Windows group membership in the UNIX main group,  unless the group
+    # is also the UNIXUser object's primary Windows group.
     def remove_group(group)
       if !@removed && group.instance_of?(UNIXGroup) &&
-         group == @unix_main_group
+         group == @unix_main_group && group != @primary_group
         raise "A UNIXUser cannot be removed from their unix_main_group."
       end
       

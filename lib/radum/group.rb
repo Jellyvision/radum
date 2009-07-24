@@ -146,8 +146,11 @@ module RADUM
     
     # Determine if the Group or UNIXGroup is a member of the Group or UNIXGroup.
     def member_of?(group)
-      # Memberships are already removed from removed groups.
-      @groups.include? group
+      # Memberships are already removed from removed groups. We have to check
+      # the group passed in since groups are only tracking things they contain.
+      # This method for User and UNIXUser objects can just check their own
+      # groups array, but that's not possible here obviously.
+      group.groups.include? self
     end
     
     # Make the Group or UNIXGroup a member of the Group or UNIXGroup. This
@@ -292,12 +295,16 @@ module RADUM
     # Remove the User or UNIXUser membership in the UNIXGroup. This
     # automatically removes the UNIXGroup from the User or UNIXUser object's
     # list of groups. This method returns a RuntimeError if the user
-    # has this UNIXGroup as their UNIX main group. UNIXGroup membership cannot
-    # be removed for the UNIXUser object's UNIX main group because RADUM
-    # enforces Windows group membership in the UNIX main group.
+    # has this UNIXGroup as their UNIX main group unless this group is also
+    # the User UNIXUser object's primary Windows group as well (due to
+    # implicit memberhsip handling, but nothing happens in that case with
+    # respect to UNIX membership). UNIXGroup membership cannot be removed
+    # for the UNIXUser object's UNIX main group because RADUM enforces
+    # Windows group membership in the UNIX main group, unless the group
+    # is also the UNIXUser object's primary Windows group too.
     def remove_user(user)
       if !user.removed? && user.instance_of?(UNIXUser) &&
-         self == user.unix_main_group
+         self == user.unix_main_group && self != user.primary_group
         raise "A UNIXUser cannot be removed from their unix_main_group."
       end
       
