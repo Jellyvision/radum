@@ -490,6 +490,8 @@ module RADUM
     # Remove the User membership in the Group or UNIXGroup. This automatically
     # removes the User from the Group or UNIXGroup object's list of users.
     # A RuntimeError is raised if the Group or UNIXGroup has been removed.
+    # This method will ignore an attempt to remove a User or UNIXUser from
+    # their primary Windows group since that is an implicit membership.
     def remove_group(group)
       if group.removed?
         raise "Cannot remove a removed group."
