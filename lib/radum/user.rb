@@ -413,12 +413,10 @@ module RADUM
     # ignores in general, and Users or UNIXUsers are members implicitly by
     # their LDAP primaryGroupID attribute. The Group or UNIXGroup specified
     # must be of the RADUM group type GROUP_GLOBAL_SECURITY or
-    # GROUP_UNIVERSAL_SECURITY or a RuntimeError is raised. This method will
-    # automatically remove membership in the Group or UNIXGroup specified
-    # if necessary as Users or UNIXUsers are not members of the Group or
-    # UNIXGroup directly. The Group or UNIXGroup specified must be in the
-    # same AD object or a RuntimeError is raised. A RuntimeError is raised
-    # if the Group or UNIXGroup has been removed.
+    # GROUP_UNIVERSAL_SECURITY or a RuntimeError is raised. The Group or
+    # UNIXGroup specified must be in the same AD object or a RuntimeError is
+    # raised. A RuntimeError is raised if the Group or UNIXGroup has been
+    # removed.
     #
     # When a User or UNIXUser changes their primary Windows group, they are
     # automatically given normal group membership in the old primary Windows
