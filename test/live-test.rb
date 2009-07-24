@@ -340,16 +340,21 @@ class TC_Live < Test::Unit::TestCase
     
     ad2 = new_ad
     u2 = ad2.find_user_by_username "win-user-" + $$.to_s
-    du = ad2.find_group_by_name("Domain Users")
     pg = ad2.find_group_by_name("win-group-" + $$.to_s)
+    old_pg = ad2.find_group_by_name("Domain Users")
     assert(u2.primary_group == pg, "primary_group should be #{pg}")
+    assert(u2.member_of?(pg) == true, "user should be member of #{pg}")
+    assert(u2.member_of?(old_pg) == true, "user should be member of #{old_pg}")
     u.primary_group = @domain_users
     @ad.sync
     
     ad2 = new_ad
     u2 = ad2.find_user_by_username "win-user-" + $$.to_s
-    du = ad2.find_group_by_name("Domain Users")
-    assert(u2.primary_group == du, "primary_group should be #{du}")
+    pg = ad2.find_group_by_name("Domain Users")
+    old_pg = ad2.find_group_by_name("win-group-" + $$.to_s)
+    assert(u2.primary_group == pg, "primary_group should be #{pg}")
+    assert(u2.member_of?(pg) == true, "user should be member of #{pg}")
+    assert(u2.member_of?(old_pg) == true, "user should be member of #{old_pg}")
     
     # Test group membership additions and removals.
     g2 = RADUM::Group.new :name => "win-group2-" + $$.to_s, :container => @cn
