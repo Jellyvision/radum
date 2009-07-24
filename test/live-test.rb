@@ -633,6 +633,12 @@ class TC_Live < Test::Unit::TestCase
     
     # Now we switch the UNIX main group to the current group and test.
     u.unix_main_group = g3
+    # Just doing these steps to make sure they don't hose up the logic. The
+    # end result should be the same as just doing the above step!
+    u.primary_group = g
+    u.unix_main_group = g
+    u.unix_main_group = g3
+    u.primary_group = g3
     @ad.sync
     
     ad2 = new_ad
