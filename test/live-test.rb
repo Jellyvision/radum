@@ -9,24 +9,28 @@ class TC_Live < Test::Unit::TestCase
     if ENV['LIVE_ROOT']
       @root = ENV['LIVE_ROOT']
     else
+      usage
       raise "LIVE_ROOT environment variable not set."
     end
     
     if ENV['LIVE_USER']
       @user = ENV['LIVE_USER']
     else
+      usage
       raise "LIVE_USER environment variable not set."
     end
     
     if ENV['LIVE_PASSWORD']
       @password = ENV['LIVE_PASSWORD']
     else
+      usage
       raise "LIVE_PASSWORD environment variable not set."
     end
     
     if ENV['LIVE_SERVER']
       @server = ENV['LIVE_SERVER']
     else
+      usage
       raise "LIVE_SERVER environment variable not set."
     end
     
@@ -46,6 +50,16 @@ class TC_Live < Test::Unit::TestCase
     # we're interested in the Domain Users group specifically.
     @ad.load
     @domain_users = @ad.find_group_by_name("Domain Users")
+  end
+  
+  # Print out usage information regarding the variables that need to be set
+  # to run live testing.
+  def usage
+    puts "\nLive testing requires the following environment variables:\n\n"
+    puts "LIVE_ROOT\t-- The root of the AD (dc=example,dc=com)."
+    puts "LIVE_USER\t-- The user to connect with (cn=Administrator,cn=Users)."
+    puts "LIVE_PASSWORD\t-- The password for the user (use single quotes)."
+    puts "LIVE_SERVER\t-- The server to connect to.\n\n"
   end
   
   # Get a new AD object to test the current values of modified objects from the
