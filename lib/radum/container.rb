@@ -10,13 +10,13 @@ module RADUM
     attr_reader :directory
     # The LDAP distinguishedName attribute for this Container.
     attr_reader :distinguished_name
-    # An Array of User or UNIXUser objects that are in this Container.
+    # An Array of User and UNIXUser objects that are in this Container.
     attr_reader :users
-    # An Array of User or UNIXUser objects set for removal from this Container.
+    # An Array of User and UNIXUser objects set for removal from this Container.
     attr_reader :removed_users
-    # An Array of Group or UNIXGroup objects that are in this Container.
+    # An Array of Group and UNIXGroup objects that are in this Container.
     attr_reader :groups
-    # An Array of Group or UNIXGroup objects set for removal from this
+    # An Array of Group and UNIXGroup objects set for removal from this
     # Container.
     attr_reader :removed_groups
 
@@ -37,11 +37,12 @@ module RADUM
     #   cn = RADUM::Container.new :name => 'ou=People', :directory => ad
     #
     # The :name argument specifies the path to the container or organizational
-    # unit in Active Directory equivalent to the distinguished_name attribute
-    # for container or organizational unit without the root portion. The
-    # :directory argument is the AD object that owns the Container. A
-    # RuntimeError is raised if either of these arguments are missing. The
-    # argument types required follow:
+    # unit in Active Directory equivalent to the LDAP distinguishedName
+    # attribute for container or organizational unit without the root portion.
+    # The :directory argument is the AD object that owns the Container. A
+    # RuntimeError is raised if either of these arguments are missing.
+    #
+    # === Parameter Types
     #
     # * :name [String]
     # * :directory [AD]
@@ -51,17 +52,18 @@ module RADUM
     # create Container objects for an actual container in Active Directory or
     # an organizational unit (referred to here as a "container" since it
     # logically contains objects and this is a higher level representation).
-    # Only specify Containers that are really containers (cn=Foo) or
-    # organizational units (ou=Foo). Also note that orgainizational units can
+    # Only specify Containers that are really containers ("cn=Foo") or
+    # organizational units ("ou=Foo"). Also note that orgainizational units can
     # hold containers, but containers cannot hold organizational units.
-    # Therefore ou=foo,cn=bar is invalid, but cn=foo,ou=bar is valid. A
+    # Therefore "ou=foo,cn=bar" is invalid, but "cn=foo,ou=bar" is valid. A
     # RuntimeError is raised if this rule is violated. Lastly, Container
     # objects are in a conceptually flat namespace. In other words,
-    # cn=foo,ou=bar is its own Container object. It is not represented as a
-    # child of the ou=bar organizational unit. This has been accounted for
-    # when synchronizing so that things work. For example, the cn=foo,ou=bar
-    # Container object will cause the ou=bar organizational unit to be created
-    # first, if necessary, before the cn=bar container is created. It's magic.
+    # "cn=foo,ou=bar" is its own Container object. It is not represented as a
+    # child of the "ou=bar" organizational unit. This has been accounted for
+    # when synchronizing with AD#sync so that things work. For example, the
+    # "cn=foo,ou=bar" Container object will cause the "ou=bar" organizational
+    # unit to be created first, if necessary, before the "cn=bar" child
+    # container is created.
     def initialize(args = {})
       @name = args[:name] or raise "Container :name argument required."
       @name.gsub!(/\s+/, "")
@@ -94,6 +96,10 @@ module RADUM
     # that were removed or destroyed cannot be added back again and are ignored.
     # The User or UNIXUser must have the Container as its container attribute
     # or a RuntimeError is raised.
+    #
+    # === Parameter Types
+    #
+    # * user [User or UNIXUser]
     def add_user(user)
       unless user.removed?
         if self == user.container
@@ -113,7 +119,7 @@ module RADUM
     # Remove a User or UNIXUser object from the Container. This sets the
     # User or UNIXUser object's removed attribute to true. If the User or
     # UNIXUser is removed from the Container, they are effectively deleted
-    # from Active Directory. Any Groups or UNIXGroups the User or UNIXUser
+    # from Active Directory. Any Group or UNIXGroup objects the User or UNIXUser
     # belongs to will have their membership removed as well. This means
     # that the User or UNIXUser will have their Group or UNIXGroup memberships
     # removed for each Group or UNIXGroup they were in as well. The User or
@@ -121,6 +127,10 @@ module RADUM
     # removed from Active Directory after AD#sync is called. Any references
     # to the User or UNIXUser should be discarded. The User or UNIXUser must
     # be in the Container or a RuntimeError is raised.
+    #
+    # === Parameter Types
+    #
+    # * user [User or UNIXUser]
     def remove_user(user)
       return if user.removed?
       destroy_user user
@@ -141,6 +151,10 @@ module RADUM
     # to true and any references to the User or UNIXUser should be discarded.
     # Once a User or UNIXUser is destroyed it cannot be added back to the
     # Container.
+    #
+    # === Parameter Types
+    #
+    # * user [User or UNIXUser]
     def destroy_user(user)
       # Note you have to allow destruction of users even if they have been
       # removed because this is the only way removed users are really deleted
@@ -184,6 +198,10 @@ module RADUM
     # objects that were removed or destroyed cannot be added back again and are
     # ignored. The Group or UNIXGroup must have the Container as its container
     # attribute or a RuntimeError is raised.
+    #
+    # === Parameter Types
+    #
+    # * group [Group or UNIXGroup]
     def add_group(group)
       unless group.removed?
         if self == group.container
@@ -206,7 +224,7 @@ module RADUM
     # Windows group. A UNIXGroup cannot be removed if it is any User object's
     # UNIX main group. In both cases, a RuntimeError will be raised. If the
     # Group or UNIXGroup is removed from the Container, they are effectively
-    # deleted from Active Directory. Any Groups or UNIXGroups the Group or
+    # deleted from Active Directory. Any Group or UNIXGroup objects the Group or
     # UNIXGroup belongs to will have their membership removed as well. This
     # means that the Group or UNIXGroup will have their Group or UNIXGroup
     # memberships removed for each Group or UNIXGroup they were in as well.
@@ -214,6 +232,10 @@ module RADUM
     # only be removed from Active Directory after AD#sync is called. Any
     # references to the Group or UNIXGroup should be discarded. The Group or
     # UNIXGroup must be in the Container or a RuntimeError is raised.
+    #
+    # === Parameter Types
+    #
+    # * group [Group or UNIXGroup]
     def remove_group(group)
       return if group.removed?
       destroy_group group
@@ -234,6 +256,10 @@ module RADUM
     # to true, but any references to the Group or UNIXGroup should be discarded.
     # Once a Group or UNIXGroup is destroyed it cannot be added back to the
     # Container.
+    #
+    # === Parameter Types
+    #
+    # * group [Group or UNIXGroup]
     def destroy_group(group)
       # Note you have to allow destruction of groups even if they have been
       # removed because this is the only way removed groups are really deleted

@@ -15,10 +15,10 @@ module RADUM
     # should not be specified in the User.new method when creating a new User
     # or UNIXUser by hand.
     attr_reader :rid
-    # The Group or UNIXGroup objects the User or UNIXUser is a member of. Users
-    # and UNIXUsers are implicit members of their primary_group as well, but
-    # that is not added to the groups array directly. This matches the implicit
-    # membership in the primary Windows group in Active Directory.
+    # The Group or UNIXGroup objects the User or UNIXUser is a member of. User
+    # and UNIXUser objects are implicit members of their primary_group as well,
+    # but that is not added to the groups array directly. This matches the
+    # implicit membership in the primary Windows group in Active Directory.
     attr_reader :groups
     # An array of Group or UNIXGroup objects removed from the User or
     # UNIXUser.
@@ -36,13 +36,15 @@ module RADUM
     #
     # The :username argument (case-insensitive) and the :rid argument must be
     # unique in the AD object, otherwise a RuntimeError is raised. The
-    # :primary_group argument must be of the RADUM type GROUP_GLOBAL_SECURITY
-    # or GROUP_UNIVERSAL_SECURITY and not a removed group, otherwise a
-    # RuntimeError is raised. The :disabled argument indicates if the User
-    # object should be disabled, and it defaults to false. The :rid argument
-    # should not be set directly except from the AD#load method itself. The
-    # User object automatically adds itself to the Container object specified
-    # by the :container argument. The argument types required follow:
+    # :primary_group argument must be of the RADUM group type
+    # GROUP_GLOBAL_SECURITY or GROUP_UNIVERSAL_SECURITY and not a removed
+    # group, otherwise a RuntimeError is raised. The :disabled argument
+    # indicates if the User object should be disabled, and it defaults to
+    # false. The :rid argument should not be set directly except from the
+    # AD#load method itself. The User object automatically adds itself to the
+    # Container object specified by the :container argument.
+    #
+    # === Parameter Types
     #
     # * :username [String]
     # * :container [Container]
@@ -203,6 +205,10 @@ module RADUM
     # easy to mess up the LDAP distinguishedName attribute, so this is not
     # documented and should only be used by AD#load or only if you really know
     # what you are doing.
+    #
+    # === Parameter Types
+    #
+    # * distinguished_name [String]
     def distinguished_name=(distinguished_name) # :nodoc:
       if @loaded
         raise "The distinguished name can only be set on new user accounts."
@@ -222,6 +228,10 @@ module RADUM
     # UNIXUser is created using User.new or UNIXUser.new, but is set to the
     # correct value when a User or UNIXUser is loaded by AD#load from the AD
     # object the Container belongs to.
+    #
+    # === Parameter Types
+    #
+    # * first_name [String]
     def first_name=(first_name)
       @first_name = first_name
       @modified = true
@@ -236,6 +246,10 @@ module RADUM
     # instead of their middle name when creating user accounts using the
     # Active Directory Users and Computers GUI tool. The "." should not be
     # added as it will be automatically displayed when necessary.
+    #
+    # === Parameter Types
+    #
+    # * initials [String]
     def initials=(initials)
       @initials = initials
       @modified = true
@@ -251,6 +265,10 @@ module RADUM
     # attributes. This defaults to nil when a User or UNIXUser is created using
     # User.new or UNIXUser.new, but is set to the correct value when a User or
     # UNIXUser is loaded by AD#load from the AD object the Container belongs to.
+    #
+    # === Parameter Types
+    #
+    # * middle_name [String]
     def middle_name=(middle_name)
       @middle_name = middle_name
       @modified = true
@@ -267,6 +285,10 @@ module RADUM
     # using User.new or UNIXUser.new, but is set to the correct value when a
     # User or UNIXUser is loaded by AD#load from the AD object the Container
     # belongs to.
+    #
+    # === Parameter Types
+    #
+    # * surname [String]
     def surname=(surname)
       @surname = surname
       @modified = true
@@ -280,6 +302,10 @@ module RADUM
     # Set the User or UNIXUser logon script path. This corresponds to the
     # LDAP scriptPath attribute and is the "Logon script" setting in the
     # Profile tab of the Active Directory Users and Computers tool.
+    #
+    # === Parameter Types
+    #
+    # * script_path [String]
     def script_path=(script_path)
       @script_path = script_path
       @modified = true
@@ -293,6 +319,10 @@ module RADUM
     # Set the User or UNIXUser profile path. This corresponds to the LDAP
     # profilePath attribute and is the "Profile path" setting in the Profile
     # tab of the Active Directory Users and Computers tool.
+    #
+    # === Parameter Types
+    #
+    # * profile_path [String]
     def profile_path=(profile_path)
       @profile_path = profile_path
       @modified = true
@@ -314,6 +344,10 @@ module RADUM
     # to a path for the Home folder, use then User#connect_drive_to method
     # instead. Note that this method makes sure that the homeDrive LDAP
     # attribute is not set to enforce the proper behavior on the LDAP side.
+    #
+    # === Parameter Types
+    #
+    # * path [String]
     def local_path=(path)
       @local_drive = nil
       @local_path = path
@@ -350,6 +384,11 @@ module RADUM
     # was set for the Home folder section of the Profile tab in Active Directory
     # Users and Computers using the User#local_path= method, but here it is
     # also used in this case as well.
+    #
+    # === Parameter Types
+    #
+    # * drive [String]
+    # * path [String]
     def connect_drive_to(drive, path)
       @local_drive = drive
       @local_path = path
@@ -370,10 +409,14 @@ module RADUM
     # User or UNIXUser is created using User.new or UNIXUser.new. This does not
     # reflect the current User or UNIXUser password, but if it is set, the
     # password will be changed. Once the User or UNIXUser is synchronized with
-    # Active Directory using AD#sync, the password attribute is set to nil
+    # Active Directory using AD#sync the password attribute is set to nil
     # again. This is because the password attribute does not actually reflect
     # the current Active Directory user password, which cannot be read through
     # LDAP directly.
+    #
+    # === Parameter Types
+    #
+    # * password [String]
     def password=(password)
       @password = password
       @modified = true
@@ -401,16 +444,17 @@ module RADUM
       @modified = true
     end
     
-    # The User primary Windows group. This is usually the "Domain Users"
-    # Windows group. Users are not members of this group directly. They are
-    # members through their LDAP primaryGroupID attribute.
+    # The User or UNIXUser primary Windows group. This is usually the "Domain
+    # Users" Windows group. User and UNIXUser objects are not members of this
+    # group directly. They are members through their LDAP primaryGroupID
+    # attribute.
     def primary_group
       @primary_group
     end
     
     # Set the User or UNIXUser primary Windows group. The primary Windows group
     # is used by the POSIX subsystem. This is something that Windows typically
-    # ignores in general, and Users or UNIXUsers are members implicitly by
+    # ignores in general, and User or UNIXUser objects are members implicitly by
     # their LDAP primaryGroupID attribute. The Group or UNIXGroup specified
     # must be of the RADUM group type GROUP_GLOBAL_SECURITY or
     # GROUP_UNIVERSAL_SECURITY or a RuntimeError is raised. The Group or
@@ -421,6 +465,10 @@ module RADUM
     # When a User or UNIXUser changes their primary Windows group, they are
     # automatically given normal group membership in the old primary Windows
     # group by Active Directory. This method does the same.
+    #
+    # === Parameter Types
+    #
+    # * group [Group or UNIXGroup]
     def primary_group=(group)
       if group.removed?
         raise "Cannot set a removed group as the primary_group."
@@ -467,6 +515,10 @@ module RADUM
     #
     # This automatically adds the User or UNIXUser to the Group or UNIXGroup
     # object's list of users.
+    #
+    # === Parameter Types
+    #
+    # * group [Group or UNIXGroup]
     def add_group(group)
       if group.removed?
         raise "Cannot add a removed group."
@@ -490,6 +542,10 @@ module RADUM
     # A RuntimeError is raised if the Group or UNIXGroup has been removed.
     # This method will ignore an attempt to remove a User or UNIXUser from
     # their primary Windows group since that is an implicit membership.
+    #
+    # === Parameter Types
+    #
+    # * group [Group or UNIXGroup]
     def remove_group(group)
       if group.removed?
         raise "Cannot remove a removed group."
@@ -512,6 +568,10 @@ module RADUM
     # Determine if a User or UNIXUser is a member of the Group or UNIXGroup.
     # This also evaluates to true if the Group or UNIXGroup is the
     # User or UNIXUser object's primary_group.
+    #
+    # === Parameter Types
+    #
+    # * group [Group or UNIXGroup]
     def member_of?(group)
       # Group memberships are removed when groups are removed so there is
       # no need to check the group's removed status.
@@ -543,6 +603,10 @@ module RADUM
     # class when doing synchronization. Once there is a RID value, it can be
     # set. This is not meant for general use. It will only set the rid attribute
     # if it has not already been set.
+    #
+    # === Parameter Types
+    #
+    # * rid [integer]
     def set_rid(rid) # :nodoc:
       if @rid.nil?
         @rid = rid
@@ -569,8 +633,8 @@ module RADUM
   end
   
   # The UNIXUser class represents a UNIX Windows user account. It is a subclass
-  # of the User class. See the User class documentation for its attributes as
-  # well.
+  # of the User class. See the User class documentation for its attributes and
+  # methods as well.
   class UNIXUser < User
     # The UNIXUser UNIX UID. This corresponds to the LDAP uidNumber attribute.
     attr_reader :uid
@@ -580,7 +644,8 @@ module RADUM
     attr_reader :gid
     
     # Create a new UNIXUser object that represents a UNIX user in Active
-    # Directory. This method takes a Hash containing arguments, some of which
+    # Directory. A UNIX user is a Windows user that also has UNIX attributes.
+    # This method takes a Hash containing arguments, some of which
     # are required and others optional. The supported arguments follow:
     #
     # * :username => The UNIXUser object's username [required]
@@ -602,9 +667,16 @@ module RADUM
     # object should be disabled, and it defaults to false. The :rid argument
     # should not be set directly except from the AD#load method itself. The
     # :unix_main_group argument must be a UNIXGroup object and not removed or
-    # a RuntimeError is raised. The UNIXUser object automatically adds itself
-    # to the Container object specified by the :container argument. The
-    # argument types required follow:
+    # a RuntimeError is raised. The :uid argument must be unique in the AD
+    # object or a RuntimeError is raised. The UNIXUser object automatically
+    # adds itself to the Container object specified by the :container argument.
+    # The :nis_domain defaults to "radum". The use of an NIS domain is not
+    # strictly required as one could simply set the right attributes in Active
+    # Directory and use LDAP on clients to access that data, but specifying an
+    # NIS domain allows for easy editing of UNIX attributes using the GUI tools
+    # in Windows, thus the use of a default value.
+    #
+    # === Parameter Types
     #
     # * :username [String]
     # * :container [Container]
@@ -616,15 +688,6 @@ module RADUM
     # * :shell [String]
     # * :home_directory [String]
     # * :nis_domain [String]
-    #
-    # Note that a User will not be forced to change their Windows password on
-    # their first login unless this is changed by calling the
-    # toggle_must_change_password method. If no password is set for the User,
-    # a random password will be generated. The random password will probably
-    # meet Group Policy password security requirements, but it is suggested
-    # that a password be set to ensure this is the case, otherwise setting the
-    # User password during Active Directory creation might fail, which results
-    # in a disabled Active Directory user account that has no password.
     #
     # See the documentation for each attribute method for what the default
     # values of each attribute is based on calling this method.
@@ -682,6 +745,10 @@ module RADUM
     
     # Set the UNIXUser UNIX shell. This corresponds to the LDAP loginShell
     # attribute.
+    #
+    # === Parameter Types
+    #
+    # * shell [String]
     def shell=(shell)
       @shell = shell
       @modified = true
@@ -694,6 +761,10 @@ module RADUM
     
     # Set the UNIXUser UNIX home directory. This corresponds to the LDAP
     # unixHomeDirectory attribute.
+    #
+    # === Parameter Types
+    #
+    # * home_directory [String]
     def home_directory=(home_directory)
       @home_directory = home_directory
       @modified = true
@@ -709,6 +780,10 @@ module RADUM
     # are not being used. This defaults to "radum" when a UNIXUser is created
     # using UNIXUser.new, but it is set to the correct value when the UNIXUser
     # is loaded by AD#load from the AD object the Container belongs to.
+    #
+    # === Parameter Types
+    #
+    # * nis_domain [String]
     def nis_domain=(nis_domain)
       @nis_domain = nis_domain
       @modified = true
@@ -723,6 +798,10 @@ module RADUM
     # attribute. This defaults to username when a UNIXUser is created using
     # UNIXUser.new, but it is set to the correct value when the UNIXUser is
     # loaded by AD#load from the AD object the Container belongs to.
+    #
+    # === Parameter Types
+    #
+    # * gecos [String]
     def gecos=(gecos)
       @gecos = gecos
       @modified = true
@@ -742,9 +821,14 @@ module RADUM
     # AD#load from the AD object the Container belongs to.
     #
     # It is not necessary to set the LDAP unixUserPassword attribute if you
-    # are using Kerberos for authentication, but using LDAP (or NIS by way of
-    # LDAP in Active Directory) for user information. In those cases, it is
-    # best to set this field to "*", which is why that is the default.
+    # are using Kerberos for authentication, but you might need it if using
+    # LDAP (or NIS by way of LDAP in Active Directory) for user information.
+    # In cases where it is not needed, it is best to set this field to "*",
+    # which is why that is the default.
+    #
+    # === Parameter Types
+    #
+    # * unix_password [String]
     def unix_password=(unix_password)
       @unix_password = unix_password
       @modified = true
@@ -764,8 +848,9 @@ module RADUM
     # It would not be needed most of the time. This corresponds to the LDAP
     # shadowExpire attribute.
     #
-    # This field is an integer in Active Directory and should be passed to
-    # this method as either a string representing an integer or an integer.
+    # === Parameter Types
+    #
+    # * shadow_expire [integer]
     def shadow_expire=(shadow_expire)
       @shadow_expire = shadow_expire
       @modified = true
@@ -785,8 +870,9 @@ module RADUM
     # It would not be needed most of the time. This corresponds to the LDAP
     # shadowFlag attribute.
     #
-    # This field is an integer in Active Directory and should be passed to
-    # this method as either a string representing an integer or an integer.
+    # === Parameter Types
+    #
+    # * shadow_flag [integer]
     def shadow_flag=(shadow_flag)
       @shadow_flag = shadow_flag
       @modified = true
@@ -806,8 +892,9 @@ module RADUM
     # It would not be needed most of the time. This corresponds to the LDAP
     # shadowInactive attribute.
     #
-    # This field is an integer in Active Directory and should be passed to
-    # this method as either a string representing an integer or an integer.
+    # === Parameter Types
+    #
+    # * shadow_inactive [integer]
     def shadow_inactive=(shadow_inactive)
       @shadow_inactive = shadow_inactive
       @modified = true
@@ -827,8 +914,9 @@ module RADUM
     # It would not be needed most of the time. This corresponds to the LDAP
     # shadowLastChange attribute.
     #
-    # This field is an integer in Active Directory and should be passed to
-    # this method as either a string representing an integer or an integer.
+    # === Parameter Types
+    #
+    # * shadow_last_change [integer]
     def shadow_last_change=(shadow_last_change)
       @shadow_last_change = shadow_last_change
       @modified = true
@@ -848,8 +936,9 @@ module RADUM
     # It would not be needed most of the time. This corresponds to the LDAP
     # shadowMax attribute.
     #
-    # This field is an integer in Active Directory and should be passed to
-    # this method as either a string representing an integer or an integer.
+    # === Parameter Types
+    #
+    # * shadow_max [integer]
     def shadow_max=(shadow_max)
       @shadow_max = shadow_max
       @modified = true
@@ -869,8 +958,9 @@ module RADUM
     # It would not be needed most of the time. This corresponds to the LDAP
     # shadowMin attribute.
     #
-    # This field is an integer in Active Directory and should be passed to
-    # this method as either a string representing an integer or an integer.
+    # === Parameter Types
+    #
+    # * shadow_min [integer]
     def shadow_min=(shadow_min)
       @shadow_min = shadow_min
       @modified = true
@@ -890,8 +980,9 @@ module RADUM
     # It would not be needed most of the time. This corresponds to the LDAP
     # shadowWarning attribute.
     #
-    # This field is an integer in Active Directory and should be passed to
-    # this method as either a string representing an integer or an integer.
+    # === Parameter Types
+    #
+    # * shadow_warning [integer]
     def shadow_warning=(shadow_warning)
       @shadow_warning = shadow_warning
       @modified = true
@@ -902,13 +993,17 @@ module RADUM
     # list of users. This method returns a RuntimeError if the group is a
     # UNIXGroup and the UNIXUser object's UNIX main group unless it is also
     # the User UNIXUser object's primary Windows group as well (due to
-    # implicit memberhsip handling, but nothing happens in that case with
+    # implicit membership handling, but nothing happens in that case with
     # respect to UNIX membership). UNIXGroup membership cannot be removed
     # for the UNIXUser object's UNIX main group because RADUM enforces
     # Windows group membership in the UNIX main group,  unless the group
     # is also the UNIXUser object's primary Windows group. In that case
     # UNIX group membership is kept because a UNIXUser is implicitly a
     # member of their primary Windows group anyway.
+    #
+    # === Parameter Types
+    #
+    # * group [Group or UNIXGroup]
     def remove_group(group)
       if !@removed && group.instance_of?(UNIXGroup) &&
          group == @unix_main_group && group != @primary_group
@@ -929,6 +1024,10 @@ module RADUM
     # object or a RuntimeError is raised. A RuntimeError is raised
     # if the UNIXGroup has been removed. This method does not automatically
     # remove membership in the previous unix_main_group UNIXGroup.
+    #
+    # === Parameter Types
+    #
+    # * group [UNIXGroup]
     def unix_main_group=(group)
       if group.removed?
         raise "Cannot set unix_main_group to a removed group."

@@ -22,10 +22,10 @@ module RADUM
     attr_reader :rid
     # The LDAP distinguishedName attribute for this Group or UNIXGroup.
     attr_reader :distinguished_name
-    # The User or UNIXUser objects the Group or UNIXGroup has a members. Users
-    # and UNIXUsers are implicit members of their primary_group as well, but
-    # they are not added to the users array directly. This matches the implicit
-    # membership in the primary Windows group in Active Directory.
+    # The User or UNIXUser objects the Group or UNIXGroup has a members. User
+    # and UNIXUser objects are implicit members of their primary_group as well,
+    # but they are not added to the users array directly. This matches the
+    # implicit membership in the primary Windows group in Active Directory.
     attr_reader :users
     # An array of User or UNIXUser objects removed from the Group or UNIXGroup.
     attr_reader :removed_users
@@ -49,11 +49,13 @@ module RADUM
     # argument must be one of the RADUM group type constants. The :rid argument
     # should not be set directly except from the AD#load method itself.
     # The Group object automatically adds itself to the Container object
-    # specified by the :container argument. The argument types required follow:
+    # specified by the :container argument.
+    #
+    # === Parameter Types
     #
     # * :name [String]
     # * :container [Container]
-    # * :type [RADUM group type constant]
+    # * :type [integer => RADUM group type constant]
     # * :rid [integer]
     def initialize(args = {})
       @rid = args[:rid] || nil
@@ -105,13 +107,15 @@ module RADUM
     # members of their unix_main_group from the Windows perspective. A
     # RuntimeError is raised if the User or UNIXUser already has this Group or
     # UNIXGroup as their primary_group or if the Group or UNIXGroup is not in
-    # the same AD object.
+    # the same AD object. A RuntimeError is raised if the User or UNIXUser has
+    # been removed.
     #
     # This automatically adds the Group or UNIXGroup to the User or UNIXUser
-    # object's list of groups. A RuntimeError is raised if the Group or
-    # UNIXGroup is already the User or UNIXUser object's primary_group,
-    # if the User or UNIXUser is not in the AD, or if the User or UNIXUser
-    # has been removed.
+    # object's list of groups.
+    #
+    # === Parameter Types
+    #
+    # * user [User or UNIXUser]
     def add_user(user)
       if user.removed?
         raise "Cannot add a removed user."
@@ -134,6 +138,11 @@ module RADUM
     # Remove the User or UNIXUser membership in the Group. This automatically
     # removes the Group from the User or UNIXUser object's list of groups.
     # A RuntimeError is raised if the User or UNIXUser has been removed.
+    # Any external references to the User or UNIXUser should be discarded.
+    #
+    # === Parameter Types
+    #
+    # * user [User or UNIXUser]
     def remove_user(user)
       if user.removed?
         raise "Cannot remove a removed user."
@@ -146,6 +155,10 @@ module RADUM
     end
     
     # Determine if the Group or UNIXGroup is a member of the Group or UNIXGroup.
+    #
+    # === Parameter Types
+    #
+    # * group [Group or UNIXGroup]
     def member_of?(group)
       # Memberships are already removed from removed groups. We have to check
       # the group passed in since groups are only tracking things they contain.
@@ -160,6 +173,10 @@ module RADUM
     # current Group or UNIXGroup (cannot be a member of itself) or the Group
     # or UNIXGroup is not in the same AD object. A RuntimeError is raised
     # if the Group or UNIXGroup has been removed.
+    #
+    # === Parameter Types
+    #
+    # * group [Group or UNIXGroup]
     def add_group(group)
       if group.removed?
         raise "Cannot add a removed group."
@@ -180,6 +197,11 @@ module RADUM
     
     # Remove the Group or UNIXGroup membership in the Group or UNIXGroup.
     # A RuntimeError is raised if the Group or UNIXGroup has been removed.
+    # Any external references to the Group or UNIXGroup should be discarded.
+    #
+    # === Parameter Types
+    #
+    # * group [Group or UNIXGroup]
     def remove_group(group)
       if group.removed?
         raise "Cannot remove a removed group."
@@ -215,6 +237,10 @@ module RADUM
     # class when doing synchronization. Once there is a RID value, it can be
     # set. This is not meant for general use. It will only set the rid attribute
     # if it has not already been set.
+    #
+    # === Parameter Types
+    #
+    # * rid [integer]
     def set_rid(rid) # :nodoc:
       if @rid.nil?
         @rid = rid
@@ -241,8 +267,8 @@ module RADUM
   end
   
   # The UNIXGroup class represents a UNIX Windows group. It is a subclass of
-  # the Group class. See the Group class documentation for its attributes as
-  # well.
+  # the Group class. See the Group class documentation for its attributes and
+  # methods as well.
   class UNIXGroup < Group
     # The UNIXGroup UNIX GID. This corresponds to the LDAP gidNumber
     # attribute.
@@ -266,16 +292,19 @@ module RADUM
     # should not be set directly except from the AD#load method itself.
     # The UNIXGroup object automatically adds itself to the Container object
     # specified by the :container argument. The :gid argument specifies the
-    # UNIX GID value of the UNIXGroup. The :nis_domain defaults to "radum".
-    # The use of an NIS domain is not strictly required as one could simply
-    # set the right attributes in Active Directory and use LDAP on clients to
-    # access that data, but specifying an NIS domain allows for easy editing
-    # of UNIX attributes using the GUI tools in Windows, thus the use of a
-    # default value. The argument types required follow:
+    # UNIX GID value of the UNIXGroup. The :gid value must be unique in the
+    # AD object or a RuntimeError is raised. The :nis_domain defaults to
+    # "radum". The use of an NIS domain is not strictly required as one could
+    # simply set the right attributes in Active Directory and use LDAP on
+    # clients to access that data, but specifying an NIS domain allows for easy
+    # editing of UNIX attributes using the GUI tools in Windows, thus the use
+    # of a default value.
+    #
+    # === Parameter Types
     #
     # * :name [String]
     # * :container [Container]
-    # * :type [RADUM group type constant]
+    # * :type [integer => RADUM group type constant]
     # * :rid [integer]
     # * :gid [integer]
     # * :nis_domain [String]
@@ -297,12 +326,16 @@ module RADUM
     # automatically removes the UNIXGroup from the User or UNIXUser object's
     # list of groups. This method returns a RuntimeError if the user
     # has this UNIXGroup as their UNIX main group unless this group is also
-    # the User UNIXUser object's primary Windows group as well (due to
-    # implicit memberhsip handling, but nothing happens in that case with
+    # the User or UNIXUser object's primary Windows group as well (due to
+    # implicit membership handling, but nothing happens in that case with
     # respect to UNIX membership). UNIXGroup membership cannot be removed
     # for the UNIXUser object's UNIX main group because RADUM enforces
     # Windows group membership in the UNIX main group, unless the group
     # is also the UNIXUser object's primary Windows group too.
+    #
+    # === Parameter Types
+    #
+    # * user [User or UNIXUser]
     def remove_user(user)
       if !user.removed? && user.instance_of?(UNIXUser) &&
          self == user.unix_main_group && self != user.primary_group
@@ -335,6 +368,10 @@ module RADUM
     # are not being used. This defaults to "radum" when a UNIXGroup is created
     # using UNIXGroup.new, but it is set to the correct value when the UNIXGroup
     # is loaded by AD#load from the AD object the Container belongs to.
+    #
+    # === Parameter Types
+    #
+    # * nis_domain [String]
     def nis_domain=(nis_domain)
       @nis_domain = nis_domain
       @modified = true
@@ -353,11 +390,9 @@ module RADUM
     # to the correct value when the UNIXGroup is loaded by AD#load from the AD
     # object the Container belongs to.
     #
-    # It is not necessary to set the LDAP unixUserPassword attribute if you
-    # are using Kerberos for authentication, but using LDAP (or NIS by way of
-    # LDAP in Active Directory) for user information. In that case, it is best
-    # to set this field to "*", which is why that is the default. Additionally,
-    # most of the time UNIX groups do not have a password.
+    # === Parameter Types
+    #
+    # * unix_password [String]
     def unix_password=(unix_password)
       @unix_password = unix_password
       @modified = true

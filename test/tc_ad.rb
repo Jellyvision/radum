@@ -1,7 +1,7 @@
 require 'test/unit'
 require 'radum'
 
-# This tests the Container class.
+# This tests the AD class.
 class TC_Ad < Test::Unit::TestCase
   def setup
     @ad1a = RADUM::AD.new :root => "dc=vmware,dc=local", :password => "test1a"
@@ -23,6 +23,10 @@ class TC_Ad < Test::Unit::TestCase
   
   def test_equal_case
     assert(@ad1a == @ad1c, "Should be equal with different case names")
+  end
+  
+  def test_equal_domain
+    assert(@ad1a.domain == @ad1c.domain, "Should be equal domain attribute")
   end
   
   def test_not_equal

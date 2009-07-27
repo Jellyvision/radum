@@ -19,6 +19,12 @@ module RADUM
     # logger level will be displayed. Other messages will be ignored.
     attr_accessor :default_level
     
+    # Create a new Logger instance. A Logger object is automatically created
+    # with a default_level of LOG_NORMAL.
+    #
+    # === Parameter Types
+    #
+    # * default_level [integer => RADUM log level constant]
     def initialize(default_level)
       @default_level = default_level
       @output = $stdout
@@ -28,6 +34,11 @@ module RADUM
     # LOG_NONE, the message will be discarded, otherwise the message will
     # be processed as long as the log level is less than or equal to the
     # default log level. The log level defaults to LOG_NORMAL.
+    #
+    # === Parameter Types
+    #
+    # * mesg [String]
+    # * log_level [integer => RADUM log level constant]
     def log(mesg, log_level = LOG_NORMAL)
       if @default_level != LOG_NONE && log_level != LOG_NONE &&
          log_level <= @default_level
@@ -37,6 +48,10 @@ module RADUM
     
     # Set the logger output file. The file is opened with mode "a" so it is
     # created if needed and then appended to.
+    #
+    # === Parameter Types
+    #
+    # * filename [String]
     def output_file(filename)
       @output = open(filename, "a")
     end

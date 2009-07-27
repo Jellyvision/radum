@@ -2,14 +2,22 @@
 # working with users and groups. The User class represents a standard Windows
 # user account. The UNIXUser class represents a Windows account that has UNIX
 # attributes. Similarly, the Group class represents a standard Windows group,
-# and a UNIXGroup represents a Windows group that has UNIX attributes. This
-# module concentrates only on users and groups at this time.
+# and a UNIXGroup represents a Windows group that has UNIX attributes. UNIX
+# attributes are supported if Active Directory has been extended, such as
+# when Microsoft Identity Management for UNIX has been installed. LDAP
+# extensions for UNIX are not required if only Windows users and groups are
+# operated on. This module concentrates only on users and groups at this time.
 #
 # This is a pure Ruby implementation. Windows command line tools are not
 # used in any way, so this will work from other platforms such as Mac OS X
-# and Linux in addition to Windows.
+# and Linux in addition to Windows. RADUM does require the Active Directory
+# server to support SSL because that is a requirement for creating user
+# accounts through LDAP. This means that a domain must have a certificate
+# server. Using a self-signed certificate should be fine.
 #
-# The general RADUM pattern is:
+# RADUM considers its view of user and group attributes to be authoritative,
+# with the exception that it will not modify the members of a group that it
+# is not already aware of. The general RADUM pattern is:
 #
 # * AD.new(...)
 # * Container.new(...) [for any Containers of interest]
@@ -20,6 +28,314 @@
 # See the class documenation for more details, especially the AD#load and
 # AD#sync methods.
 #
+# = AD
+#
+# The AD class represents an Active Directory. An AD object can be created
+# with something like the following code:
+#
+#  ad = RADUM::AD.new :root => 'dc=example,dc=com',
+#                     :user => 'cn=Administrator,cn=Users',
+#                     :password => 'password',
+#                     :server => '192.168.1.1'
+#
+# The AD class will connect to Active Directory when it needs to do so
+# automatically. A connection will not be made until required. Some arguments
+# in RADUM are specified using a relative path sans the :root argument to
+# the AD.new method, such as the :user argument and Container names discussed
+# next. The AD class provides a read-only ldap attriubte that allows direct
+# interaction with Active Directory if needed. The AD object automatically
+# adds the "cn=Users" Container object because most users have "Domain Users"
+# as their primary Windows group. The primary Windows group is necessary for
+# creating User and UNIXUser objects, especially when AD#load is called. Note
+# that the :root and :user arguments can use lowercase or uppercase for the
+# "dc=", "cn=", or "ou=" path elements.
+#
+# = Container
+#
+# Container objects are added to the AD object before AD#load is called in
+# most cases. Container objects can be created with something like the
+# following code:
+#
+#  people = RADUM::Container.new :name => 'ou=People',
+#                                :directory => ad
+#
+# It is possible to have nested Container objects as well, such as:
+#
+#  staff = RADUM::Container.new :name => 'ou=Staff,ou=People',
+#                               :directory => ad
+#  faculty = RADUM::Container.new :name => 'ou=Faculty,ou=People',
+#                                 :directory => ad
+#  grads = RADUM::Container.new :name => 'ou=Grads,ou=People',
+#                               :directory => ad
+#
+# Container objects do not have a direct reference to Container objects they
+# logically contain, but the RADUM code handles these cases when creating and
+# removing Container objects from Active Directory. Container objects do have
+# references to all users and groups they contain as well as the AD object
+# they belong to.
+#
+# The :name of a Container object is the only other case where a relative path
+# is used. The :name should be the directory path (the distinguished name) sans
+# the :root path given to the AD object that owns the Container. Container
+# objects can be Active Directory organizational units or containers. Note that
+# Active Directory containers cannot contain organizational units, but the
+# reverse is true, therefore the following :name would be invalid:
+#
+#  invalid = RADUM::Container.new :name => 'ou=Staff,cn=People',
+#                                 :directory => ad
+#
+# but the following :name is valid:
+#
+#  valid = RADUM::Container.new :name => 'cn=Staff,ou=People',
+#                               :directory => ad
+#
+# In general, one should use Active Directory organizational units instead of
+# containers. They are much more useful. The :name argument can use lowercase
+# or uppercase for the "cn=" and "ou=" path elements.
+#
+# Container objects should be added to the AD object before doing serious
+# work in the general case for the best results. This doesn't necessarily have
+# to be done if only creating new objects, but it is still a good idea that
+# won't hurt anyway. The "cn=Users" container is added by default to an AD
+# object when it is created to help make things easier as it is usually
+# required, and if it really is not needed, it should not take too many
+# resources.
+#
+# == Removing Container Objects
+#
+# Removing a Container causes that Container to be removed from Active Directory
+# when AD#sync is called, but only if that is possible. Container objects
+# cannot be removed if they have groups that cannot be removed nor if they
+# logically contain other Container objects. When calling the
+# AD#remove_container method, checks are made for all the objects RADUM knows
+# about. When calling AD#sync checks are made in Active Directory. See the
+# AD#remove_container method documentation for more details. Note that removing
+# a Container will always remove all User or UNIXUser objects it contains
+# regardless, and when AD#sync is called, all possible objects that can be
+# removed will be due to the implementation of AD#remove_container.
+#
+# It is also possible to destroy a Container. Unlike with users and groups,
+# destroying a Container with AD#destroy_container simply removes the reference
+# to the Container in the AD object. It does not result in the Container
+# objects contents from being removed. The Container simply will not be
+# processed in AD#load and AD#sync calls. The AD object determines all user
+# and group references based on the Container objects it owns.
+#
+# = Loading the AD Object
+#
+# Once the Container objects have been added to the AD object, the AD object
+# can be loaded. Calling AD#load is straightforward:
+#
+#  ad.load
+#
+# This will create User, UNIXUser, Group, and UNIXGroup objects to represent
+# all such objects in the Container objects added to the AD object. The AD#load
+# method determines if a user or group is a Windows or UNIX type based on the
+# object's LDAP attributes. AD#load can be called multiple times, but it will
+# ignore loading any user or group objects that already exist in the RADUM
+# environment.
+#
+# = Working with Users and Groups
+#
+# User and group object creation results in the users and groups being added to
+# their Container object automatically. Users and groups also have direct
+# references to their corresponding collections of groups for users and
+# groups plus users for groups (since groups can contain other groups as
+# members). User memberships in groups can be handled from either perspective
+# due to this automatic handling:
+#
+# * Users can be added to groups through User#add_group.
+# * Users can be added to groups through Group#add_user.
+#
+# Group membership in groups has to be handled by using the Group#add_group
+# method only, which adds the Group or UNIXGroup used as the argument as a
+# member of the Group object to which the method belongs.
+#
+# RADUM ensures that duplicate users and groups cannot be created, including
+# specific attributes of those objects which must be unique. Trying to do
+# something that would result in duplication generally raises a RuntimeError.
+#
+# == Creating Group and UNIXGroup Objects
+#
+# Group objects represent Windows groups and UNIXGroup objects represent UNIX
+# groups, which are Windows groups that have UNIX attributes. Examples include:
+#
+#  research_users = RADUM::Group.new :name => 'Research Users',
+#                                    :container => faculty
+#  unix_staff = RADUM::UNIXGroup.new :name => 'staff',
+#                                    :container => staff,
+#                                    :gid => 1005
+#
+# There are additional argumements in both cases. See Group.new and
+# UNIXGroup.new for additional details. In both cases, the :rid argument should
+# only be used by AD#load to specify the group object's relative identifier,
+# which is based on the LDAP objectSid attribute. There is an :nis_domain
+# argument for UNIXGroup objects that defaults to "radum" if not specified.
+# NIS is not required for using Active Directory in a centralized authentication
+# design. One could access the UNIX attributes through LDAP directly for
+# example. However, the NIS domain needs to be present if one wants to use
+# the Active Directory Users and Groups GUI tool, therefore one is specified
+# by default. The :type argument applies to both Group and UNIXGroup objects.
+# The default value is RADUM::GROUP_GLOBAL_SECURITY, which is the default
+# when creating group objects using the Active Directory Users and Groups GUI
+# tool in Windows. More details about the restrictions for certain group types
+# can be found in the User#primary_group= method documentation.
+#
+# There is a useful method for finding the next available GID for the UNIXGroup
+# object's :gid argument:
+#
+#  gid = ad.load_next_gid
+#
+# The AD#load_next_gid method searches Active Directory and the current RADUM
+# objects for the next GID value that can be used. The :gid attribute for a
+# UNIXGroup also becomes a UNIXUser object's GID value, depending on the
+# :unix_main_group for that UNIXUser.
+#
+# == Removing Group and UNIXGroup Objects
+#
+# Group and UNIXGroup objects can be removed from RADUM by using the following
+# method for the Container object that they belong to:
+#
+#  faculty.remove_group research_users
+#
+# or by searching for a group:
+#
+#  faculty.remove_group ad.find_group_by_name('Research Users')
+#
+# Removing a group causes that group to be removed from Active Directory when
+# AD#sync is called, but only if that is possible. Group and UNIXGroup objects
+# cannot be removed if they are the primary Windows group of any user in
+# Active Directory nor if they are the UNIX main group for any UNIXUser objects
+# in Active Directory. When calling the Container#remove_group method, checks
+# are made for all the objects RADUM knows about. When calling AD#sync checks
+# are made for all users in Active Directory.
+#
+# It is also possible to destroy a Group or UNIXGroup object. Destroying a
+# Group or UNIXGroup does not remove the object from Active Directory. Instead
+# it removes all references to the object in RADUM itself. The same checks are
+# made against all objects RADUM knows about before destroying the object can
+# succeed. See the Container#destroy_group method documentation for more
+# details.
+#
+# In both cases, any external references ot the orginal object should be
+# discarded.
+#
+# == Converting Group and UNIXGroup Objects
+#
+# It is possible to convert Group objects to UNIXGroup objects and vice versa
+# under certain conditions. Group objects can converted to UNIXGroup objects
+# if the Group is not the primary Windows group for a user RADUM knows about.
+# This is not really a strict requirement for users in Active Directory, but
+# it is a limitation of the current RADUM implementation. UNIXGroup objects
+# can be converted to Group objects with the same implementation restriction
+# with the additional restriction that the UNIXGroup cannot be the UNIX main
+# group for any user in Active Directory. Conversion causes this check to be
+# made outside of the AD#load and AD#sync methods immediately before proceeding.
+# If the conversion is successful, a new object of the desired type is created
+# and placed into the RADUM system in place of the original object. Any external
+# references to the orginal object should be discarded as they will be
+# treated as if they were removed objects, even though they are not removed
+# from Active Directory. Note that UNIX attributes are removed from UNIXGroup
+# objects in Active Directory immediately before AD#sync when converted to
+# Group objects.
+#
+# == Creating User and UNIXUser Objects
+#
+# User objects represent Windows users and UNIXUser objects represent UNIX
+# users, which are Windows users that have UNIX attributes. Examples include:
+#
+#  RADUM::User.new :username => 'martin',
+#                  :container => faculty,
+#                  :primary_group => ad.find_group_by_name('Domain Users')
+#  RADUM::UNIXUser.new :username => 'rowland',
+#                      :container => staff,
+#                      :primary_group => ad.find_group_by_name('Domain Users'),
+#                      :uid => 5437,
+#                      :unix_main_group => unix_staff,
+#                      :shell => '/bin/bash',
+#                      :home_directory => '/home/rowland'
+#
+# There are additional argumements in both cases. See User.new and
+# UNIXUser.new for additional details. In both cases, the :rid argument should
+# only be used by AD#load to specify the user object's relative identifier,
+# which is based on the LDAP objectSid attribute. There is an :nis_domain
+# argument for UNIXUser objects that defaults to "radum" if not specified.
+# NIS is not required for using Active Directory in a centralized authentication
+# design. One could access the UNIX attributes through LDAP directly for
+# example. However, the NIS domain needs to be present if one wants to use
+# the Active Directory Users and Groups GUI tool, therefore one is specified
+# by default. The :disabled argument applies to both User and UNIXUser objects.
+# The default value is false. The password attribute for User and UNIXUser
+# objects is nil unless set, and when set it causes the user in Active Directory
+# to have that password if it meets the Group Policy password requirements.
+# Once set through AD#sync, the password attribute is set to nil again. The
+# GID value for a UNIXUser comes from its :unix_main_group argument UNIXGroup
+# value. There are many attributes that can be set for User and UNIXUser
+# objects. See the User and UNIXUser class documentation for more details.
+#
+# There is a useful method for finding the next available UID for the UNIXUser
+# object's :uid argument:
+#
+#  uid = ad.load_next_uid
+#
+# The AD#load_next_uid method searches Active Directory and the current RADUM
+# objects for the next UID value that can be used.
+#
+# == Removing User and UNIXUser Objects
+#
+# User and UNIXUser objects can be removed from RADUM by using the following
+# method for the Container object that they belong to:
+#
+#  faculty.remove_user ad.find_user_by_username('martin')
+#
+# or by specifying a reference to a User or UNIXUser object directly.
+#
+# Removing a user causes that user to be removed from Active Directory when
+# AD#sync is called.
+#
+# It is also possible to destroy a User or UNIXUser object. Destroying a
+# User or UNIXUser does not remove the object from Active Directory. Instead
+# it removes all references to the object in RADUM itself.
+#
+# In both cases, any external references ot the orginal object should be
+# discarded.
+#
+# == Converting User and UNIXUser Objects
+#
+# It is possible to convert User objects to UNIXUser objects and vice versa.
+# If the conversion is successful, a new object of the desired type is created
+# and placed into the RADUM system in place of the original object. Any external
+# references to the orginal object should be discarded as they will be
+# treated as if they were removed objects, even though they are not removed
+# from Active Directory. Note that UNIX attributes are removed from UNIXUser
+# objects in Active Directory immediately before AD#sync when converted to
+# User objects.
+#
+# = Synchronizing to Active Directory
+#
+# After making any changes, synchronizing those changes to Active Directory can
+# be accomplished with the following:
+#
+#  ad.sync
+#
+# This method can be called whenever changes are made. Changes in RADUM are
+# considered authoritative and Active Directory objects are updated to reflect
+# their attributes as RADUM sees the world. This is true for group memberships
+# except for members that RADUM does not know about. This means that AD#sync
+# will not cause users and groups it does not know about to be removed from
+# a Group or UNIXGroup it does know about, but it will remove users and groups
+# that have been explicitly removed in the RADUM system.
+#
+# == Windows Server Versions
+#
+# RADUM has been exlusively tested against Windows Server 2008. The testing
+# system had Microsoft Identity Management for UNIX installed and had the
+# Certificate Services Role added. RADUM should also work against Windows
+# Server 2003, but that has not been tested yet. Microsoft Identity Management
+# for UNIX is generally required for UNIXUser and UNIXGroup objects if desired,
+# and the Certificate Services Role is required in the domain because SSL is
+# required for creating User and UNIXUser objects using LDAP.
+#
 # Author:: Shaun Rowland <mailto:rowand@shaunrowland.com>
 # Copyright:: Copyright 2009 Shaun Rowland. All rights reserved.
 # License:: BSD License included in the project LICENSE file.
@@ -27,14 +343,14 @@
 module RADUM
   # Group type constants.
   #
-  # These are the Fixnum representation of what should be Bignum objects in
-  # some cases as far as I am aware. In the AD Users and Groups tool, they are
-  # shown as hexidecimal values, indicating they should be Bignums (well, some
-  # of them obviously). However, if you try to edit the values in that tool
-  # (with advanced attribute editing enabled or with the ADSI Edit tool) these
-  # show up as the Fixnum values here. We are going to stick with that, even
-  # though it is lame. I could not pull these out as Bignum objects. Some
-  # of these are small enough to be Fixnums though, so I left them as their
+  # These are the Fixnum representations of what should be Bignum objects in
+  # some cases as far as I am aware. In the Active Directory Users and Groups
+  # GUI tool, they are shown as hexidecimal values, indicating they should be
+  # Bignums (well, some of them). However, if you try to edit the values in
+  # that tool (with advanced attribute editing enabled or with the ADSI Edit
+  # tool) these show up as the Fixnum values here. We are going to stick with
+  # that, even though it is lame. I could not pull these out as Bignum objects.
+  # Some of these are small enough to be Fixnums though, so I left them as their
   # hexidecimal values. These values correspond to the LDAP groupType attribute
   # for group objects.
   GROUP_DOMAIN_LOCAL_SECURITY = -2147483644
@@ -75,12 +391,11 @@ module RADUM
   end
   
   # The AD class represents the Active Directory. All opeartions that involve
-  # communication between the User, UNIXUser, Group, and UNIXGroup classes are
-  # handled by the AD object. The AD object should be the first object created,
-  # generally followed by Container objects. The Container object requires an
-  # AD object. All other objects require a Container object. Generally, methods
-  # prefixed with "load" pull data out of the Active Directory and methods
-  # prefixed with "sync" push data to the Active Directory as required.
+  # communication between the Container, User, UNIXUser, Group, and UNIXGroup
+  # objects and Active Directory are handled by the AD object. The AD object
+  # should be the first object created, generally followed by Container objects.
+  # The Container object requires an AD object. All other objects require a
+  # Container object.
   class AD
     # A handle the the Net::LDAP object used for this AD.
     attr_reader :ldap
@@ -88,7 +403,7 @@ module RADUM
     # path, such as "dc=example,dc=com".
     attr_reader :root
     # The domain name of the Active Directory. This is calculated from the root
-    # attribute.
+    # attribute. This is automatically made lowercase.
     attr_reader :domain
     # The Active Directory user used to connect to the Active Directory. This
     # is specified using an LDAP path to the user account, without the root
@@ -128,7 +443,7 @@ module RADUM
     # * :root => The root of the Active Directory [required]
     # * :user => The user for an LDAP bind [default "cn=Administrator,cn=Users"]
     # * :password => The user password for an LDAP bind [optional]
-    # * :server => The Active Directory server hostname [default "localhost"]
+    # * :server => The Active Directory server host [default "localhost"]
     #
     # RADUM requires TLS to create user accounts in Active Directory properly,
     # so you will need to make sure you have a certificate server so that you
@@ -143,7 +458,9 @@ module RADUM
     # Directory equivalent to the distinguished_name attribute for the user
     # without the :root portion. The :server argument can be an IP address
     # or a hostname. The :root argument is required. If it is not specified,
-    # a RuntimeError is raised.  The argument types required follow:
+    # a RuntimeError is raised.
+    #
+    # === Parameter Types
     #
     # * :root [String]
     # * :user [String]
@@ -158,7 +475,7 @@ module RADUM
     def initialize(args = {})
       @root = args[:root] or raise "AD :root argument required."
       @root.gsub!(/\s+/, "")
-      @domain = @root.gsub(/dc=/, "").gsub(/,/, ".")
+      @domain = @root.gsub(/[Dd][Cc]=/, "").gsub(/,/, ".").downcase
       @user = args[:user] || "cn=Administrator,cn=Users"
       @password = args[:password]
       @server = args[:server] || "localhost"
@@ -198,6 +515,10 @@ module RADUM
     # Set the port number used to communicate with the Active Directory server.
     # This defaults to 636 for TLS in order to create user accounts properly,
     # but can be set here for nonstandard configurations.
+    #
+    # === Parameter Types
+    #
+    # * port [integer]
     def port=(port)
       @port = port
       @ldap.port = port
@@ -205,6 +526,10 @@ module RADUM
     
     # Find a Container in the AD by name. The search is case-insensitive. The
     # Container is returned if found, otherwise nil is returned.
+    #
+    # === Parameter Types
+    #
+    # * name [String]
     def find_container(name)
       @containers.find do |container|
         # This relies on the fact that a container name must be unique in a
@@ -216,7 +541,11 @@ module RADUM
     # Add a Container a container to the AD. The Container must have the AD
     # as its directory attribute or a RuntimeError is raised. Container objects
     # that were removed cannot be added back and are ignored.
-    def add_container(container)
+    #
+    # === Parameter Types
+    #
+    # * container [Container]
+    def add_container(container) # :nodoc:
       return if container.removed?
       
       if self == container.directory
@@ -229,13 +558,14 @@ module RADUM
     end
     
     # Remove a Container from the AD. This attempts to set the Container
-    # object's removed attribute to true as well as remove any users or
-    # groups it contains. If any group cannot be removed because it is a
-    # dependency, the Container cannot be fully removed either, but all
-    # objects that can be removed will be removed. This can happen if a
-    # group is another user object's primary Windows group or UNIX main
-    # group and that user is not in the same Container. Removed Container
-    # objects are ignored.
+    # object's removed attribute to true as well as remove any User, UNIXUser,
+    # Group, and UNIXGroup objects it contains. If any Group or UNIXGroup
+    # object cannot be removed because it is a dependency, the Container cannot
+    # be fully removed either, but all objects that can be removed will be
+    # removed. This can happen if a Group or UNIXGroup is another User or
+    # UNIXUser object's primary Windows group or UNIX main group and that User
+    # or UNIXUser is not in the same Container. Removed Container objects are
+    # ignored.
     #
     # Note that this method might succeed based on the user and group objects
     # it knows about, but it still might fail when AD#sync is called because a
@@ -248,9 +578,13 @@ module RADUM
     # measure. There is no error raised in this case, but a warning is logged
     # using RADUM::logger with a log level of LOG_NORMAL.
     #
-    # Any reference to the Container should be discarded unless it was not
-    # possible to fully remove the Container. This method returns a boolean
-    # that indicates if it was possible to fully remove the Container.
+    # Any external reference to the Container should be discarded unless it
+    # was not possible to fully remove the Container. This method returns a
+    # boolean that indicates if it was possible to fully remove the Container.
+    #
+    # === Parameter Types
+    #
+    # * container [Container]
     def remove_container(container)
       return if container.removed?
       
@@ -306,7 +640,7 @@ module RADUM
     
     # Destroy all references to a Container. This can be called regardless of
     # any other status because all internal references to User, UNIXUser,
-    # Group, and UNIXGroup objects is done implicitly from the AD collection
+    # Group, and UNIXGroup objects are done implicitly from the AD collection
     # of Container objects. Once the Container reference is gone, its objects
     # will no longer be seen. Destroying a Container will not implicilty
     # remove its objects. They simply will no longer be processed at all.
@@ -315,7 +649,11 @@ module RADUM
     # measure. There is no error raised in this case, but a warning is logged
     # using RADUM::logger with a log level of LOG_NORMAL.
     #
-    # Any references to the Container should be discarded.
+    # Any external references to the Container should be discarded.
+    #
+    # === Parameter Types
+    #
+    # * container [Container]
     def destroy_container(container)
       # We have to allow removed Container objects to be destroyed because
       # that's the only way they are deleted from the RADUM environment
@@ -333,8 +671,7 @@ module RADUM
       container.set_removed
     end
     
-    # Returns an Array of all User and UNIXUser objects in all Containers
-    # in the AD.
+    # Returns an Array of all User and UNIXUser objects in the AD.
     def users
       all_users = []
       
@@ -373,19 +710,24 @@ module RADUM
     # * Find a User or UNIXUser by username:
     #  find_user { |user| user.username == "username" }
     # * Find a UNIXUser by gid:
-    #  find_user { |user| user.gid = 1002 }
+    #  find_user { |user| user.gid == 1002 }
     # * Find a removed User or UNIXUser by username:
-    #  find_user(true) { |user| user.username = "username" }
+    #  find_user(true) { |user| user.username == "username" }
     # * Find a removed UNIXUser by gid:
     #  find_user(true) { |user| user.gid == 1002 }
     #
     # If no block is given the method returns nil. If the User or UNIXUser is
-    # not found, the method also returns nil. Otherwise the User or UNIXUser
+    # not found, the method also returns nil, otherwise the User or UNIXUser
     # object found is returned.
     #
     # There are convenient find_user_by_<attribute> methods defined that take
     # care of the example cases here as well, but this method allows any block
     # test to be given.
+    #
+    # === Parameter Types
+    #
+    # * removed [boolean]
+    # * [block]
     def find_user(removed = false)
       if block_given?
         if removed
@@ -409,9 +751,14 @@ module RADUM
     end
     
     # Find a User or UNIXUser in the AD by username. The search is
-    # case-insensitive. The User or UNIXUser is returned if found, otherwise
+    # case insensitive. The User or UNIXUser is returned if found, otherwise
     # nil is returned. Specify the second argument as true if you wish to
     # search for removed User or UNIXUser objects.
+    #
+    # === Parameter Types
+    #
+    # * username [String]
+    # * removed [boolean]
     def find_user_by_username(username, removed = false)
       find_user removed do |user|
         user.username.downcase == username.downcase
@@ -421,6 +768,11 @@ module RADUM
     # Find a User or UNIXUser in the AD by RID. The User or UNIXUser is
     # returned if found, otherwise nil is returned. Specify the second argument
     # as true if you wish to search for removed User or UNIXUser objects.
+    #
+    # === Parameter Types
+    #
+    # * rid [integer]
+    # * removed [boolean]
     def find_user_by_rid(rid, removed = false)
       find_user(removed) { |user| user.rid == rid }
     end
@@ -428,14 +780,24 @@ module RADUM
     # Find a UNIXUser in the AD by UID. The UNIXUser is returned if found,
     # otherwise nil is returned. Specify the second argument as true if you
     # wish to search for removed UNIXUser objects.
+    #
+    # === Parameter Types
+    #
+    # * uid [integer]
+    # * removed [boolean]
     def find_user_by_uid(uid, removed = false)
       find_user(removed) { |user| user.uid == uid }
     end
     
-    # Find a User or UNIXUser in the AD by distinguished name. The User or
-    # UNIXUser is returned if found, otherwise nil is returned. Specify the
-    # second argument as true if you wish to search for removed User or
-    # UNIXUser objects.
+    # Find a User or UNIXUser in the AD by distinguished name. The search is
+    # case insensitive. The User or UNIXUser is returned if found, otherwise
+    # nil is returned. Specify the second argument as true if you wish to
+    # search for removed User or UNIXUser objects.
+    #
+    # === Parameter Types
+    #
+    # * dn [String]
+    # * removed [boolean]
     def find_user_by_dn(dn, removed = false)
       find_user removed do |user|
         user.distinguished_name.downcase == dn.downcase
@@ -463,8 +825,9 @@ module RADUM
     # is not strictly required as one could simply set the right attributes in
     # Active Directory and use LDAP on clients to access that data, but
     # specifying an NIS domain allows for easy editing of UNIX attributes
-    # using the GUI tools in Windows, thus the use of a default value. The
-    # argument types required follow:
+    # using the GUI tools in Windows, thus the use of a default value.
+    #
+    # === Parameter Types
     #
     # * :user [User]
     # * :uid [integer]
@@ -475,7 +838,7 @@ module RADUM
     #
     # If the :user argument is not a User object, a RuntimeError is raised.
     # If the User has already been removed a RuntimeError is raised.
-    # The :uid attribute is also checked first in case it already is in use
+    # The :uid argument is also checked first in case it already is in use
     # so that the original user is not destroyed by accident due to an error.
     #
     # No changes to the User happen until AD#sync is called.
@@ -597,14 +960,15 @@ module RADUM
     # perspective by default because they are members from the UNIX perspective.
     # This is the default behavior in RADUM. The default action is to not remove
     # their Windows group memberships when converting a UNIXUser to a User.
-    # The argument types required follow:
+    #
+    # === Parameter Types
     #
     # * :user [UNIXUser]
     # * :remove_unix_groups [boolean]
     #
     # UNIX attributes are removed from Active Directory immedately if it is
     # actually possible to destroy the UNIXUser properly without waiting for
-    # AD%sync to be called.
+    # AD#sync to be called.
     def unix_user_to_user(args = {})
       user = args[:user]
       
@@ -722,8 +1086,7 @@ module RADUM
       user
     end
     
-    # Returns an Array of all Group and UNIXGroup objects in all Containers
-    # in the AD.
+    # Returns an Array of all Group and UNIXGroup objects in the AD.
     def groups
       all_groups = []
       
@@ -762,19 +1125,24 @@ module RADUM
     # * Find a Group or UNIXGroup by name:
     #  find_group { |group| group.name == "name" }
     # * Find a UNIXGroup by gid:
-    #  find_group { |group| group.gid = 1002 }
+    #  find_group { |group| group.gid == 1002 }
     # * Find a removed Group or UNIXGroup by name:
-    #  find_group(true) { |group| group.name = "name" }
+    #  find_group(true) { |group| group.name == "name" }
     # * Find a removed UNIXGroup by gid:
     #  find_group(true) { |group| group.gid == 1002 }
     #
     # If no block is given the method returns nil. If the Group or UNIXGroup is
-    # not found, the method also returns nil. Otherwise the Group or UNIXGroup
+    # not found, the method also returns nil, otherwise the Group or UNIXGroup
     # object found is returned.
     #
     # There are convenient find_group_by_<attribute> methods defined that take
     # care of the example cases here as well, but this method allows any block
     # test to be given.
+    #
+    # === Parameter Types
+    #
+    # * removed [boolean]
+    # * [block]
     def find_group(removed = false)
       if block_given?
         if removed
@@ -798,9 +1166,14 @@ module RADUM
     end
     
     # Find a Group or UNIXGroup in the AD by name. The search is
-    # case-insensitive. The Group or UNIXGroup is returned if found, otherwise
+    # case insensitive. The Group or UNIXGroup is returned if found, otherwise
     # nil is returned. Specify the second argument as true if you wish to
     # search for removed Group or UNIXGroup objects.
+    #
+    # === Parameter Types
+    #
+    # * name [String]
+    # * removed [boolean]
     def find_group_by_name(name, removed = false)
       find_group removed do |group|
         group.name.downcase == name.downcase
@@ -810,6 +1183,11 @@ module RADUM
     # Find a Group or UNIXGroup in the AD by RID. The Group or UNIXGroup is
     # returned if found, otherwise nil is returned. Specify the second argument
     # as true if you wish to search for removed Group or UNIXGroup objects.
+    #
+    # === Parameter Types
+    #
+    # * rid [integer]
+    # * removed [boolean]
     def find_group_by_rid(rid, removed = false)
       find_group(removed) { |group| group.rid == rid }
     end
@@ -817,14 +1195,24 @@ module RADUM
     # Find a UNIXGroup in the AD by GID. The UNIXGroup is returned if found,
     # otherwise nil is returned. Specify the second argument as true if you
     # wish to search for removed UNIXGroup objects.
+    #
+    # === Parameter Types
+    #
+    # * gid [integer]
+    # * removed [boolean]
     def find_group_by_gid(gid, removed = false)
       find_group(removed) { |group| group.gid == gid }
     end
     
-    # Find a Group or UNIXGroup in the AD by distinguished name. The Group or
-    # UNIXGroup is returned if found, otherwise nil is returned. Specify the
-    # second argument as true if you wish to search for removed Group or
-    # UNIXGroup objects.
+    # Find a Group or UNIXGroup in the AD by distinguished name. The search is
+    # case insensitive. The Group or UNIXGroup is returned if found, otherwise
+    # nil is returned. Specify the second argument as true if you wish to
+    # search for removed Group or UNIXGroup objects.
+    #
+    # === Parameter Types
+    #
+    # * dn [String]
+    # * removed [boolean]
     def find_group_by_dn(dn, removed = false)
       find_group removed do |group|
         group.distinguished_name.downcase == dn.downcase
@@ -848,8 +1236,9 @@ module RADUM
     # strictly required as one could simply set the right attributes in Active
     # Directory and use LDAP on clients to access that data, but specifying an
     # NIS domain allows for easy editing of UNIX attributes using the GUI tools
-    # in Windows, thus the use of a default value. The argument types required
-    # follow:
+    # in Windows, thus the use of a default value.
+    #
+    # === Parameter Types
     #
     # * :group [Group]
     # * :gid [integer]
@@ -857,7 +1246,7 @@ module RADUM
     #
     # If the :group argument is not a Group object, a RuntimeError is raised.
     # If the Group has already been removed a RuntimeError is raised.
-    # The :gid attribute is also checked first in case it already is in use
+    # The :gid argument is also checked first in case it already is in use
     # so that the original group is not destroyed by accident due to an error.
     # Note that Container#destroy_group checks to make sure the group is not
     # the primary Windows group for any User or UNIXUser first, so the :group
@@ -961,8 +1350,9 @@ module RADUM
     # members from the Windows perspective as well by default because they are
     # members from the UNIX perspective. This is the default behavior in
     # RADUM. The default action is to not remove their Windows user
-    # memberships when converting a UNIXGroup to a Group. The argument types
-    # required follow:
+    # memberships when converting a UNIXGroup to a Group.
+    #
+    # === Parameter Types
     #
     # * :group [UNIXGroup]
     # * :remove_unix_users [boolean]
@@ -983,7 +1373,7 @@ module RADUM
     #
     # UNIX attributes are removed from Active Directory immedately if it is
     # actually possible to destroy the UNIXGroup properly without waiting for
-    # AD%sync to be called.
+    # AD#sync to be called.
     def unix_group_to_group(args = {})
       group = args[:group]
       
@@ -1086,8 +1476,8 @@ module RADUM
     # correctly. This can be used to initialize a program using the RADUM 
     # module for account management work.
     #
-    # Users are not created if their primary Windows group is not found
-    # during the load. UNIXUsers are not created if their UNIX main group
+    # User objects are not created if their primary Windows group is not found
+    # during the load. UNIXUser objects are not created if their UNIX main group
     # is not found during the load. Warning messages are printed in each
     # case. Make sure all required Containers are in the AD before loading
     # data from Active Directory to avoid this problem.
@@ -1098,7 +1488,9 @@ module RADUM
     # Unless you set every attribute correctly, unset object attributes will
     # overwrite current values in Active Directory. Note that AD#sync will
     # not touch Active Directory group memberships it does not know about
-    # explicitly, so at least that is safe. The general RADUM pattern is:
+    # explicitly, so AD#sync will not remove group and user memberships in
+    # groups that were not explicitly removed in RADUM. The general RADUM
+    # pattern is:
     #
     # * AD.new(...)
     # * Container.new(...) [for any Containers of interest]
@@ -1382,10 +1774,10 @@ module RADUM
       end
     end
     
-    # Synchronize all modified Users, UNIXUsers, Groups, and UNIXGroups to
-    # Active Directory. This will create entries as needed after checking to
-    # make sure they do not already exist. New attributes will be added,
-    # unset attributes will be removed, and modified attributes will be
+    # Synchronize all modified Container, User, UNIXUser, Group, and UNIXGroup
+    # objects to Active Directory. This will create entries as needed after
+    # checking to make sure they do not already exist. New attributes will be
+    # added, unset attributes will be removed, and modified attributes will be
     # updated automatically. Removed objects will be deleted from Active
     # Directory.
     #
@@ -1395,7 +1787,9 @@ module RADUM
     # Unless you set every attribute correctly, unset object attributes will
     # overwrite current values in Active Directory. Note that AD#sync will
     # not touch Active Directory group memberships it does not know about
-    # explicitly, so at least that is safe. The general RADUM pattern is:
+    # explicitly, so AD#sync will not remove group and user memberships in
+    # groups that were not explicitly removed in RADUM. The general RADUM
+    # pattern is:
     #
     # * AD.new(...)
     # * Container.new(...) [for any Containers of interest]
@@ -1487,11 +1881,19 @@ module RADUM
     # Returns true if two AD objects are equal, otherwise false. Equality is
     # established by the two AD objects having the same root attribute
     # (case-insensitive).
+    #
+    # === Parameter Types
+    #
+    # * other [AD]
     def ==(other)
       @root.downcase == other.root.downcase
     end
     
-    # Returns true if two AD objects are equal as defined by the AD.== method.
+    # Returns true if two AD objects are equal as defined by the AD#== method.
+    #
+    # === Parameter Types
+    #
+    # * other [AD]
     def eql?(other)
       self == other
     end
@@ -1505,6 +1907,10 @@ module RADUM
     
     # Unpack a RID from the SID value in the LDAP objectSid attribute for a
     # user or group in Active Directory.
+    #
+    # === Parameter Types
+    #
+    # * sid [binary LDAP attribute value]
     def sid2rid_int(sid)
       sid.unpack("qV*").pop.to_i
     end
@@ -1514,6 +1920,10 @@ module RADUM
     # a UTF-16LE string for the unicodePwd attribute. Note that the password
     # Active Directory is expecting for the unicodePwd attribute has to be
     # explicitly quoted.
+    #
+    # === Parameter Types
+    #
+    # * str [String]
     def str2utf16le(str)
       ('"' + str + '"').gsub(/./) { |c| "#{c}\0" }
     end
@@ -1597,6 +2007,10 @@ module RADUM
     # Return a hash with an Active Directory group's base LDAP attributes. The
     # key is the RADUM group attribute name and the value is the computed value
     # from the group's attributes in Active Directory.
+    #
+    # === Parameter Types
+    #
+    # * entry [String]
     def group_ldap_entry_attr(entry)
       attr = {}
       # These are attributes that might be empty. If they are empty,
@@ -1632,6 +2046,10 @@ module RADUM
     # Return a hash with an Active Directory user's base LDAP attributes. The
     # key is the RADUM user attribute name and the value is the computed value
     # from the user's attributes in Active Directory.
+    #
+    # === Parameter Types
+    #
+    # * entry [String]
     def user_ldap_entry_attr(entry)
       attr = {}
       # These are attributes that might be empty. If they are empty,
@@ -1795,6 +2213,10 @@ module RADUM
     
     # Delete a Container from Active Directory. There isn't much we can check
     # except trying to delete it.
+    #
+    # === Parameter Types
+    #
+    # * container [Container]
     def delete_container(container)
       RADUM::logger.log("[AD #{self.root}]" +
                         " delete_container(<#{container.name}>)", LOG_DEBUG)
@@ -1814,6 +2236,10 @@ module RADUM
     # automatically creates parent containers as required. This is safe to
     # do, even if one of those was also passed to this method later (since it
     # would then be found).
+    #
+    # === Parameter Types
+    #
+    # * container [Container]
     def create_container(container)
       RADUM::logger.log("[AD #{self.root}]" +
                         " create_container(<#{container.name}>)", LOG_DEBUG)
@@ -1883,6 +2309,10 @@ module RADUM
     # Determine if the group is anyone's primary Windows group in Active
     # Directory. Returns true if the group is anyone's primary Windows group,
     # false otherwise. This works for Group and UNIXGroup objects.
+    #
+    # === Parameter Types
+    #
+    # * group [Group or UNIXGroup]
     def ldap_is_primary_windows_group?(group)
       user_filter = Net::LDAP::Filter.eq("objectclass", "user")
       
@@ -1897,6 +2327,10 @@ module RADUM
     # Determine if the group is anyone's UNIX main group in Active Directory.
     # Returns true if the group is anyone's UNIX main group, false otherwise.
     # This works for UNIXGroup objects and returns false for Group objects.
+    #
+    # === Parameter Types
+    #
+    # * group [UNIXGroup]
     def ldap_is_unix_main_group?(group)
       user_filter = Net::LDAP::Filter.eq("objectclass", "user")
       
@@ -1914,6 +2348,10 @@ module RADUM
     end
     
     # Delete a Group or UNIXGroup from Active Directory.
+    #
+    # === Parameter Types
+    #
+    # * group [Group or UNIXGroup]
     def delete_group(group)
       RADUM::logger.log("[AD #{self.root}]" +
                         " delete_group(<#{group.name}>)", LOG_DEBUG)
@@ -1960,6 +2398,10 @@ module RADUM
     # already in Active Directory, in case someone created a group that would
     # match one that already exists. Therefore, any Group or UNIXGroup can be
     # passed into this method.
+    #
+    # === Parameter Types
+    #
+    # * group [Group or UNIXGroup]
     def create_group(group)
       unless group.loaded?
         group_filter = Net::LDAP::Filter.eq("objectclass", "group")
@@ -2024,6 +2466,10 @@ module RADUM
     # determines which attributes to update. The Group or UNIXGroup object must
     # exist in Active Directory or this method does nothing. This is checked, so
     # it is safe to pass any Group or UNIXGroup object to this method.
+    #
+    # === Parameter Types
+    #
+    # * group [Group or UNIXGroup]
     def update_group(group)
       if group.modified?
         RADUM::logger.log("[AD #{self.root}]" +
@@ -2223,6 +2669,10 @@ module RADUM
     end
     
     # Delete a User or UNIXUser from Active Directory.
+    #
+    # === Parameter Types
+    #
+    # * user [User or UNIXUser]
     def delete_user(user)
       RADUM::logger.log("[AD #{self.root}]" +
                         " delete_user(<#{user.username}>)", LOG_DEBUG)
@@ -2239,6 +2689,10 @@ module RADUM
     # already in Active Directory, in case someone created a user that would
     # match one that already exists. Therefore, any User or UNIXUser can be
     # passed into this method.
+    #
+    # === Parameter Types
+    #
+    # * user [User or UNIXUser]
     def create_user(user)
       unless user.loaded?
         user_filter = Net::LDAP::Filter.eq("objectclass", "user")
@@ -2480,6 +2934,10 @@ module RADUM
     # determines which attributes to update. The User or UNIXUser object must
     # exist in Active Directory or this method does nothing. This is checked, so
     # it is safe to pass any User or UNIXUser object to this method.
+    #
+    # === Parameter Types
+    #
+    # * user [User or UNIXUser]
     def update_user(user)
       if user.modified?
         RADUM::logger.log("[AD #{self.root}]" +
