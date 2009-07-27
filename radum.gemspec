@@ -6,13 +6,8 @@ Gem::Specification.new do |s|
     Ruby on any supported platform.
   EOF
   s.email = [ 'rowland@shaunrowland.com' ]
-  # Might want to do this when documentation is expanded.
-  #s.extra_rdoc_files = ['README', 'doc/user-guide.txt']
+  s.extra_rdoc_files = ['LICENSE']
   s.files = Dir['lib/**/*.rb']
-  s.files << Dir['test/**/*']
-  s.files << Dir['LICENSE']
-  s.files << Dir['Notes.txt']
-  s.files.delete 'test/run.rb'
   s.has_rdoc = true
   s.homepage = 'http://www.shaunrowland.com/wiki/RADUM'
   s.name = 'radum'
@@ -25,10 +20,11 @@ Gem::Specification.new do |s|
                     '--accessor' << 'directory' <<
                     '--title' <<
                     'RADUM -- Ruby Active Directory User Management' <<
-                    '--line-numbers'
-  # Set this once you make a RubyForge project.
-  #s.rubyforge_project = 'radum'
+                    '--line-numbers' <<
+                    '--inline-source' <<
+                    '--charset=UTF-8'
+  s.rubyforge_project = 'radum'
   s.summary = 'Manage users and groups in Active Directory.'
-  s.test_files = Dir.glob('test/tc_*.rb')
+  s.test_files = Dir['test/tc_*.rb']
   s.version = '0.0.1'
 end

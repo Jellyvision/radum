@@ -1,7 +1,7 @@
 require 'test/unit'
-require '../lib/radum'
+require 'radum'
 
-# This tests the User class.
+# This tests the UNIXUser class.
 class TC_UNIXUser < Test::Unit::TestCase
   def setup
     @ad1 = RADUM::AD.new :root => "dc=vmware,dc=local", :password => "test1"
