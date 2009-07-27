@@ -1,7 +1,7 @@
 #!/usr/bin/ruby -I ../lib
 
 require 'test/unit'
-require '../lib/radum'
+require 'radum'
 
 # This tests the User class.
 class TC_Live < Test::Unit::TestCase
