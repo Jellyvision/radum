@@ -255,7 +255,7 @@ class TC_Live < Test::Unit::TestCase
     @ad.sync
     
     ad2 = new_ad
-    u2 = ad2.find_user_by_username "win-user-" + $$.to_s
+    u2 = ad2.find_user_by_username("win-user-" + $$.to_s)
     assert(u2.first_name == "First Name", "first_name should be 'First Name'")
     assert(u2.initials == "M", "initials should be 'M'")
     assert(u2.middle_name == "Middle Name",
@@ -278,7 +278,7 @@ class TC_Live < Test::Unit::TestCase
     @ad.sync
     
     ad2 = new_ad
-    u2 = ad2.find_user_by_username "win-user-" + $$.to_s
+    u2 = ad2.find_user_by_username("win-user-" + $$.to_s)
     assert(u2.first_name == "New First Name",
            "first_name should be 'New First Name'")
     assert(u2.initials == "N", "initials should be 'N'")
@@ -296,7 +296,7 @@ class TC_Live < Test::Unit::TestCase
     @ad.sync
     
     ad2 = new_ad
-    u2 = ad2.find_user_by_username "win-user-" + $$.to_s
+    u2 = ad2.find_user_by_username("win-user-" + $$.to_s)
     assert(u2.local_drive == "Z:", "local_drive should be 'Z:'")
     assert(u2.local_path == "\\\\server\\share",
            "local_path should be '\\\\server\\share'")
@@ -304,7 +304,7 @@ class TC_Live < Test::Unit::TestCase
     @ad.sync
     
     ad2 = new_ad
-    u2 = ad2.find_user_by_username "win-user-" + $$.to_s
+    u2 = ad2.find_user_by_username("win-user-" + $$.to_s)
     assert(u2.local_drive == nil, "local_drive should be nil")
     assert(u2.local_path == "D:\\A Path", "local_path should be 'D:\\A Path'")
     
@@ -318,14 +318,14 @@ class TC_Live < Test::Unit::TestCase
     @ad.sync
     
     ad2 = new_ad
-    u2 = ad2.find_user_by_username "win-user-" + $$.to_s
+    u2 = ad2.find_user_by_username("win-user-" + $$.to_s)
     assert(u2.must_change_password? == true,
            "must_change_password? should be true")
     u.unset_change_password
     @ad.sync
     
     ad2 = new_ad
-    u2 = ad2.find_user_by_username "win-user-" + $$.to_s
+    u2 = ad2.find_user_by_username("win-user-" + $$.to_s)
     assert(u2.must_change_password? == false,
            "must_change_password? should be false")
     
@@ -336,13 +336,13 @@ class TC_Live < Test::Unit::TestCase
     @ad.sync
     
     ad2 = new_ad
-    u2 = ad2.find_user_by_username "win-user-" + $$.to_s
+    u2 = ad2.find_user_by_username("win-user-" + $$.to_s)
     assert(u2.disabled? == true, "disabled? should be true")
     u.enable
     @ad.sync
     
     ad2 = new_ad
-    u2 = ad2.find_user_by_username "win-user-" + $$.to_s
+    u2 = ad2.find_user_by_username("win-user-" + $$.to_s)
     assert(u2.disabled? == false, "disabled? should be false")
     
     # Test changing the primary Windows group.
@@ -353,7 +353,7 @@ class TC_Live < Test::Unit::TestCase
     @ad.sync
     
     ad2 = new_ad
-    u2 = ad2.find_user_by_username "win-user-" + $$.to_s
+    u2 = ad2.find_user_by_username("win-user-" + $$.to_s)
     pg = ad2.find_group_by_name("win-group-" + $$.to_s)
     old_pg = ad2.find_group_by_name("Domain Users")
     assert(u2.primary_group == pg, "primary_group should be #{pg}")
@@ -363,7 +363,7 @@ class TC_Live < Test::Unit::TestCase
     @ad.sync
     
     ad2 = new_ad
-    u2 = ad2.find_user_by_username "win-user-" + $$.to_s
+    u2 = ad2.find_user_by_username("win-user-" + $$.to_s)
     pg = ad2.find_group_by_name("Domain Users")
     old_pg = ad2.find_group_by_name("win-group-" + $$.to_s)
     assert(u2.primary_group == pg, "primary_group should be #{pg}")
@@ -378,7 +378,7 @@ class TC_Live < Test::Unit::TestCase
     @ad.sync
     
     ad2 = new_ad
-    u2 = ad2.find_user_by_username "win-user-" + $$.to_s
+    u2 = ad2.find_user_by_username("win-user-" + $$.to_s)
     assert(u2.member_of?(ad2.find_group_by_name("win-group2-" + $$.to_s)) ==
            true, "user should be a member of new group 2")
     assert(u2.member_of?(ad2.find_group_by_name("win-group3-" + $$.to_s)) ==
@@ -388,7 +388,7 @@ class TC_Live < Test::Unit::TestCase
     @ad.sync
     
     ad2 = new_ad
-    u2 = ad2.find_user_by_username "win-user-" + $$.to_s
+    u2 = ad2.find_user_by_username("win-user-" + $$.to_s)
     assert(u2.member_of?(ad2.find_group_by_name("win-group2-" + $$.to_s)) ==
            false, "user should not be a member of new group 2")
     assert(u2.member_of?(ad2.find_group_by_name("win-group3-" + $$.to_s)) ==
@@ -467,7 +467,7 @@ class TC_Live < Test::Unit::TestCase
     @ad.sync
     
     ad2 = new_ad
-    u2 = ad2.find_user_by_username "unix-user-" + $$.to_s
+    u2 = ad2.find_user_by_username("unix-user-" + $$.to_s)
     assert(u2.shell == "/bin/bash", "shell should be 'bash'")
     assert(u2.home_directory == "/home/unix-user-" + $$.to_s,
            "home_directory should be '/home/unix-user-#{$$.to_s}'")
@@ -499,7 +499,7 @@ class TC_Live < Test::Unit::TestCase
     @ad.sync
     
     ad2 = new_ad
-    u2 = ad2.find_user_by_username "unix-user-" + $$.to_s
+    u2 = ad2.find_user_by_username("unix-user-" + $$.to_s)
     assert(u2.shell == "/bin/ksh", "shell should be 'bash'")
     assert(u2.home_directory == "/home/foo",
            "home_directory should be '/home/foo'")
@@ -516,7 +516,7 @@ class TC_Live < Test::Unit::TestCase
     
     # Test changing the UNIX main group.
     assert(u2.gid == g.gid, "GID is not set correctly")
-    ug = ad2.find_group_by_name "unix-group-" + $$.to_s
+    ug = ad2.find_group_by_name("unix-group-" + $$.to_s)
     assert(u2.unix_main_group == ug, "unix_main_group should be #{ug}")
     assert(u2.member_of?(ug) == true,
            "user should be a Windows member of unix_main_group")
@@ -529,9 +529,9 @@ class TC_Live < Test::Unit::TestCase
     @ad.sync
     
     ad2 = new_ad
-    u2 = ad2.find_user_by_username "unix-user-" + $$.to_s
+    u2 = ad2.find_user_by_username("unix-user-" + $$.to_s)
     assert(u2.gid == g2.gid, "GID is not set correctly")
-    ug = ad2.find_group_by_name "unix-group2-" + $$.to_s
+    ug = ad2.find_group_by_name("unix-group2-" + $$.to_s)
     assert(u2.unix_main_group == ug, "unix_main_group should be #{ug}")
     assert(u2.member_of?(ug) == true,
            "user should be a Windows member of unix_main_group")
@@ -545,16 +545,16 @@ class TC_Live < Test::Unit::TestCase
     @ad.sync
     
     ad2 = new_ad
-    u2 = ad2.find_user_by_username "unix-user-" + $$.to_s
+    u2 = ad2.find_user_by_username("unix-user-" + $$.to_s)
     assert(u2.gid == g.gid, "GID is not set correctly")
-    ug = ad2.find_group_by_name "unix-group-" + $$.to_s
+    ug = ad2.find_group_by_name("unix-group-" + $$.to_s)
     assert(u2.unix_main_group == ug, "unix_main_group should be #{ug}")
     assert(u2.member_of?(ug) == true,
            "user should be a Windows member of unix_main_group")
     assert(ldap_not_unix_group_member?(u, g),
            "user should not be a UNIX member of unix_main_group")
     # Because g2 was the previous UNIX main group and it was changed to g.
-    ug2 = ad2.find_group_by_name "unix-group2-" + $$.to_s
+    ug2 = ad2.find_group_by_name("unix-group2-" + $$.to_s)
     assert(u2.member_of?(ug2) == true,
            "user should be a Windows member of unix group 2")
     assert(ldap_unix_group_member?(u, g2),
@@ -571,7 +571,7 @@ class TC_Live < Test::Unit::TestCase
     @ad.sync
     
     ad2 = new_ad
-    u2 = ad2.find_user_by_username "unix-user-" + $$.to_s
+    u2 = ad2.find_user_by_username("unix-user-" + $$.to_s)
     assert(u2.member_of?(ad2.find_group_by_name("unix-group-" + $$.to_s)) ==
            true, "user should be a Windows member of unix_main_group")
     assert(ldap_not_unix_group_member?(u, g),
@@ -589,7 +589,7 @@ class TC_Live < Test::Unit::TestCase
     @ad.sync
     
     ad2 = new_ad
-    u2 = ad2.find_user_by_username "unix-user-" + $$.to_s
+    u2 = ad2.find_user_by_username("unix-user-" + $$.to_s)
     assert(u2.member_of?(ad2.find_group_by_name("unix-group-" + $$.to_s)) ==
            true, "user should be a Windows member of unix_main_group")
     assert(ldap_not_unix_group_member?(u, g),
@@ -611,7 +611,7 @@ class TC_Live < Test::Unit::TestCase
     @ad.sync
     
     ad2 = new_ad
-    u2 = ad2.find_user_by_username "unix-user-" + $$.to_s
+    u2 = ad2.find_user_by_username("unix-user-" + $$.to_s)
     assert(u2.member_of?(ad2.find_group_by_name("unix-group-" + $$.to_s)) ==
            true, "user should be a Windows member of new primary group")
     assert(ldap_not_unix_group_member?(u, g),
@@ -631,7 +631,7 @@ class TC_Live < Test::Unit::TestCase
     @ad.sync
     
     ad2 = new_ad
-    u2 = ad2.find_user_by_username "unix-user-" + $$.to_s
+    u2 = ad2.find_user_by_username("unix-user-" + $$.to_s)
     assert(u2.member_of?(ad2.find_group_by_name("unix-group-" + $$.to_s)) ==
            true, "user should be a Windows member of old primary Windows group")
     assert(ldap_not_unix_group_member?(u, g),
@@ -656,7 +656,7 @@ class TC_Live < Test::Unit::TestCase
     @ad.sync
     
     ad2 = new_ad
-    u2 = ad2.find_user_by_username "unix-user-" + $$.to_s
+    u2 = ad2.find_user_by_username("unix-user-" + $$.to_s)
     assert(u2.member_of?(ad2.find_group_by_name("unix-group3-" + $$.to_s)) ==
            true, "user should be a Windows member of primary group")
     assert(ldap_not_unix_group_member?(u, g3),
@@ -744,10 +744,10 @@ class TC_Live < Test::Unit::TestCase
     @ad.sync
     
     ad2 = new_ad
-    wu2 = ad2.find_user_by_username "win-user-" + $$.to_s
-    ug2 = ad2.find_group_by_name "unix-group-" + $$.to_s
-    ug_new = ad2.find_group_by_name "unix-group-new-" + $$.to_s
-    uu2 = ad2.find_user_by_username "unix-user-" + $$.to_s
+    wu2 = ad2.find_user_by_username("win-user-" + $$.to_s)
+    ug2 = ad2.find_group_by_name("unix-group-" + $$.to_s)
+    ug_new = ad2.find_group_by_name("unix-group-new-" + $$.to_s)
+    uu2 = ad2.find_user_by_username("unix-user-" + $$.to_s)
     
     # The users are now the opposite types.
     assert(wu2.instance_of?(RADUM::UNIXUser), "user should be a UNIXUser")
