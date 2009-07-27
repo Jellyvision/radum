@@ -78,7 +78,7 @@ module RADUM
       # The container name (like a user) must be unique (case-insensitive).
       # We would not want someone accidently making two equal containers
       # and adding users/groups in the wrong way.
-      if @directory.find_container name
+      if @directory.find_container(name)
         raise "Container is already in the directory."
       end
       
@@ -104,11 +104,11 @@ module RADUM
       unless user.removed?
         if self == user.container
           # We don't want to add a user more than once.
-          unless @users.include? user
+          unless @users.include?(user)
             @users.push user
             @removed_users.delete user
             @directory.rids.push user.rid if user.rid
-            @directory.uids.push user.uid if user.instance_of? UNIXUser
+            @directory.uids.push user.uid if user.instance_of?(UNIXUser)
           end
         else
           raise "User must be in this container."
@@ -137,7 +137,7 @@ module RADUM
       # This is the only difference between remove_user and destroy_user.
       # Because we keep a reference, the comment about not keeping a reference
       # in destroy_user can be ignored.
-      @removed_users.push user unless @removed_users.include? user
+      @removed_users.push user unless @removed_users.include?(user)
     end
     
     # Destroy a reference to the User or UNIXUser. This removes any reference
@@ -166,13 +166,13 @@ module RADUM
         # will be added to removed_users explicitly.
         @removed_users.delete user
         @directory.rids.delete user.rid if user.rid
-        @directory.uids.delete user.uid if user.instance_of? UNIXUser
+        @directory.uids.delete user.uid if user.instance_of?(UNIXUser)
         
         # If the user was already removed, they will not be a member of any
         # groups, so there is no need to check their removed status.
         @directory.groups.each do |group|
-          if group.users.include? user
-            if user.instance_of? UNIXUser
+          if group.users.include?(user)
+            if user.instance_of?(UNIXUser)
               group.remove_user user unless group == user.unix_main_group
             else
               group.remove_user user
@@ -186,7 +186,7 @@ module RADUM
         # membership in their unix_main_group. It is safe to attempt removing
         # a user from their unix_main_group if they are already removed (as
         # noted previously).
-        if user.instance_of? UNIXUser
+        if user.instance_of?(UNIXUser)
           user.unix_main_group.remove_user user
         end
       else
@@ -206,11 +206,11 @@ module RADUM
       unless group.removed?
         if self == group.container
           # We don't want to add a group more than once.
-          unless @groups.include? group
+          unless @groups.include?(group)
             @groups.push group
             @removed_groups.delete group
             @directory.rids.push group.rid if group.rid
-            @directory.gids.push group.gid if group.instance_of? UNIXGroup
+            @directory.gids.push group.gid if group.instance_of?(UNIXGroup)
           end
         else
           raise "Group must be in this container."
@@ -242,7 +242,7 @@ module RADUM
       # This is the only difference between remove_group and destroy_group.
       # Because we keep a reference, the comment about not keeping a reference
       # in destroy_group can be ignored.
-      @removed_groups.push group unless @removed_groups.include? group
+      @removed_groups.push group unless @removed_groups.include?(group)
     end
     
     # Destroy a reference to the Group or UNIXGroup. This removes any reference
@@ -273,7 +273,7 @@ module RADUM
                   "#{user.username}'s primary Windows group."
           end
 
-          if user.instance_of? UNIXUser
+          if user.instance_of?(UNIXUser)
             if group == user.unix_main_group
               raise "Cannot remove or destroy group #{group.name}: it is " +
                     "#{user.username}'s UNIX main group."
@@ -287,10 +287,10 @@ module RADUM
         # group will be added to removed_groups explicitly.
         @removed_groups.delete group
         @directory.rids.delete group.rid if group.rid
-        @directory.gids.delete group.gid if group.instance_of? UNIXGroup
+        @directory.gids.delete group.gid if group.instance_of?(UNIXGroup)
 
         @directory.groups.each do |current_group|
-          if current_group.groups.include? group
+          if current_group.groups.include?(group)
             current_group.remove_group group
           end
         end

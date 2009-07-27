@@ -17,14 +17,6 @@ class TC_Ad < Test::Unit::TestCase
     assert(@ad1a == @ad1a, "Should be equal")
   end
   
-  def test_equal_spaces
-    assert(@ad1a == @ad1b, "Should be equal with spaces")
-  end
-  
-  def test_equal_case
-    assert(@ad1a == @ad1c, "Should be equal with different case names")
-  end
-  
   def test_equal_domain
     assert(@ad1a.domain == @ad1c.domain, "Should be equal domain attribute")
   end

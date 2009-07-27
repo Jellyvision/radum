@@ -89,7 +89,7 @@ module RADUM
                                              " required."
       
       # The RID must be unique.
-      if @container.directory.rids.include? @rid
+      if @container.directory.rids.include?(@rid)
         raise "RID #{rid} is already in use in the directory."
       end
       
@@ -98,7 +98,7 @@ module RADUM
       # The username (sAMAccountName) must be unique (case-insensitive). This
       # is needed in case someone tries to make the same username in two
       # different containers.
-      if @container.directory.find_user_by_username @username
+      if @container.directory.find_user_by_username(@username)
         raise "User is already in the directory."
       end
       
@@ -163,7 +163,7 @@ module RADUM
       # is delayed for a UNIXUser because it needs the rest of its attributes
       # set before adding to the Container.
       @removed = false
-      @container.add_user self unless instance_of? UNIXUser
+      @container.add_user self unless instance_of?(UNIXUser)
       @modified = true
       @loaded = false
     end
@@ -526,9 +526,9 @@ module RADUM
       
       if @container.directory == group.container.directory
         unless @primary_group == group
-          @groups.push group unless @groups.include? group
+          @groups.push group unless @groups.include?(group)
           @removed_groups.delete group
-          group.add_user self unless group.users.include? self
+          group.add_user self unless group.users.include?(self)
         else
           raise "User is already a member of their primary group."
         end
@@ -558,11 +558,11 @@ module RADUM
       # @removed_groups array if they were really a member, otherwise we would
       # not care.
       if @groups.include? group
-        @removed_groups.push group unless @removed_groups.include? group
+        @removed_groups.push group unless @removed_groups.include?(group)
       end
       
       @groups.delete group
-      group.remove_user self if group.users.include? self
+      group.remove_user self if group.users.include?(self)
     end
     
     # Determine if a User or UNIXUser is a member of the Group or UNIXGroup.
@@ -668,13 +668,25 @@ module RADUM
     # should not be set directly except from the AD#load method itself. The
     # :unix_main_group argument must be a UNIXGroup object and not removed or
     # a RuntimeError is raised. The :uid argument must be unique in the AD
-    # object or a RuntimeError is raised. The UNIXUser object automatically
+    # object or a RuntimeError is raised (this is an Active Directory
+    # restriction - in UNIX it is fine). The UNIXUser object automatically
     # adds itself to the Container object specified by the :container argument.
     # The :nis_domain defaults to "radum". The use of an NIS domain is not
     # strictly required as one could simply set the right attributes in Active
     # Directory and use LDAP on clients to access that data, but specifying an
     # NIS domain allows for easy editing of UNIX attributes using the GUI tools
     # in Windows, thus the use of a default value.
+    #
+    # Be careful with the :uid argument. RADUM only checks in the AD object
+    # that the :container belongs to, which is the AD object the UNIXUser
+    # belongs to as well. This does not include any UIDs for other objects in
+    # Active Directory. Creating a UNIXUser with a duplicate UID will actually
+    # succeed when attempted in LDAP, but the GUI tools in Windows complain. If
+    # you need a new UID value, use AD#load_next_uid to get one as it does check
+    # all UIDs (those RADUM knows about and those in Active Directory). Creating
+    # a UNIXUser object can't fail if the UID only exists in Active Directory
+    # because AD#load must be able to create UNIXUser objects that already exist
+    # in Active Directory.
     #
     # === Parameter Types
     #
@@ -695,8 +707,8 @@ module RADUM
       super args
       @uid = args[:uid] or raise "UNIXUser :uid attribute required."
       
-      # The UID must be unique.
-      if @container.directory.uids.include? @uid
+      # The UID must be unique. This is an Active Directory restriction.
+      if @container.directory.uids.include?(@uid)
         raise "UID #{uid} is already in use in the directory."
       end
       
@@ -709,7 +721,7 @@ module RADUM
           raise "UNIXUser unix_main_group cannot be a removed UNIXGroup."
         end
         
-        unless @unix_main_group.instance_of? UNIXGroup
+        unless @unix_main_group.instance_of?(UNIXGroup)
           raise "UNIXUser unix_main_group must be a UNIXGroup."
         else
           @gid = @unix_main_group.gid
@@ -1033,7 +1045,7 @@ module RADUM
         raise "Cannot set unix_main_group to a removed group."
       end
       
-      if group.instance_of? UNIXGroup
+      if group.instance_of?(UNIXGroup)
         if @container.directory == group.container.directory
           @unix_main_group = group
           @gid = group.gid

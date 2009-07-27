@@ -550,7 +550,7 @@ module RADUM
       
       if self == container.directory
         # We don't want to add the Container more than once.
-        @containers.push container unless @containers.include? container
+        @containers.push container unless @containers.include?(container)
         @removed_containers.delete container
       else
         raise "Container must be in the same directory."
@@ -625,7 +625,7 @@ module RADUM
       if can_remove
         @containers.delete container
         
-        unless @removed_containers.include? container
+        unless @removed_containers.include?(container)
           @removed_containers.push container
         end
         
@@ -751,7 +751,7 @@ module RADUM
     end
     
     # Find a User or UNIXUser in the AD by username. The search is
-    # case insensitive. The User or UNIXUser is returned if found, otherwise
+    # case-insensitive. The User or UNIXUser is returned if found, otherwise
     # nil is returned. Specify the second argument as true if you wish to
     # search for removed User or UNIXUser objects.
     #
@@ -790,7 +790,7 @@ module RADUM
     end
     
     # Find a User or UNIXUser in the AD by distinguished name. The search is
-    # case insensitive. The User or UNIXUser is returned if found, otherwise
+    # case-insensitive. The User or UNIXUser is returned if found, otherwise
     # nil is returned. Specify the second argument as true if you wish to
     # search for removed User or UNIXUser objects.
     #
@@ -841,12 +841,15 @@ module RADUM
     # The :uid argument is also checked first in case it already is in use
     # so that the original user is not destroyed by accident due to an error.
     #
+    # In this case, unlike when simply creating a UNIXUser object, all UIDs
+    # are checked, including those already in Active Directory.
+    #
     # No changes to the User happen until AD#sync is called.
     def user_to_unix_user(args = {})
       user = args[:user]
       
       # Make sure we are working with a User object only.
-      unless user.instance_of? User
+      unless user.instance_of?(User)
         raise "user_to_unix_user :user argument just be a User object."
       end
       
@@ -858,13 +861,13 @@ module RADUM
       all_uids = load_ldap_uids
       
       # The UID must be unique.
-      if (all_uids + @uids).include? uid
+      if (all_uids + @uids).include?(uid)
         raise "UID #{uid} is already in use in the directory."
       end
       
       unix_main_group = args[:unix_main_group]
       
-      unless unix_main_group.instance_of? UNIXGroup
+      unless unix_main_group.instance_of?(UNIXGroup)
         raise "user_to_unix_user :unix_main_group is not a UNIXGroup object."
       end
       
@@ -973,7 +976,7 @@ module RADUM
       user = args[:user]
       
       # Make sure we are working with a UNIXUser object only.
-      unless user.instance_of? UNIXUser
+      unless user.instance_of?(UNIXUser)
         raise "unix_user_to_user :user argument just be a UNIXUser object."
       end
       
@@ -1079,7 +1082,7 @@ module RADUM
       # An extra step to remove any UNIXGroup objects if that was requested.
       if remove_unix_groups
         user.groups.clone.each do |group|
-          user.remove_group group if group.instance_of? UNIXGroup
+          user.remove_group group if group.instance_of?(UNIXGroup)
         end
       end
       
@@ -1166,7 +1169,7 @@ module RADUM
     end
     
     # Find a Group or UNIXGroup in the AD by name. The search is
-    # case insensitive. The Group or UNIXGroup is returned if found, otherwise
+    # case-insensitive. The Group or UNIXGroup is returned if found, otherwise
     # nil is returned. Specify the second argument as true if you wish to
     # search for removed Group or UNIXGroup objects.
     #
@@ -1205,7 +1208,7 @@ module RADUM
     end
     
     # Find a Group or UNIXGroup in the AD by distinguished name. The search is
-    # case insensitive. The Group or UNIXGroup is returned if found, otherwise
+    # case-insensitive. The Group or UNIXGroup is returned if found, otherwise
     # nil is returned. Specify the second argument as true if you wish to
     # search for removed Group or UNIXGroup objects.
     #
@@ -1259,12 +1262,15 @@ module RADUM
     # case, you'll have to modify the group in Active Directory by hand
     # unfortunately.
     #
+    # In this case, unlike when simply creating a UNIXGroup object, all GIDs
+    # are checked, including those already in Active Directory.
+    #
     # No changes to the Group happen until AD#sync is called.
     def group_to_unix_group(args = {})
       group = args[:group]
       
       # Make sure we are working with a Group object only.
-      unless group.instance_of? Group
+      unless group.instance_of?(Group)
         raise "group_to_unix_group :group argument just be a Group object."
       end
       
@@ -1276,7 +1282,7 @@ module RADUM
       all_gids = load_ldap_gids
       
       # The GID must be unique.
-      if (all_gids + @gids).include? gid
+      if (all_gids + @gids).include?(gid)
         raise "GID #{gid} is already in use in the directory."
       end
       
@@ -1378,7 +1384,7 @@ module RADUM
       group = args[:group]
       
       # Make sure we are working with a UNIXGroup object only.
-      unless group.instance_of? UNIXGroup
+      unless group.instance_of?(UNIXGroup)
         raise "unix_group_to_group :group argument just be a UNIXGroup object."
       end
       
@@ -1403,7 +1409,7 @@ module RADUM
       # in Active Directory before trying to destroy the group. The
       # Container#destroy_group method only checks for objects in RADUM
       # itself.
-      if ldap_is_unix_main_group? group
+      if ldap_is_unix_main_group?(group)
         raise "unix_group_to_group :group is someone's UNIX main group."
       end
       
@@ -1463,7 +1469,7 @@ module RADUM
       # An extra step to remove any UNIXUser objects if that was requested.
       if remove_unix_users
         group.users.clone.each do |user|
-          group.remove_user user if user.instance_of? UNIXUser
+          group.remove_user user if user.instance_of?(UNIXUser)
         end
       end
       
@@ -1518,7 +1524,7 @@ module RADUM
         @ldap.search(:base => container.distinguished_name,
                      :filter => group_filter,
                      :scope => Net::LDAP::SearchScope_SingleLevel) do |entry|
-          attr = group_ldap_entry_attr entry
+          attr = group_ldap_entry_attr(entry)
           
           # Skip any Group or UNIXGroup objects that already exist (have this
           # :name attribute).
@@ -1529,7 +1535,7 @@ module RADUM
           end
           
           # Note that groups add themselves to their container.
-          if attr[:gid]
+          unless attr[:gid].nil?
             attr[:nis_domain] = "radum" unless attr[:nis_domain]
             group = UNIXGroup.new :name => attr[:name], :container => container,
                                   :gid => attr[:gid], :type => attr[:type],
@@ -1553,7 +1559,7 @@ module RADUM
         @ldap.search(:base => container.distinguished_name,
                      :filter => user_filter,
                      :scope => Net::LDAP::SearchScope_SingleLevel) do |entry|
-          attr = user_ldap_entry_attr entry
+          attr = user_ldap_entry_attr(entry)
           
           # Skip any User or UNIXUser objects that already exist (have this
           # :username attribute).
@@ -1571,7 +1577,7 @@ module RADUM
           # for any users skipped. This is why the AD object automatically
           # adds a cn=Users container.
           if attr[:primary_group]
-            if attr[:uid] && attr[:gid]
+            unless attr[:uid].nil? || attr[:gid].nil?
               if unix_main_group = find_group_by_gid(attr[:gid])
                 attr[:nis_domain] = "radum" unless attr[:nis_domain]
                 user = UNIXUser.new :username => attr[:username],
@@ -1683,13 +1689,13 @@ module RADUM
           entry.member.each do |member|
             # Groups can have groups or users as members, unlike UNIX where
             # groups cannot contain group members.
-            member_group = find_group_by_dn member
+            member_group = find_group_by_dn(member)
             
             if member_group
               group.add_group member_group
             end
             
-            member_user = find_user_by_dn member
+            member_user = find_user_by_dn(member)
             
             if member_user
               group.add_user member_user
@@ -1876,26 +1882,6 @@ module RADUM
       end
       
       RADUM::logger.log("[AD #{self.root}] exiting sync()", LOG_DEBUG)
-    end
-    
-    # Returns true if two AD objects are equal, otherwise false. Equality is
-    # established by the two AD objects having the same root attribute
-    # (case-insensitive).
-    #
-    # === Parameter Types
-    #
-    # * other [AD]
-    def ==(other)
-      @root.downcase == other.root.downcase
-    end
-    
-    # Returns true if two AD objects are equal as defined by the AD#== method.
-    #
-    # === Parameter Types
-    #
-    # * other [AD]
-    def eql?(other)
-      self == other
     end
     
     # The String representation of the AD object.
@@ -2190,10 +2176,10 @@ module RADUM
       rescue NoMethodError
       end
       
-      attr[:disabled?] = entry.userAccountControl.pop.to_i ==
-                         UF_NORMAL_ACCOUNT + UF_ACCOUNTDISABLE ? true : false
-      attr[:must_change_password?] = entry.pwdLastSet.pop.to_i == 0
-      attr[:primary_group] = find_group_by_rid entry.primaryGroupID.pop.to_i
+      attr[:disabled?] = (entry.userAccountControl.pop.to_i ==
+                         UF_NORMAL_ACCOUNT + UF_ACCOUNTDISABLE ? true : false)
+      attr[:must_change_password?] = (entry.pwdLastSet.pop.to_i == 0)
+      attr[:primary_group] = find_group_by_rid(entry.primaryGroupID.pop.to_i)
       attr[:rid] = sid2rid_int(entry.objectSid.pop)
       attr[:username] = entry.sAMAccountName.pop
       attr[:distinguished_name] = entry.distinguishedName.pop
@@ -2286,7 +2272,6 @@ module RADUM
             name = current_name.split(/,/)[0].gsub(/[Cc][Nn]=/, "")
             
             attr = {
-              :cn => name,
               :name => name,
               :objectclass => ["top", "container"]
             }
@@ -2334,7 +2319,7 @@ module RADUM
     def ldap_is_unix_main_group?(group)
       user_filter = Net::LDAP::Filter.eq("objectclass", "user")
       
-      if group.instance_of? UNIXGroup
+      if group.instance_of?(UNIXGroup)
         @ldap.search(:base => @root, :filter => user_filter) do |entry|
           begin
             gid = entry.gidNumber.pop.to_i
@@ -2434,9 +2419,9 @@ module RADUM
             :msSFU30Name => group.name,
             :msSFU30NisDomain => group.nis_domain,
             :unixUserPassword => group.unix_password
-          }) if group.instance_of? UNIXGroup
+          }) if group.instance_of?(UNIXGroup)
           
-          if group.instance_of? UNIXGroup
+          if group.instance_of?(UNIXGroup)
             attr.merge!({ :description => "UNIX group #{group.name}" })
           else
             attr.merge!({ :description => "Group #{group.name}" })
@@ -2478,7 +2463,7 @@ module RADUM
         entry = @ldap.search(:base => group.distinguished_name,
                              :filter => group_filter,
                              :scope => Net::LDAP::SearchScope_BaseObject).pop
-        attr = group_ldap_entry_attr entry
+        attr = group_ldap_entry_attr(entry)
         ops = []
         RADUM::logger.log("\tKey: AD Value =? Object Value", LOG_DEBUG)
         
@@ -2768,7 +2753,7 @@ module RADUM
           attr.merge!({
             :displayName => description,
             :description => description,
-            :userPrincipalName => realm,
+            :userPrincipalName => realm
           })
           
           unless user.script_path.nil?
@@ -2797,12 +2782,12 @@ module RADUM
             :uidNumber => user.uid.to_s,
             :unixHomeDirectory => user.home_directory,
             :unixUserPassword => user.unix_password
-          }) if user.instance_of? UNIXUser
+          }) if user.instance_of?(UNIXUser)
           
           # The shadow file attributes are all optional, so we need to check
           # each one. The other UNIX attributes above are set to something
           # by default.
-          if user.instance_of? UNIXUser
+          if user.instance_of?(UNIXUser)
             unless user.shadow_expire.nil?
               attr.merge!({:shadowExpire => user.shadow_expire.to_s})
             end
@@ -2946,7 +2931,7 @@ module RADUM
         entry = @ldap.search(:base => user.distinguished_name,
                              :filter => user_filter,
                              :scope => Net::LDAP::SearchScope_BaseObject).pop
-        attr = user_ldap_entry_attr entry
+        attr = user_ldap_entry_attr(entry)
         ops = []
         # This for the UNIX group membership corner case below. Note that 0
         # is the case where the GID has been removed (UNIXUser converted to

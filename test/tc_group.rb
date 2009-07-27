@@ -45,7 +45,7 @@ class TC_Group < Test::Unit::TestCase
   
   def test_duplicate_gid_exception
     assert_raise RuntimeError do
-      RADUM::UNIXGroup.new :name => "class", :container => @c1_ad1, :gid => 1001
+      RADUM::UNIXGroup.new :name => "foo", :container => @c1_ad1, :gid => 1001
     end
   end
   

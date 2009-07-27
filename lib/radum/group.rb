@@ -63,7 +63,7 @@ module RADUM
                                              " required."
       
       # The RID must be unique.
-      if @container.directory.rids.include? @rid
+      if @container.directory.rids.include?(@rid)
         raise "RID #{rid} is already in use in the directory."
       end
       
@@ -72,7 +72,7 @@ module RADUM
       # The group name (like a user) must be unique (case-insensitive). This
       # is needed in case someone tries to make the same group name in two
       # different containers.
-      if @container.directory.find_group_by_name @name
+      if @container.directory.find_group_by_name(@name)
         raise "Group is already in the directory."
       end
       
@@ -87,7 +87,7 @@ module RADUM
       # is delayed for a UNIXGroup because it needs the rest of its attributes
       # set before adding to the Container.
       @removed = false
-      @container.add_group self unless instance_of? UNIXGroup
+      @container.add_group self unless instance_of?(UNIXGroup)
       @modified = true
       @loaded = false
     end
@@ -123,9 +123,9 @@ module RADUM
       
       if @container.directory == user.container.directory
         unless self == user.primary_group
-          @users.push user unless @users.include? user
+          @users.push user unless @users.include?(user)
           @removed_users.delete user
-          user.add_group self unless user.groups.include? self
+          user.add_group self unless user.groups.include?(self)
           @modified = true
         else
           raise "Group is already the user's primary_group."
@@ -149,8 +149,8 @@ module RADUM
       end
       
       @users.delete user
-      @removed_users.push user unless @removed_users.include? user
-      user.remove_group self if user.groups.include? self
+      @removed_users.push user unless @removed_users.include?(user)
+      user.remove_group self if user.groups.include?(self)
       @modified = true
     end
     
@@ -190,7 +190,7 @@ module RADUM
         raise "A group cannot have itself as a member."
       end
       
-      @groups.push group unless @groups.include? group
+      @groups.push group unless @groups.include?(group)
       @removed_groups.delete group
       @modified = true
     end
@@ -208,7 +208,7 @@ module RADUM
       end
       
       @groups.delete group
-      @removed_groups.push group unless @removed_groups.include? group
+      @removed_groups.push group unless @removed_groups.include?(group)
       @modified = true
     end
     
@@ -293,12 +293,24 @@ module RADUM
     # The UNIXGroup object automatically adds itself to the Container object
     # specified by the :container argument. The :gid argument specifies the
     # UNIX GID value of the UNIXGroup. The :gid value must be unique in the
-    # AD object or a RuntimeError is raised. The :nis_domain defaults to
+    # AD object or a RuntimeError is raised (this is an Active Directory
+    # restriction - in UNIX it is fine). The :nis_domain defaults to
     # "radum". The use of an NIS domain is not strictly required as one could
     # simply set the right attributes in Active Directory and use LDAP on
     # clients to access that data, but specifying an NIS domain allows for easy
     # editing of UNIX attributes using the GUI tools in Windows, thus the use
     # of a default value.
+    #
+    # Be careful with the :gid argument. RADUM only checks in the AD object
+    # that the :container belongs to, which is the AD object the UNIXGroup
+    # belongs to as well. This does not include any GIDs for other objects in
+    # Active Directory. Creating a UNIXGroup with a duplicate GID will actually
+    # succeed when attempted in LDAP, but the GUI tools in Windows complain. If
+    # you need a new GID value, use AD#load_next_gid to get one as it does check
+    # all GIDs (those RADUM knows about and those in Active Directory). Creating
+    # a UNIXGroup object can't fail if the GID only exists in Active Directory
+    # because AD#load must be able to create UNIXGroup objects that already
+    # exist in Active Directory.
     #
     # === Parameter Types
     #
@@ -312,8 +324,8 @@ module RADUM
       super args
       @gid = args[:gid] or raise "UNIXGroup :gid argument required."
       
-      # The GID must be unique.
-      if @container.directory.gids.include? @gid
+      # The GID must be unique. This is an Active Directory restriction.
+      if @container.directory.gids.include?(@gid)
         raise "GID #{gid} is already in use in the directory."
       end
       
@@ -351,7 +363,7 @@ module RADUM
       if user.removed? && user.instance_of?(UNIXUser) &&
         self == user.unix_main_group
         @users.delete user
-        user.remove_group self if user.groups.include? self
+        user.remove_group self if user.groups.include?(self)
         @modified = true
       else
         super user
