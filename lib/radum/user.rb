@@ -34,8 +34,9 @@ module RADUM
     # * :disabled => User object disabled flag [default false]
     # * :rid => The RID of the User object [optional]
     #
-    # The :username argument (case-insensitive) and the :rid argument must be
-    # unique in the AD object, otherwise a RuntimeError is raised. The
+    # The :username argument (case-insensitive) and the :rid argument must
+    # be unique in the AD object, otherwise a RuntimeError is raised. The
+    # :username argument has leading and trailing white space removed. The
     # :primary_group argument must be of the RADUM group type
     # GROUP_GLOBAL_SECURITY or GROUP_UNIVERSAL_SECURITY and not a removed
     # group, otherwise a RuntimeError is raised. The :disabled argument
@@ -94,6 +95,7 @@ module RADUM
       end
       
       @username = args[:username] or raise "User :username argument required."
+      @username.strip!
       
       # The username (sAMAccountName) must be unique (case-insensitive). This
       # is needed in case someone tries to make the same username in two

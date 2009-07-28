@@ -458,7 +458,10 @@ module RADUM
     # Directory equivalent to the distinguished_name attribute for the user
     # without the :root portion. The :server argument can be an IP address
     # or a hostname. The :root argument is required. If it is not specified,
-    # a RuntimeError is raised.
+    # a RuntimeError is raised. Extraneous spaces are removed from the :root
+    # and :user arguments. They can have spaces, but extra spaces after any
+    # "," characters are removed automatically along with leading and traling
+    # white space.
     #
     # === Parameter Types
     #
@@ -474,9 +477,12 @@ module RADUM
     # impossible to remove this Container.
     def initialize(args = {})
       @root = args[:root] or raise "AD :root argument required."
-      @root.gsub!(/\s+/, "")
+      @root.gsub!(/,\s+/, ",")
+      @root.strip!
       @domain = @root.gsub(/[Dd][Cc]=/, "").gsub(/,/, ".").downcase
       @user = args[:user] || "cn=Administrator,cn=Users"
+      @user.gsub!(/,\s+/, ",")
+      @user.strip!
       @password = args[:password]
       @server = args[:server] || "localhost"
       @containers = []
@@ -2197,8 +2203,8 @@ module RADUM
       end
     end
     
-    # Delete a Container from Active Directory. There isn't much we can check
-    # except trying to delete it.
+    # Delete a Container from Active Directory. The Container is only deleted
+    # if it is found.
     #
     # === Parameter Types
     #
@@ -2206,6 +2212,29 @@ module RADUM
     def delete_container(container)
       RADUM::logger.log("[AD #{self.root}]" +
                         " delete_container(<#{container.name}>)", LOG_DEBUG)
+      
+      if container.name =~ /^[Oo][Uu]=/
+        type = "organizationalUnit"
+      elsif container.name =~ /^[Cc][Nn]=/
+        type = "container"
+      else
+        RADUM::logger.log("SYNC ERROR: " + container.name +
+                          " - unknown Container type.", LOG_NORMAL)
+        return
+      end
+      
+      container_filter = Net::LDAP::Filter.eq("objectclass", type)
+      found = @ldap.search(:base => container.distinguished_name,
+                           :filter => container_filter,
+                           :scope => Net::LDAP::SearchScope_BaseObject,
+                           :return_result => false)
+      
+      if found == false
+        RADUM::logger.log("\t#{container.distinguished_name} not found" +
+                          " - not deleting.", LOG_DEBUG)
+        return
+      end
+      
       @ldap.delete :dn => container.distinguished_name
       check_ldap_result
       # Now that the Container has been removed from Active Directory, it is
@@ -2243,8 +2272,7 @@ module RADUM
           type = "container"
         else
           RADUM::logger.log("SYNC ERROR: " + container.name +
-                            " ( #{current_name}) - unknown Container type.",
-                            LOG_NORMAL)
+                            " - unknown Container type.", LOG_NORMAL)
           return
         end
         

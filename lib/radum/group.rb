@@ -45,7 +45,8 @@ module RADUM
     # * :rid => The RID of the Group object [optional]
     #
     # The :name argument (case-insensitive) and the :rid argument must be
-    # unique in the AD object, otherwise a RuntimeError is raised. The :type
+    # unique in the AD object, otherwise a RuntimeError is raised. The :name
+    # argument has leading and trailing white space removed. The :type
     # argument must be one of the RADUM group type constants. The :rid argument
     # should not be set directly except from the AD#load method itself.
     # The Group object automatically adds itself to the Container object
@@ -68,6 +69,7 @@ module RADUM
       end
       
       @name = args[:name] or raise "Group :name argument required."
+      @name.strip!
       
       # The group name (like a user) must be unique (case-insensitive). This
       # is needed in case someone tries to make the same group name in two

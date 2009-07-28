@@ -47,10 +47,12 @@ module RADUM
     # * :name [String]
     # * :directory [AD]
     #
-    # Spaces are removed from the :name argument. The Container must not
-    # already be in the AD or a RuntimeError is raised. Note that you can
-    # create Container objects for an actual container in Active Directory or
-    # an organizational unit (referred to here as a "container" since it
+    # Extraneous spaces are removed from the :name argument. The Container :name
+    # can have spaces, but extra spaces after any "," characters are removed
+    # automatically along with leading and traling white space. The Container
+    # must not already be in the AD or a RuntimeError is raised. Note that you
+    # can create Container objects for an actual container in Active Directory
+    # or an organizational unit (referred to here as a "container" since it
     # logically contains objects and this is a higher level representation).
     # Only specify Containers that are really containers ("cn=Foo") or
     # organizational units ("ou=Foo"). Also note that orgainizational units can
@@ -66,7 +68,8 @@ module RADUM
     # container is created.
     def initialize(args = {})
       @name = args[:name] or raise "Container :name argument required."
-      @name.gsub!(/\s+/, "")
+      @name.gsub!(/,\s+/, ",")
+      @name.strip!
       
       if @name =~ /[Oo][Uu]=.*[Cc][Nn]=/
         raise "Container CN objects cannot contain OU objects."
