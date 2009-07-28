@@ -567,6 +567,20 @@ module RADUM
       group.remove_user self if group.users.include?(self)
     end
     
+    
+    # Delete all references to a Group or UNIXGroup in this object. This should
+    # only be called from Container#destroy_group. The User or UNIXUser is not
+    # considered to be modified at this point. It is simply forgetting about the
+    # Group or UNIXGroup.
+    #
+    # === Parameter Types
+    #
+    # * group [Group or UNIXGroup]
+    def destroy_group(group) # :nodoc:
+      @groups.delete group
+      @removed_groups.delete group
+    end
+    
     # Determine if a User or UNIXUser is a member of the Group or UNIXGroup.
     # This also evaluates to true if the Group or UNIXGroup is the
     # User or UNIXUser object's primary_group.

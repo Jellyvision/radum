@@ -1474,12 +1474,16 @@ module RADUM
       
       unless found == false
         ops = [
+          [:replace, :gidNumber, nil],
           [:replace, :msSFU30NisDomain, nil],
           [:replace, :unixUserPassword, nil],
           [:replace, :memberUid, nil],
           [:replace, :msSFU30PosixMember, nil]
         ]
         
+        RADUM::logger.log("unix_group_to_group: removing groups's previous" +
+                          " UNIX attributes.", LOG_DEBUG)
+        RADUM::logger.log("\n" + ops.to_yaml + "\n\n", LOG_DEBUG)
         @ldap.modify :dn => group.distinguished_name, :operations => ops
         check_ldap_result
       end
@@ -1847,6 +1851,8 @@ module RADUM
     # * AD#sync()
     def sync
       RADUM::logger.log("[AD #{self.root}] entering sync()", LOG_DEBUG)
+      users_to_destroy = []
+      containers_to_destroy = []
       
       # First, delete any users that have been removed from a container here.
       # We need to remove users first because a group cannot be removed if
@@ -1857,6 +1863,14 @@ module RADUM
       # Directory the module does not know about.
       removed_users.each do |user|
         delete_user user
+        # The delete_user() method cannot destroy a user because the system
+        # still needs to reference the user when update_group() is called so
+        # that the deleted user will end up having their UNIX attributes removed
+        # from a UNIXGroup if that applies when updating the specific group.
+        # This is not needed for Group or UNIXGroup objects because they only
+        # have membership from the Windows perspective - and that's updated by
+        # simply deleting the Group or UNIXGroup.
+        users_to_destroy.push user
       end
       
       # Second, remove any groups that have been removed from a contianer here.
@@ -1879,6 +1893,13 @@ module RADUM
       # if it contains another container in the first place.
       @removed_containers.each do |container|
         delete_container container
+        # The delete_container() method cannot destroy a container because the
+        # system still needs a reference when update_group() is called for
+        # users that have been deleted from the system to ensure their
+        # membership in UNIX groups from the UNIX perspective is deleted.
+        # The removed_users() method depends on the container still being
+        # there for this later processing.
+        containers_to_destroy.push container
       end
       
       # Fourth, create any containers or organizational units that do not
@@ -1914,7 +1935,7 @@ module RADUM
         update_group group
       end
             
-      # Finally, update any modified attributs on each user.
+      # Eighth, update any modified attributs on each user.
       users.each do |user|
         # This method figures out what attributes need to be updated when
         # compared to Active Directory. All objects should exist in Active
@@ -1922,6 +1943,24 @@ module RADUM
         # object is not in Active Directory by skipping the update in that
         # case.
         update_user user
+      end
+      
+      # Finally, destroy any user and container objects that were deleted.
+      users_to_destroy.each do |user|
+        RADUM::logger.log("[AD #{self.root}] destroying user" +
+                          " <#{user.username}> at end of sync().", LOG_DEBUG)
+        user.container.destroy_user user
+      end
+      
+      # Container objects are destroyed even if they were not removed from
+      # Active Directory. If they were removed from RADUM, it is safe to discard
+      # their reference here. If they were not deleted from Active Directory,
+      # that means there was some reference we were not aware of in Active
+      # Directory - but we can still forget about them.
+      containers_to_destroy.each do |container|
+        RADUM::logger.log("[AD #{self.root}] destroying container" +
+                          " <#{container.name}> at end of sync().", LOG_DEBUG)
+        destroy_container container
       end
       
       RADUM::logger.log("[AD #{self.root}] exiting sync()", LOG_DEBUG)
@@ -2274,13 +2313,11 @@ module RADUM
       
       @ldap.delete :dn => container.distinguished_name
       check_ldap_result
-      # Now that the Container has been removed from Active Directory, it is
-      # destroyed from the AD it belongs to. There is no need to care about
-      # it anymore. Any Container that can be deleted from Active Directory
-      # can be destroyed.
-      RADUM::logger.log("\tDestroying container <#{container.name}>.",
-                        LOG_DEBUG)
-      destroy_container container
+      # Destroying the container is delayed until the end of the AD#sync call
+      # because we still need a reference indicating that a user was removed
+      # from Active Directory to ensure the user's UNIX group membership
+      # attributes are updated properly in AD#update_group if necessary. The
+      # AD class uses references to containers to figure this out.
     end
     
     # Create a Container in Active Directory. Each Container is searched for
@@ -2548,11 +2585,10 @@ module RADUM
           # Some attributes are integers and some are Strings, but they are
           # always Strings coming out of Active Directory. This is a safe
           # step to ensure a correct comparision.
-          #
-          # Note in this case I know these are always Strings, but I am doing
-          # this anyway just in case they aren't someday.
           if ad_value.to_s != obj_value.to_s
             case key
+            when :gid
+              ops.push [:replace, :gidNumber, obj_value.to_s]
             when :nis_domain
               ops.push [:replace, :msSFU30NisDomain, obj_value]
             when :unix_password
@@ -2728,8 +2764,10 @@ module RADUM
                         " delete_user(<#{user.username}>)", LOG_DEBUG)
       @ldap.delete :dn => user.distinguished_name
       check_ldap_result
-      RADUM::logger.log("\tDestroying user <#{user.username}>.", LOG_DEBUG)
-      user.container.destroy_user user
+      # Destroying the user is delayed until the end of the AD#sync call because
+      # we still need a reference indicating the user was removed from Active
+      # Directory to ensure the user's UNIX group membership attributes are
+      # updated properly in AD#update_group if necessary.
     end
     
     # Create a User or UNIXUser in Active Directory. The User or UNIXUser

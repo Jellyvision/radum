@@ -847,7 +847,21 @@ class TC_Live < Test::Unit::TestCase
     assert(ldap_not_unix_group_member?(nuu2, ug_new2),
            "user should not be a member of pervious UNIXGroup wrt. UNIX attrs")
     
-    # Remove the Container now that we are done with it
+    # Test group conversions.
+    @ad.group_to_unix_group :group => wg, :gid => @ad.load_next_gid
+    @ad.unix_group_to_group :group => ug_new
+    @ad.sync
+    
+    ad2 = new_ad
+    wg2 = ad2.find_group_by_name("win-group-" + $$.to_s)
+    ug_new2 = ad2.find_group_by_name("unix-group-new-" + $$.to_s)
+    # The groups are now the opposite types.
+    assert(wg2.instance_of?(RADUM::UNIXGroup), "group should be a UNIXGroup")
+    assert(ug_new2.instance_of?(RADUM::Group), "group should be a Group")
+    assert(ldap_no_user_unix_attributes?(ug_new2),
+           "group should have no UNIX attributes")
+    
+    # Remove the Container now that we are done with it.
     @ad.remove_container @cn
     @ad.sync
   end

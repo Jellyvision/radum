@@ -156,6 +156,19 @@ module RADUM
       @modified = true
     end
     
+    # Delete all references to a User or UNIXUser in this object. This should
+    # only be called from Container#destroy_user. The Group or UNIXGroup is not
+    # considered to be modified at this point. It is simply forgetting about the
+    # User or UNIXUser.
+    #
+    # === Parameter Types
+    #
+    # * user [User or UNIXUser]
+    def destroy_user(user) # :nodoc:
+      @users.delete user
+      @removed_users.delete user
+    end
+    
     # Determine if the Group or UNIXGroup is a member of the Group or UNIXGroup.
     #
     # === Parameter Types
@@ -212,6 +225,19 @@ module RADUM
       @groups.delete group
       @removed_groups.push group unless @removed_groups.include?(group)
       @modified = true
+    end
+    
+    # Delete all references to a Group or UNIXGroup in this object. This should
+    # only be called from Container#destroy_group. The Group or UNIXGroup is not
+    # considered to be modified at this point. It is simply forgetting about the
+    # Group or UNIXGroup.
+    #
+    # === Parameter Types
+    #
+    # * group [Group or UNIXGroup]
+    def destroy_group(group) # :nodoc:
+      @groups.delete group
+      @removed_groups.delete group
     end
     
     # Set the loaded flag. This also clears the modified flag. This should only

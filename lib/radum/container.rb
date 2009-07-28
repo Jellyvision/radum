@@ -129,18 +129,43 @@ module RADUM
     # UNIXUser cannot be added back after removed, but it will only be
     # removed from Active Directory after AD#sync is called. Any references
     # to the User or UNIXUser should be discarded. The User or UNIXUser must
-    # be in the Container or a RuntimeError is raised.
+    # be in the Container or a RuntimeError is raised. Already removed User
+    # or UNIXUser objects are ignored.
     #
     # === Parameter Types
     #
     # * user [User or UNIXUser]
     def remove_user(user)
       return if user.removed?
-      destroy_user user
-      # This is the only difference between remove_user and destroy_user.
-      # Because we keep a reference, the comment about not keeping a reference
-      # in destroy_user can be ignored.
-      @removed_users.push user unless @removed_users.include?(user)
+      if self == user.container
+        @users.delete user
+        @directory.rids.delete user.rid if user.rid
+        @directory.uids.delete user.uid if user.instance_of?(UNIXUser)
+        
+        @directory.groups.each do |group|
+          if group.users.include?(user)
+            if user.instance_of?(UNIXUser)
+              group.remove_user user unless group == user.unix_main_group
+            else
+              group.remove_user user
+            end
+          end
+        end
+        
+        user.set_removed
+        
+        # We have to remove the user first before we can remove the user's
+        # membership in their unix_main_group. It is safe to attempt removing
+        # a user from their unix_main_group if they are already removed (as
+        # noted previously).
+        if user.instance_of?(UNIXUser)
+          user.unix_main_group.remove_user user
+        end
+        
+        @removed_users.push user unless @removed_users.include?(user)
+      else
+        raise "User must be in this container."
+      end
     end
     
     # Destroy a reference to the User or UNIXUser. This removes any reference
@@ -164,9 +189,6 @@ module RADUM
       # from the RADUM environment once they are deleted from Active Directory.
       if self == user.container
         @users.delete user
-        # Removed users can be destroyed as well, so we want to make sure all
-        # references are removed. If this was called from remove_user, the user
-        # will be added to removed_users explicitly.
         @removed_users.delete user
         @directory.rids.delete user.rid if user.rid
         @directory.uids.delete user.uid if user.instance_of?(UNIXUser)
@@ -174,24 +196,12 @@ module RADUM
         # If the user was already removed, they will not be a member of any
         # groups, so there is no need to check their removed status.
         @directory.groups.each do |group|
-          if group.users.include?(user)
-            if user.instance_of?(UNIXUser)
-              group.remove_user user unless group == user.unix_main_group
-            else
-              group.remove_user user
-            end
-          end
+          group.destroy_user user if group.users.include?(user)
         end
         
+        # Make sure the user is deleted from their UNIX main group.
+        user.unix_main_group.destroy_user user if user.instance_of?(UNIXUser)
         user.set_removed
-        
-        # We have to remove the user first before we can remove the user's
-        # membership in their unix_main_group. It is safe to attempt removing
-        # a user from their unix_main_group if they are already removed (as
-        # noted previously).
-        if user.instance_of?(UNIXUser)
-          user.unix_main_group.remove_user user
-        end
       else
         raise "User must be in this container."
       end
@@ -241,11 +251,44 @@ module RADUM
     # * group [Group or UNIXGroup]
     def remove_group(group)
       return if group.removed?
-      destroy_group group
-      # This is the only difference between remove_group and destroy_group.
-      # Because we keep a reference, the comment about not keeping a reference
-      # in destroy_group can be ignored.
-      @removed_groups.push group unless @removed_groups.include?(group)
+      if self == group.container
+        # We cannot remove a group that still has a user referencing it as
+        # their primary_group or unix_main_group.
+        @directory.users.each do |user|
+          if group == user.primary_group
+            raise "Cannot remove group #{group.name}: it is " +
+                  "#{user.username}'s primary Windows group."
+          end
+          
+          if user.instance_of?(UNIXUser)
+            if group == user.unix_main_group
+              raise "Cannot remove group #{group.name}: it is " +
+                    "#{user.username}'s UNIX main group."
+            end
+          end
+        end
+        
+        @groups.delete group
+        @directory.rids.delete group.rid if group.rid
+        @directory.gids.delete group.gid if group.instance_of?(UNIXGroup)
+        
+        @directory.groups.each do |current_group|
+          if current_group.groups.include?(group)
+            current_group.remove_group group
+          end
+        end
+        
+        @directory.users.each do |user|
+          if user.groups.include?(group)
+            user.remove_group group
+          end
+        end
+        
+        group.set_removed
+        @removed_groups.push group unless @removed_groups.include?(group)
+      else
+        raise "Group must be in this container."
+      end
     end
     
     # Destroy a reference to the Group or UNIXGroup. This removes any reference
@@ -268,36 +311,37 @@ module RADUM
       # removed because this is the only way removed groups are really deleted
       # from the RADUM environment once they are deleted from Active Directory.
       if self == group.container
-        # We cannot remove of destroy a group that still has a user referencing
-        # it as their primary_group or unix_main_group.
+        # We cannot destroy a group that still has a user referencing it as
+        # their primary_group or unix_main_group.
         @directory.users.each do |user|
           if group == user.primary_group
-            raise "Cannot remove or destroy group #{group.name}: it is " +
+            raise "Cannot destroy group #{group.name}: it is " +
                   "#{user.username}'s primary Windows group."
           end
-
+          
           if user.instance_of?(UNIXUser)
             if group == user.unix_main_group
-              raise "Cannot remove or destroy group #{group.name}: it is " +
+              raise "Cannot destroy group #{group.name}: it is " +
                     "#{user.username}'s UNIX main group."
             end
           end
         end
-
+        
         @groups.delete group
-        # Removed groups can be destroyed as well, so we want to make sure all
-        # references are removed. If this was called from remove_group, the
-        # group will be added to removed_groups explicitly.
         @removed_groups.delete group
         @directory.rids.delete group.rid if group.rid
         @directory.gids.delete group.gid if group.instance_of?(UNIXGroup)
-
+        
         @directory.groups.each do |current_group|
           if current_group.groups.include?(group)
-            current_group.remove_group group
+            current_group.destroy_group group
           end
         end
-
+        
+        @directory.users.each do |user|
+          user.destroy_group group
+        end
+        
         group.set_removed
       else
         raise "Group must be in this container."
