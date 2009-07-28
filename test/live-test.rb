@@ -861,6 +861,8 @@ class TC_Live < Test::Unit::TestCase
     assert(ldap_no_user_unix_attributes?(ug_new2),
            "group should have no UNIX attributes")
     
+    # TO DO: test the :remove_unix_users flag for unix_group_to_group.
+    
     # Remove the Container now that we are done with it.
     @ad.remove_container @cn
     @ad.sync
@@ -924,7 +926,7 @@ class TC_Live < Test::Unit::TestCase
     @ad.sync
   end
   
-  def foo_test_unix_group_attributes
+  def test_unix_group_attributes
     RADUM::logger.log("\ntest_unix_group_attributes()", RADUM::LOG_DEBUG)
     RADUM::logger.log("----------------------------", RADUM::LOG_DEBUG)
     # UNIXGroup memberships have already been tested, and Group mebershipds were
@@ -938,7 +940,7 @@ class TC_Live < Test::Unit::TestCase
     ad2 = new_ad
     ug2 = ad2.find_group_by_name("unix-group-" + $$.to_s)
     assert(ug2.gid == gid, "UNIXGroup gid is incorrect.")
-    assert(ug2.nis_domain == "vmware", "UNIXGroup NIS domain is incorrect")
+    assert(ug2.nis_domain == "radum", "UNIXGroup NIS domain is incorrect")
     # Check the one thing we can change (aside from members).
     ug.nis_domain = "vmware"
     @ad.sync
@@ -950,5 +952,16 @@ class TC_Live < Test::Unit::TestCase
     # Remove the Container now that we are done with it
     @ad.remove_container @cn
     @ad.sync
+  end
+  
+  def test_object_removals
+    # TO DO: test creating groups and users and then make sure that removing
+    # users and containers does the right thing. Specifically:
+    #
+    # When a UNIXUser is removed from its Container, the Group memberships
+    # *and* UNIXGroup memberships are removed. See previous Git commit for
+    # why some changes were made - verify they were needed and/or are sane.
+    #
+    # Make sure that removing a Container does not affect the above either.
   end
 end
