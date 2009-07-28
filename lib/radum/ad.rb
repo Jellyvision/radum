@@ -996,6 +996,8 @@ module RADUM
       username = user.username
       container = user.container
       primary_group = user.primary_group
+      # This is needed later if removal from UNIXGroup objects was requested.
+      unix_main_group = user.unix_main_group
       disabled = user.disabled?
       rid = user.rid
       first_name = user.first_name
@@ -1042,6 +1044,9 @@ module RADUM
           [:replace, :uidNumber, nil]
         ]
         
+        RADUM::logger.log("unix_user_to_user: removing user's previous UNIX" +
+                          " attributes.", LOG_DEBUG)
+        RADUM::logger.log("\n" + ops.to_yaml + "\n\n", LOG_DEBUG)
         @ldap.modify :dn => user.distinguished_name, :operations => ops
         check_ldap_result
       end
@@ -1088,7 +1093,39 @@ module RADUM
       # An extra step to remove any UNIXGroup objects if that was requested.
       if remove_unix_groups
         user.groups.clone.each do |group|
-          user.remove_group group if group.instance_of?(UNIXGroup)
+          if group.instance_of?(UNIXGroup)
+            # The user is not a member of their primary Windows group in the
+            # groups array for the user, so no check is needed. In that case,
+            # nothing happens.
+            user.remove_group group
+            
+            # Don't try to remove a membership in UNIX LDAP attributes that does
+            # not exist.
+            if group != unix_main_group
+              # Immediately remove UNIX group membership through UNIX LDAP
+              # attributes if the UNIXGroup is actually in Active Directory at
+              # this point.
+              group_filter = Net::LDAP::Filter.eq("objectclass", "group")
+              found = @ldap.search(:base => group.distinguished_name,
+                                   :filter => group_filter,
+                                   :scope => Net::LDAP::SearchScope_BaseObject,
+                                   :return_result => false)
+              
+              unless found == false
+                ops = [
+                  [:delete, :memberUid, user.username],
+                  [:delete, :msSFU30PosixMember, user.distinguished_name]
+                ]
+                
+                RADUM::logger.log("unix_user_to_user: removing UNIX LDAP" +
+                                  "attribute membership for <#{group.name}>.",
+                                  LOG_DEBUG)
+                RADUM::logger.log("\n" + ops.to_yaml + "\n\n", LOG_DEBUG)
+                @ldap.modify :dn => group.distinguished_name, :operations => ops
+                check_ldap_result
+              end
+            end
+          end
         end
       end
       

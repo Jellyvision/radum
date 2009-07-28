@@ -746,7 +746,7 @@ class TC_Live < Test::Unit::TestCase
     ad2 = new_ad
     wu2 = ad2.find_user_by_username("win-user-" + $$.to_s)
     ug2 = ad2.find_group_by_name("unix-group-" + $$.to_s)
-    ug_new = ad2.find_group_by_name("unix-group-new-" + $$.to_s)
+    ug_new2 = ad2.find_group_by_name("unix-group-new-" + $$.to_s)
     uu2 = ad2.find_user_by_username("unix-user-" + $$.to_s)
     
     # The users are now the opposite types.
@@ -782,6 +782,7 @@ class TC_Live < Test::Unit::TestCase
            "user home_directory should be '/home/foo'")
     # This is the default value.
     assert(wu2.nis_domain == "radum", "user nis_domain should be 'radum'")
+    
     # Now the converted UNIX user.
     assert(uu2.first_name == "First", "user first_name should be 'First'")
     assert(uu2.initials == "M", "user initials should be 'M'")
@@ -801,13 +802,51 @@ class TC_Live < Test::Unit::TestCase
            "user should still be a Windows member of its old UNIX main group")
     assert(ldap_not_unix_group_member?(uu2, ug2),
            "user should only be a member from the Windows perspective")
-    assert(uu2.member_of?(ug_new),
+    assert(uu2.member_of?(ug_new2),
            "user should still be a Windows member of its old UNIX group")
-    assert(ldap_not_unix_group_member?(uu2, ug_new),
-           "user should only be a member from the Windows perspective.")
+    assert(ldap_not_unix_group_member?(uu2, ug_new2),
+           "user should only be a member from the Windows perspective")
     
-    # We now repeat the same type of conversion, but in this case the UNIX
-    # User is a UNIX member
+    # We now repeat the same type of conversion, but in this case the
+    # :remove_unix_groups flag is set so that the resulting Windows memberships
+    # in any UNIX groups are also removed.
+    nuu = RADUM::UNIXUser.new :username => "new-unix-user-" + $$.to_s,
+                              :container => @cn,
+                              :primary_group => @domain_users,
+                              :uid => @ad.load_next_uid,
+                              :unix_main_group => ug, :shell => "/bin/bash",
+                              :home_directory => "/home/new-unix-user-" +
+                                                 $$.to_s,
+                              :nis_domain => "vmware"
+    # Add a Windows group (non-UNIXGroup group - should not be removed).
+    nuu.add_group wg
+    # Add a UNIXGroup (should be removed).
+    nuu.add_group ug_new
+    @ad.sync
+    
+    # Convert to a Windows user with the :remove_unix_groups flag set to true.
+    @ad.unix_user_to_user :user => nuu, :remove_unix_groups => true
+    @ad.sync
+    
+    ad2 = new_ad
+    wg2 = ad2.find_group_by_name("win-group-" + $$.to_s)
+    ug2 = ad2.find_group_by_name("unix-group-" + $$.to_s)
+    ug_new2 = ad2.find_group_by_name("unix-group-new-" + $$.to_s)
+    nuu2 = ad2.find_user_by_username("new-unix-user-" + $$.to_s)
+    # Make sure the Windows group memberships were not removed for non-UNIXGroup
+    # objects, but UNIXGroup memberships were removed (from the Windows
+    # perspective).
+    assert(nuu2.member_of?(wg2),
+           "user should be a member of previous Windows Group object")
+    assert(nuu2.member_of?(ug2) == false,
+           "user should not be a Windows member of previous UNIXGroup")
+    assert(ldap_not_unix_group_member?(nuu2, ug2),
+           "user should not be a member of pervious UNIXGroup wrt. UNIX attrs")
+    assert(nuu2.member_of?(ug_new2) == false,
+           "user should not be a Windows member of previous UNIXGroup")
+    assert(ldap_not_unix_group_member?(nuu2, ug_new2),
+           "user should not be a member of pervious UNIXGroup wrt. UNIX attrs")
+    
     # Remove the Container now that we are done with it
     @ad.remove_container @cn
     @ad.sync
