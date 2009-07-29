@@ -121,10 +121,10 @@ module RADUM
     
     # Remove a User or UNIXUser object from the Container. This sets the
     # User or UNIXUser object's removed attribute to true. If the User or
-    # UNIXUser is removed from the Container, they are effectively deleted
+    # UNIXUser is removed from the Container, it is effectively deleted
     # from Active Directory. Any Group or UNIXGroup objects the User or UNIXUser
-    # belongs to will have their membership removed as well. This means
-    # that the User or UNIXUser will have their Group or UNIXGroup memberships
+    # belongs to will have their membership removed. This means that the
+    # User or UNIXUser will have their Group or UNIXGroup memberships
     # removed for each Group or UNIXGroup they were in as well. The User or
     # UNIXUser cannot be added back after removed, but it will only be
     # removed from Active Directory after AD#sync is called. Any references
@@ -156,8 +156,7 @@ module RADUM
         
         # We have to remove the user first before we can remove the user's
         # membership in their unix_main_group. It is safe to attempt removing
-        # a user from their unix_main_group if they are already removed (as
-        # noted previously).
+        # a user from their unix_main_group if they are already removed.
         if user.instance_of?(UNIXUser)
           user.unix_main_group.remove_user user
         end
@@ -193,14 +192,10 @@ module RADUM
         @directory.rids.delete user.rid if user.rid
         @directory.uids.delete user.uid if user.instance_of?(UNIXUser)
         
-        # If the user was already removed, they will not be a member of any
-        # groups, so there is no need to check their removed status.
         @directory.groups.each do |group|
           group.destroy_user user if group.users.include?(user)
         end
         
-        # Make sure the user is deleted from their UNIX main group.
-        user.unix_main_group.destroy_user user if user.instance_of?(UNIXUser)
         user.set_removed
       else
         raise "User must be in this container."
@@ -236,15 +231,21 @@ module RADUM
     # UNIXGroup cannot be removed if it is still any User object's primary
     # Windows group. A UNIXGroup cannot be removed if it is any User object's
     # UNIX main group. In both cases, a RuntimeError will be raised. If the
-    # Group or UNIXGroup is removed from the Container, they are effectively
+    # Group or UNIXGroup is removed from the Container, it is effectively
     # deleted from Active Directory. Any Group or UNIXGroup objects the Group or
-    # UNIXGroup belongs to will have their membership removed as well. This
+    # UNIXGroup belongs to will have their membership removed. This
     # means that the Group or UNIXGroup will have their Group or UNIXGroup
     # memberships removed for each Group or UNIXGroup they were in as well.
     # The Group or UNIXGroup cannot be added back after removed, but it will
     # only be removed from Active Directory after AD#sync is called. Any
     # references to the Group or UNIXGroup should be discarded. The Group or
-    # UNIXGroup must be in the Container or a RuntimeError is raised.
+    # UNIXGroup must be in the Container or a RuntimeError is raised. Already
+    # removed Group or UNIXGroup objects are ignored.
+    #
+    # There are further checks in Active Directory to make sure the Group
+    # or UNIXGroup can really be removed. A warning is displayed if the Group
+    # or UNIXGroup cannot be removed in the AD#sync call. In this method,
+    # RADUM only checks objects it knows about at the time of the call.
     #
     # === Parameter Types
     #
@@ -299,7 +300,7 @@ module RADUM
     # it does remove all references to the Group or UNIXGroup from the system.
     # The Group or UNIXGroup must be in the Container or a RuntimeError is
     # raised. This does set the Group or UNIXGroup object's removed attribute
-    # to true, but any references to the Group or UNIXGroup should be discarded.
+    # to true and any references to the Group or UNIXGroup should be discarded.
     # Once a Group or UNIXGroup is destroyed it cannot be added back to the
     # Container.
     #

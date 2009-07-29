@@ -16,7 +16,8 @@ module RADUM
   # module that is accessible through the RADUM::logger method.
   class Logger
     # The default logger level. Logger levels less than or equal to the default
-    # logger level will be displayed. Other messages will be ignored.
+    # logger level will be displayed. Other messages will be ignored. If the
+    # logger level is set to LOG_NONE, no log messages will be displayed.
     attr_accessor :default_level
     
     # Create a new Logger instance. A Logger object is automatically created

@@ -391,6 +391,13 @@ module RADUM
       if user.removed? && user.instance_of?(UNIXUser) &&
         self == user.unix_main_group
         @users.delete user
+        
+        # The UNIXUser is not a Windows member of their UNIX main group
+        # directly if it is also their primary Windows group.
+        if self != user.primary_group
+          @removed_users.push user unless @removed_users.include?(user)
+        end
+        
         user.remove_group self if user.groups.include?(self)
         @modified = true
       else

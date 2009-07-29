@@ -602,9 +602,8 @@ module RADUM
       
       can_remove = true
       
-      # Note in the next two cases we are removing objects from the Container's
-      # array of those objects, thus it is necessary to clone the array or
-      # modifications will mess up the iteration.
+      # The next two steps clone the arrays because we are modifying them while
+      # iterting over them at the same time of course.
       container.users.clone.each do |user|
         container.remove_user user
       end
@@ -644,18 +643,19 @@ module RADUM
       can_remove
     end
     
-    # Destroy all references to a Container. This can be called regardless of
-    # any other status because all internal references to User, UNIXUser,
-    # Group, and UNIXGroup objects are done implicitly from the AD collection
-    # of Container objects. Once the Container reference is gone, its objects
-    # will no longer be seen. Destroying a Container will not implicilty
-    # remove its objects. They simply will no longer be processed at all.
+    # Destroy all references to a Container. This also destroys any references
+    # to User, UNIXUser, Group, and UNIXGroup objects the Container owns. This
+    # can fail if any of the Group or UNIXGroup objects are the primary Windows
+    # group or UNIX main group for any User or UNIXUser objects RADUM knows
+    # about.
     #
     # This method refuses to destroy the "cn=Users" container as a safety
     # measure. There is no error raised in this case, but a warning is logged
     # using RADUM::logger with a log level of LOG_NORMAL.
     #
-    # Any external references to the Container should be discarded.
+    # Any external reference to the Container should be discarded unless it
+    # was not possible to fully destroy the Container. This method returns a
+    # boolean that indicates if it was possible to fully destroy the Container.
     #
     # === Parameter Types
     #
@@ -670,11 +670,34 @@ module RADUM
         return
       end
       
-      @containers.delete container
-      # Removed Containers can be destroyed as well, so we want to make sure
-      # all references are removed.
-      @removed_containers.delete container
-      container.set_removed
+      can_destroy = true
+      
+      # The next two steps clone the arrays because we are modifying them while
+      # iterting over them at the same time of course.
+      container.users.clone.each do |user|
+        container.destroy_user user
+      end
+      
+      container.groups.clone.each do |group|
+        begin
+          container.destroy_group group
+        rescue RuntimeError => error
+          RADUM::logger.log(error, LOG_NORMAL)
+          can_destroy = false
+        end
+      end
+      
+      # There is no need to worry about sub-container objects.
+      
+      if can_destroy
+        @containers.delete container
+        # Removed Containers can be destroyed as well, so we want to make sure
+        # all references are removed.
+        @removed_containers.delete container
+        container.set_removed
+      end
+      
+      can_destroy
     end
     
     # Returns an Array of all User and UNIXUser objects in the AD.
@@ -1881,7 +1904,7 @@ module RADUM
         # if the group is some other user's UNIX main group. The code in this
         # module makes sure that doesn't happen for objects it knows about, but
         # there could be others in Active Directory the module does not know
-        # about.
+        # about, hence the checks in delete_group().
         delete_group group
       end
       
@@ -1889,7 +1912,7 @@ module RADUM
       # done after all the user and group removals hae been dealt with. This
       # can still fail if there are any objects in Active Directory inside of
       # the container (such as another container).  Note that the
-      # AD.remove_container method makes sure that a container is not removed
+      # AD#remove_container method makes sure that a container is not removed
       # if it contains another container in the first place.
       @removed_containers.each do |container|
         delete_container container
@@ -1953,10 +1976,10 @@ module RADUM
       end
       
       # Container objects are destroyed even if they were not removed from
-      # Active Directory. If they were removed from RADUM, it is safe to discard
-      # their reference here. If they were not deleted from Active Directory,
-      # that means there was some reference we were not aware of in Active
-      # Directory - but we can still forget about them.
+      # Active Directory through LDAP. If they were destroyed or removed RADUM,
+      # it is safe to discard their reference here. If they were not deleted
+      # from Active Directory, that means there was some reference we were not
+      # aware of in Active Directory - but we can still forget about them.
       containers_to_destroy.each do |container|
         RADUM::logger.log("[AD #{self.root}] destroying container" +
                           " <#{container.name}> at end of sync().", LOG_DEBUG)
@@ -2317,7 +2340,9 @@ module RADUM
       # because we still need a reference indicating that a user was removed
       # from Active Directory to ensure the user's UNIX group membership
       # attributes are updated properly in AD#update_group if necessary. The
-      # AD class uses references to containers to figure this out.
+      # user's Windows group memberships are handled automatically when they
+      # are deleted from Active Directory. The AD class uses references to
+      # containers to figure this out.
     end
     
     # Create a Container in Active Directory. Each Container is searched for
@@ -2767,7 +2792,9 @@ module RADUM
       # Destroying the user is delayed until the end of the AD#sync call because
       # we still need a reference indicating the user was removed from Active
       # Directory to ensure the user's UNIX group membership attributes are
-      # updated properly in AD#update_group if necessary.
+      # updated properly in AD#update_group if necessary. The user's Windows
+      # group mebershpips were taken care of simply because it was deleted from
+      # Active Directory.
     end
     
     # Create a User or UNIXUser in Active Directory. The User or UNIXUser
