@@ -833,6 +833,8 @@ class TC_Live < Test::Unit::TestCase
     ug2 = ad2.find_group_by_name("unix-group-" + $$.to_s)
     ug_new2 = ad2.find_group_by_name("unix-group-new-" + $$.to_s)
     nuu2 = ad2.find_user_by_username("new-unix-user-" + $$.to_s)
+    assert(nuu2.instance_of?(RADUM::User), "user should be a User object now")
+    
     # Make sure the Windows group memberships were not removed for non-UNIXGroup
     # objects, but UNIXGroup memberships were removed (from the Windows
     # perspective).
@@ -848,20 +850,120 @@ class TC_Live < Test::Unit::TestCase
            "user should not be a member of pervious UNIXGroup wrt. UNIX attrs")
     
     # Test group conversions.
-    @ad.group_to_unix_group :group => wg, :gid => @ad.load_next_gid
-    @ad.unix_group_to_group :group => ug_new
+    ug3 = RADUM::UNIXGroup.new :name => 'unix-group-3-' + $$.to_s,
+                               :container => @cn, :gid => @ad.load_next_gid,
+                               :nis_domain => 'vmware'
+    ug4 = RADUM::UNIXGroup.new :name => 'unix-group-4-' + $$.to_s,
+                               :container => @cn, :gid => @ad.load_next_gid,
+                               :nis_domain => 'vmware'
+    ug5 = RADUM::UNIXGroup.new :name => 'unix-group-5-' + $$.to_s,
+                               :container => @cn, :gid => @ad.load_next_gid,
+                               :nis_domain => 'vmware'
+    wg5 = RADUM::Group.new :name => 'win-group-5-' + $$.to_s,
+                           :container => @cn
+    uu3 = RADUM::UNIXUser.new :username => "unix-user-3-" + $$.to_s,
+                              :container => @cn,
+                              :primary_group => ug3,
+                              :uid => @ad.load_next_uid,
+                              :unix_main_group => ug3, :shell => "/bin/bash",
+                              :home_directory => "/home/unix-user-3-" +
+                                                 $$.to_s,
+                              :nis_domain => "vmware"
+    wu3 = RADUM::User.new :username => 'win-user-3-' + $$.to_s,
+                          :container => @cn,
+                          :primary_group => @domain_users
+
+    # These are for testing the :remove_unix_users flag with the same users
+    # later.
+    ug4.add_user uu3
+    ug4.add_user wu3
+    # Throw in a UNIXGroup being a member of a UNIXGroup for good measure.
+    # Since it is not a UNIXUser, it should not be affected obviously - and
+    # UNIXGroup membership in a UNIXGroup is only done from the Windows
+    # perspective because UNIXGroup objects cannot be members of a Group or
+    # UNIXGroup from the UNIX perspective of course.
+    ug4.add_group ug3
+    # These are for the first test below.
+    wg5.add_user uu3
+    wg5.add_user wu3
+    ug5.add_user uu3
+    ug5.add_user wu3
+    @ad.sync
+    
+    # Syncing will pick up the RID values, so this tests that as well.
+    wg5_rid = wg5.rid
+    ug5_rid = ug5.rid
+    
+    # Do the first conversion.
+    @ad.group_to_unix_group :group => wg5, :gid => @ad.load_next_gid
+    @ad.unix_group_to_group :group => ug5
     @ad.sync
     
     ad2 = new_ad
-    wg2 = ad2.find_group_by_name("win-group-" + $$.to_s)
-    ug_new2 = ad2.find_group_by_name("unix-group-new-" + $$.to_s)
+    wg5 = ad2.find_group_by_name("win-group-5-" + $$.to_s)
+    ug5 = ad2.find_group_by_name("unix-group-5-" + $$.to_s)
+    uu3 = ad2.find_user_by_username("unix-user-3-" + $$.to_s)
+    wu3 = ad2.find_user_by_username("win-user-3-" + $$.to_s)
+    
     # The groups are now the opposite types.
-    assert(wg2.instance_of?(RADUM::UNIXGroup), "group should be a UNIXGroup")
-    assert(ug_new2.instance_of?(RADUM::Group), "group should be a Group")
-    assert(ldap_no_user_unix_attributes?(ug_new2),
+    assert(wg5.instance_of?(RADUM::UNIXGroup), "group should be a UNIXGroup")
+    assert(ug5.instance_of?(RADUM::Group), "group should be a Group")
+    assert(ldap_no_group_unix_attributes?(ug5),
            "group should have no UNIX attributes")
     
-    # TO DO: test the :remove_unix_users flag for unix_group_to_group.
+    # Check to make sure the objectSid values have not changed. The RID values
+    # should be the same.
+    assert(wg5_rid == wg5.rid, "group objectSid (RID) changed")
+    assert(ug5_rid == ug5.rid, "group objectSid (RID) changed")
+    
+    # Check memberships to make sure they are what we expect for the newly
+    # converted groups. Some of the UNIX group membership tests are not really
+    # possible, but I am checking anyway. Checking too much does not hurt.
+    assert(uu3.member_of?(ug5), "user should be a Windows member of group")
+    assert(ldap_not_unix_group_member?(uu3, ug_new),
+           "user should not be a UNIX member of group")
+    assert(wu3.member_of?(ug5), "user should be Windows member of group")
+    assert(ldap_not_unix_group_member?(uu3, wu3),
+           "user should not be a UNIX member of group")
+    assert(uu3.member_of?(wg5), "user should be a Windows member of group")
+    assert(ldap_unix_group_member?(uu3, wg5),
+           "unix user should be a UNIX member of group")
+    assert(wu3.member_of?(wg5), "user should be a Windows member of group")
+    assert(ldap_not_unix_group_member?(wu3, wg5),
+           "user should not be a UNIX group member of group")
+    
+    # Should fail because it is uu3's UNIX main group.
+    assert_raise RuntimeError do
+      @ad.unix_group_to_group :group => ug3
+    end
+    
+    # Test with the :remove_unix_users flag to make sure UNIXUser objects are
+    # remove poperly.
+    @ad.unix_group_to_group :group => ug4, :remove_unix_users => true
+    @ad.sync
+    
+    ad2 = new_ad
+    ug3 = ad2.find_group_by_name("unix-group-3-" + $$.to_s)
+    ug4 = ad2.find_group_by_name("unix-group-4-" + $$.to_s)
+    uu3 = ad2.find_user_by_username("unix-user-3-" + $$.to_s)
+    wu3 = ad2.find_user_by_username("win-user-3-" + $$.to_s)
+    assert(ug4.instance_of?(RADUM::Group), "group should be a Group object now")
+    
+    # Make sure the Windows group memberships were removed for only UNIXUser
+    # objects. There cannot be UNIX memberships because the ug4 object is now
+    # a Group object. Note that I know some of the UNIX membership checks are
+    # not really possible, but I am checking to be sure anyway. Checking too
+    # much cannot hurt.
+    assert(uu3.member_of?(ug4) == false,
+           "unix user should not be a Windows member of group")
+    assert(ug4.users.include?(ug4) == false,
+           "unix user shold not be a Windows member of group")
+    assert(ldap_not_unix_group_member?(ug4, uu3),
+           "unix user should not be a UNIX member of group")
+    assert(wu3.member_of?(ug4), "user should be a Windows member of group")
+    assert(ldap_not_unix_group_member?(wu3, ug4),
+           "user should not be a UNIX member of group")
+    assert(ug3.member_of?(ug4), "group should be a Windows member of group")
     
     # Remove the Container now that we are done with it.
     @ad.remove_container @cn
@@ -952,16 +1054,5 @@ class TC_Live < Test::Unit::TestCase
     # Remove the Container now that we are done with it
     @ad.remove_container @cn
     @ad.sync
-  end
-  
-  def test_object_removals
-    # TO DO: test creating groups and users and then make sure that removing
-    # users and containers does the right thing. Specifically:
-    #
-    # When a UNIXUser is removed from its Container, the Group memberships
-    # *and* UNIXGroup memberships are removed. See previous Git commit for
-    # why some changes were made - verify they were needed and/or are sane.
-    #
-    # Make sure that removing a Container does not affect the above either.
   end
 end
