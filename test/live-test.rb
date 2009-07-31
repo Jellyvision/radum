@@ -476,7 +476,7 @@ class TC_Live < Test::Unit::TestCase
     ad2_u = ad2.find_user_by_username("unix-user-" + $$.to_s)
     assert(ad2_u.shell == "/bin/bash", "shell should be 'bash'")
     assert(ad2_u.home_directory == "/home/unix-user-" + $$.to_s,
-           "home_directory should be '/home/unix-user-" + $$.to_s})
+           "home_directory should be '/home/unix-user-" + $$.to_s)
     assert(ad2_u.nis_domain == "foo", "nis_domain should be 'foo'")
     assert(ad2_u.gecos == "GECOS", "gecos should be 'GECOS'")
     assert(ad2_u.unix_password == "password", "password should be 'password'")
