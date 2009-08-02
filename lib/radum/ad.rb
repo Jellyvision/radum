@@ -2298,7 +2298,9 @@ module RADUM
       return attr
     end
     
-    # Check the LDAP operation result code for an error message.
+    # Check the LDAP operation result code for an error message. This method
+    # raises a RuntimeError if the operation result code is 49, which indicates
+    # an authentication credentials error.
     def check_ldap_result
       unless @ldap.get_operation_result.code == 0
         RADUM::logger.log("LDAP ERROR: " + @ldap.get_operation_result.message,
@@ -2306,6 +2308,9 @@ module RADUM
         RADUM::logger.log("[Error code: " +
                           @ldap.get_operation_result.code.to_s + "]",
                           LOG_NORMAL)
+        if @ldap.get_operation_result.code == 49
+          raise "LDAP authentication credentials error."
+        end
       end
     end
     
