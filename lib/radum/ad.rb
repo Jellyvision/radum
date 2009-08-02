@@ -356,7 +356,7 @@
 # = Windows Server Versions
 #
 # RADUM has been exclusively tested against Windows Server 2008 and Windows
-# Server 2003 Standard Edition R2 SP2. The testing system had Microsoft
+# Server 2003 R2 Standard Edition SP2. The testing system had Microsoft
 # Identity Management for UNIX installed and had the Certificate Services Role
 # added, which is added using Add/Remove Programs in Windows Server 2003.
 # Microsoft Identity Management for UNIX is generally required for editing
