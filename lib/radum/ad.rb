@@ -879,11 +879,11 @@ module RADUM
       
       # Make sure we are working with a User object only.
       unless user.instance_of?(User)
-        raise "user_to_unix_user :user argument just be a User object."
+        raise ":user argument just be a User object."
       end
       
       if user.removed?
-        raise "user_to_unix_user :user has been removed."
+        raise ":user has been removed."
       end
       
       uid = args[:uid]
@@ -897,7 +897,7 @@ module RADUM
       unix_main_group = args[:unix_main_group]
       
       unless unix_main_group.instance_of?(UNIXGroup)
-        raise "user_to_unix_user :unix_main_group is not a UNIXGroup object."
+        raise ":unix_main_group is not a UNIXGroup object."
       end
       
       shell = args[:shell]
@@ -1002,15 +1002,17 @@ module RADUM
     # actually possible to destroy the UNIXUser properly without waiting for
     # AD#sync to be called.
     def unix_user_to_user(args = {})
+      RADUM::logger.log("[AD #{self.root}] entering unix_user_to_user()",
+                        LOG_DEBUG)
       user = args[:user]
       
       # Make sure we are working with a UNIXUser object only.
       unless user.instance_of?(UNIXUser)
-        raise "unix_user_to_user :user argument just be a UNIXUser object."
+        raise ":user argument just be a UNIXUser object."
       end
       
       if user.removed?
-        raise "unix_user_to_user :user has been removed."
+        raise ":user has been removed."
       end
       
       remove_unix_groups = args[:remove_unix_groups] || false
@@ -1067,8 +1069,8 @@ module RADUM
           [:replace, :uidNumber, nil]
         ]
         
-        RADUM::logger.log("unix_user_to_user: removing user's previous UNIX" +
-                          " attributes.", LOG_DEBUG)
+        RADUM::logger.log("\tRemoving user's previous UNIX attributes.",
+                          LOG_DEBUG)
         RADUM::logger.log("\n" + ops.to_yaml + "\n\n", LOG_DEBUG)
         @ldap.modify :dn => user.distinguished_name, :operations => ops
         check_ldap_result
@@ -1140,9 +1142,8 @@ module RADUM
                   [:delete, :msSFU30PosixMember, user.distinguished_name]
                 ]
                 
-                RADUM::logger.log("unix_user_to_user: removing UNIX LDAP" +
-                                  "attribute membership for <#{group.name}>.",
-                                  LOG_DEBUG)
+                RADUM::logger.log("\tRemoving UNIX LDAP attribute membership" +
+                                  " for <#{group.name}>.", LOG_DEBUG)
                 RADUM::logger.log("\n" + ops.to_yaml + "\n\n", LOG_DEBUG)
                 @ldap.modify :dn => group.distinguished_name, :operations => ops
                 check_ldap_result
@@ -1152,6 +1153,8 @@ module RADUM
         end
       end
       
+      RADUM::logger.log("[AD #{self.root}] exiting unix_user_to_user()",
+                        LOG_DEBUG)
       user
     end
     
@@ -1337,11 +1340,11 @@ module RADUM
       
       # Make sure we are working with a Group object only.
       unless group.instance_of?(Group)
-        raise "group_to_unix_group :group argument just be a Group object."
+        raise ":group argument just be a Group object."
       end
       
       if group.removed?
-        raise "group_to_unix_group :group has been removed."
+        raise ":group has been removed."
       end
       
       gid = args[:gid]
@@ -1447,15 +1450,17 @@ module RADUM
     # actually possible to destroy the UNIXGroup properly without waiting for
     # AD#sync to be called.
     def unix_group_to_group(args = {})
+      RADUM::logger.log("[AD #{self.root}] entering unix_group_to_group()",
+                        LOG_DEBUG)
       group = args[:group]
       
       # Make sure we are working with a UNIXGroup object only.
       unless group.instance_of?(UNIXGroup)
-        raise "unix_group_to_group :group argument just be a UNIXGroup object."
+        raise ":group argument just be a UNIXGroup object."
       end
       
       if group.removed?
-        raise "unix_group_to_group :group has been removed."
+        raise ":group has been removed."
       end
       
       remove_unix_users = args[:remove_unix_users] || false
@@ -1476,7 +1481,7 @@ module RADUM
       # Container#destroy_group method only checks for objects in RADUM
       # itself.
       if ldap_is_unix_main_group?(group)
-        raise "unix_group_to_group :group is someone's UNIX main group."
+        raise ":group is someone's UNIX main group."
       end
       
       # Destroy the group now that we have its information. This will fail if
@@ -1504,8 +1509,8 @@ module RADUM
           [:replace, :msSFU30PosixMember, nil]
         ]
         
-        RADUM::logger.log("unix_group_to_group: removing groups's previous" +
-                          " UNIX attributes.", LOG_DEBUG)
+        RADUM::logger.log("\tRemoving groups's previous UNIX attributes.",
+                          LOG_DEBUG)
         RADUM::logger.log("\n" + ops.to_yaml + "\n\n", LOG_DEBUG)
         @ldap.modify :dn => group.distinguished_name, :operations => ops
         check_ldap_result
@@ -1543,6 +1548,8 @@ module RADUM
         end
       end
       
+      RADUM::logger.log("[AD #{self.root}] exiting unix_group_to_group()",
+                        LOG_DEBUG)
       group
     end
       
