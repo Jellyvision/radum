@@ -488,8 +488,8 @@ class TC_Live < Test::Unit::TestCase
     assert(ad2_u.shadow_min == 6, "shadow_min should be 6")
     assert(ad2_u.shadow_warning == 7, "shadow_warning should be 7")
     
-    # Test modifying all set User attributes. Here the shadow file attributes
-    # are passed as String objects just to make sure that works.
+    # Test modifying all set UNIXUser attributes. Here the shadow file
+    # attributes are passed as String objects just to make sure that works.
     u.shell = "/bin/ksh" # You know I can't set that to /bin/tcsh... right?
     u.home_directory = "/home/foo"
     u.nis_domain = "vmware"
@@ -674,8 +674,6 @@ class TC_Live < Test::Unit::TestCase
            true, "user should be a Windows member of old UNIX main group")
     assert(ldap_unix_group_member?(ad2_u, g),
            "user should be a UNIX member of old UNIX main group")
-    assert(ad2_u.member_of?(ad2.find_group_by_name("unix-group-" + $$.to_s)) ==
-           true, "user should be a Windows member of old UNIX main group")
     assert(ad2_u.member_of?(ad2.find_group_by_name("Domain Users")) == true,
            "user should be a Windows member of Domain Users")
     
