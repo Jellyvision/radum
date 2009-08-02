@@ -179,12 +179,15 @@
 # NIS is not required for using Active Directory in a centralized authentication
 # design. One could access the UNIX attributes through LDAP directly for
 # example. However, the NIS domain needs to be present if one wants to use
-# the Active Directory Users and Groups GUI tool, therefore one is specified
-# by default. The :type argument applies to both Group and UNIXGroup objects.
-# The default value is RADUM::GROUP_GLOBAL_SECURITY, which is the default
-# when creating group objects using the Active Directory Users and Groups GUI
-# tool in Windows. More details about the restrictions for certain group types
-# can be found in the User#primary_group= method documentation.
+# the Active Directory Users and Computers GUI tool, therefore one is specified
+# by default. Of course, this should still be set correctly in order to work
+# in the Active Directory Users and Computers GUI tool, but it can be changed
+# there easily and the attributes should still show up correctly. The :type
+# argument applies to both Group and UNIXGroup objects. The default value is
+# RADUM::GROUP_GLOBAL_SECURITY, which is the default when creating group
+# objects using the Active Directory Users and Computers GUI tool in Windows.
+# More details about the restrictions for certain group types can be found in
+# the User#primary_group= method documentation.
 #
 # There is a useful method for finding the next available GID for the UNIXGroup
 # object's :gid argument:
@@ -268,16 +271,19 @@
 # NIS is not required for using Active Directory in a centralized authentication
 # design. One could access the UNIX attributes through LDAP directly for
 # example. However, the NIS domain needs to be present if one wants to use
-# the Active Directory Users and Groups GUI tool, therefore one is specified
-# by default. The :disabled argument applies to both User and UNIXUser objects.
-# The default value is false. The password attribute for User and UNIXUser
-# objects is nil unless set, and when set it causes the user in Active Directory
-# to have that password if it meets the Group Policy password requirements.
-# Once set through AD#sync, the password attribute is set to nil again. If
-# there is no password set when the user is created in Active Directory, a
-# random password that probably meets the Group Policy password requirements
-# will be generated, and the user will not be forced to change that password
-# unless User#force_change_password is also called before calling AD#sync. The
+# the Active Directory Users and Computers GUI tool, therefore one is specified
+# by default. Of course, this should still be set correctly in order to work
+# in the Active Directory Users and Computers GUI tool, but it can be changed
+# there easily and the attributes should still show up correctly. The :disabled
+# argument applies to both User and UNIXUser objects. The default value is
+# false. The password attribute for User and UNIXUser objects is nil unless
+# set, and when set it causes the user in Active Directory to have that
+# password if it meets the Group Policy password requirements. Once set through
+# AD#sync, the password attribute is set to nil again. If there is no password
+# set when the user is created in Active Directory, a random password that
+# probably meets the Group Policy password requirements will be generated, and
+# the user will not be forced to change that password unless
+# User#force_change_password is also called before calling AD#sync. The
 # GID value for a UNIXUser comes from its :unix_main_group argument UNIXGroup
 # value. There are many attributes that can be set for User and UNIXUser
 # objects. See the User and UNIXUser class documentation for more details.
@@ -349,13 +355,25 @@
 #
 # = Windows Server Versions
 #
-# RADUM has been exclusively tested against Windows Server 2008. The testing
-# system had Microsoft Identity Management for UNIX installed and had the
-# Certificate Services Role added. RADUM should also work against Windows
-# Server 2003, but that has not been tested yet. Microsoft Identity Management
-# for UNIX is generally required for UNIXUser and UNIXGroup objects if desired,
-# and the Certificate Services Role is required in the domain because SSL is
-# required for creating User and UNIXUser objects using LDAP.
+# RADUM has been exclusively tested against Windows Server 2008 and Windows
+# Server 2003 Standard Edition R2 SP2. The testing system had Microsoft
+# Identity Management for UNIX installed and had the Certificate Services Role
+# added, which is added using Add/Remove Programs in Windows Server 2003.
+# Microsoft Identity Management for UNIX is generally required for editing
+# UNIXUser and UNIXGroup objects in the Active Directory Users and Computers
+# GUI tool if desired, and the Certificate Services Role is required in the
+# domain because SSL is required for creating User and UNIXUser objects using
+# LDAP. The LDAP attributes required for UNIXUser objects don't necessarily
+# require Microsoft Identity Management for UNIX to be installed.
+#
+# RADUM works with a domain functional level of Windows 2003 Server or higher.
+# Most of RADUM will work with a domain functional level of Windows 2000 native
+# except for Universal group types and groups being members of groups. If those
+# features are not needed, the Windows 2000 native domain functional level can
+# be used, but RADUM assumes these features are possible, so one would need to
+# ensure they do not use them if working at a domain functional level lower
+# than Windows Server 2003. RADUM was not tested at a domain functional level
+# lower than Windows 2000 native.
 #
 # Author:: Shaun Rowland <mailto:rowand@shaunrowland.com>
 # Copyright:: Copyright 2009 Shaun Rowland. All rights reserved.
