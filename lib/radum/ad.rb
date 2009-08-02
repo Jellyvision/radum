@@ -2455,7 +2455,7 @@ module RADUM
             }
           else
             RADUM::logger.log("SYNC ERROR: " + container.name +
-                              " ( #{current_name}) - unknown Container type.",
+                              " (#{current_name}) - unknown Container type.",
                               LOG_NORMAL)
             return
           end
