@@ -169,7 +169,8 @@ module RADUM
       @removed_users.delete user
     end
     
-    # Determine if the Group or UNIXGroup is a member of the Group or UNIXGroup.
+    # Determine if this Group or UNIXGroup is a member of the Group or
+    # UNIXGroup given as the argument.
     #
     # === Parameter Types
     #
@@ -182,11 +183,11 @@ module RADUM
       group.groups.include? self
     end
     
-    # Make the Group or UNIXGroup a member of the Group or UNIXGroup. This
-    # represents the LDAP member attribute for the Group or UNIXGroup. A
-    # RuntimeError is raised if the Group or UNIXGroup is the same as the
-    # current Group or UNIXGroup (cannot be a member of itself) or the Group
-    # or UNIXGroup is not in the same AD object. A RuntimeError is raised
+    # Make the Group or UNIXGroup given as the argument a member of this Group
+    # or UNIXGroup. This represents the LDAP member attribute for the Group or
+    # UNIXGroup. A RuntimeError is raised if the Group or UNIXGroup is the same
+    # as the current Group or UNIXGroup (cannot be a member of itself) or the
+    # Group or UNIXGroup is not in the same AD object. A RuntimeError is raised
     # if the Group or UNIXGroup has been removed.
     #
     # === Parameter Types

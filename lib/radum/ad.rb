@@ -141,8 +141,8 @@
 # their Container object automatically. Users and groups also have direct
 # references to their corresponding collections of groups for users and
 # groups plus users for groups (since groups can contain other groups as
-# members). User memberships in groups can be handled from either perspective
-# due to this automatic handling:
+# members). User memberships in groups can be accomplished from either
+# perspective due to this automatic handling:
 #
 # * Users can be added to groups through User#add_group.
 # * Users can be added to groups through Group#add_user.
@@ -154,6 +154,11 @@
 # RADUM ensures that duplicate users and groups cannot be created, including
 # specific attributes of those objects which must be unique. Trying to do
 # something that would result in duplication generally raises a RuntimeError.
+#
+# RADUM handles implicit group memberships from the Windows perspective for
+# UNIXUser objects when adding them to UNIXGroup objects. When adding a
+# UNIXUser to a UNIXGroup, the UNIXUser gets a membership in the UNIXGroup
+# from both the UNIX and Windows perspectives.
 #
 # == Creating Group and UNIXGroup Objects
 #
@@ -268,7 +273,11 @@
 # The default value is false. The password attribute for User and UNIXUser
 # objects is nil unless set, and when set it causes the user in Active Directory
 # to have that password if it meets the Group Policy password requirements.
-# Once set through AD#sync, the password attribute is set to nil again. The
+# Once set through AD#sync, the password attribute is set to nil again. If
+# there is no password set when the user is created in Active Directory, a
+# random password that probably meets the Group Policy password requirements
+# will be generated, and the user will not be forced to change that password
+# unless User#force_change_password is also called before calling AD#sync. The
 # GID value for a UNIXUser comes from its :unix_main_group argument UNIXGroup
 # value. There are many attributes that can be set for User and UNIXUser
 # objects. See the User and UNIXUser class documentation for more details.
@@ -326,9 +335,21 @@
 # a Group or UNIXGroup it does know about, but it will remove users and groups
 # that have been explicitly removed in the RADUM system.
 #
-# == Windows Server Versions
+# = Logging
 #
-# RADUM has been exlusively tested against Windows Server 2008. The testing
+# The RADUM module instantiates an object of the Logger class. This can be used
+# to log operational progress:
+#
+#  RADUM::logger.log("\nInitializing...\n\n", RADUM::LOG_DEBUG)
+#
+# The RADUM::LOG_DEBUG level includes a lot of verbose progress information
+# that can be highly useful. The log level argument is optional and defaults
+# to RADUM::LOG_NORMAL. See the Logger class documentation for more details.
+# Note that log output can also be sent to a file.
+#
+# = Windows Server Versions
+#
+# RADUM has been exclusively tested against Windows Server 2008. The testing
 # system had Microsoft Identity Management for UNIX installed and had the
 # Certificate Services Role added. RADUM should also work against Windows
 # Server 2003, but that has not been tested yet. Microsoft Identity Management
@@ -372,7 +393,7 @@ module RADUM
   # This is a convenience method to return a String representation of a
   # Group or UNIXGroup object's type attribute, which has the value of one of
   # the RADUM group type constants.
-  def RADUM.group_type_to_s(type)
+  def RADUM.group_type_to_s(type) # :nodoc:
     case type
     when GROUP_DOMAIN_LOCAL_SECURITY
       "GROUP_DOMAIN_LOCAL_SECURITY"
