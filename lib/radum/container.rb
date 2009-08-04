@@ -361,7 +361,7 @@ module RADUM
     
     # The String representation of the Container object.
     def to_s
-      "Container [#{@name},#{@directory.root}]"
+      "Container <#{@name}> [#{@distinguished_name}]"
     end
   end
 end

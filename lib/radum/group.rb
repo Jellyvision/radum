@@ -79,7 +79,7 @@ module RADUM
       end
       
       @type = args[:type] || GROUP_GLOBAL_SECURITY
-      @distinguished_name = "cn=" + name + "," + @container.name + "," +
+      @distinguished_name = "cn=" + @name + "," + @container.name + "," +
                             @container.directory.root
       @users = []
       @removed_users = []
@@ -291,7 +291,7 @@ module RADUM
     # The String representation of the Group object.
     def to_s
       "Group [(" + RADUM.group_type_to_s(@type) +
-      ", RID #{@rid}) #{@distinguished_name}]"
+      ", RID #{@rid}) <#{@name}> #{@distinguished_name}]"
     end
   end
   
@@ -449,7 +449,7 @@ module RADUM
     # The String representation of the UNIXGroup object.
     def to_s
       "UNIXGroup [("  + RADUM.group_type_to_s(@type) + 
-      ", RID #{@rid}, GID #{@gid}) #{@distinguished_name}]"
+      ", RID #{@rid}, GID #{@gid}) <#{@name}> #{@distinguished_name}]"
     end
   end
 end

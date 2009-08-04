@@ -2,8 +2,8 @@
 # working with users and groups. The User class represents a standard Windows
 # user account. The UNIXUser class represents a Windows account that has UNIX
 # attributes. Similarly, the Group class represents a standard Windows group,
-# and a UNIXGroup represents a Windows group that has UNIX attributes. UNIX
-# attributes are supported if Active Directory has been extended, such as
+# and the UNIXGroup class represents a Windows group that has UNIX attributes.
+# UNIX attributes are supported if Active Directory has been extended, such as
 # when Microsoft Identity Management for UNIX has been installed. LDAP
 # extensions for UNIX are not required if only Windows users and groups are
 # operated on. This module concentrates only on users and groups at this time.

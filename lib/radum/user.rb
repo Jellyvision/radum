@@ -644,7 +644,7 @@ module RADUM
     # The String representation of the User object.
     def to_s
       "User [(" + (@disabled ? "USER_DISABLED" : "USER_ENABLED") +
-      ", RID #{@rid}) #{@username} #{@distinguished_name}]"
+      ", RID #{@rid}) <#{@username}> #{@distinguished_name}]"
     end
   end
   
@@ -1080,8 +1080,8 @@ module RADUM
     # The String representation of the UNIXUser object.
     def to_s
       "UNIXUser [(" + (@disabled ? "USER_DISABLED" : "USER_ENABLED") +
-      ", RID #{@rid}, UID #{@uid}, GID #{@unix_main_group.gid}) #{@username} " +
-      "#{@distinguished_name}]"
+      ", RID #{@rid}, UID #{@uid}, GID #{@unix_main_group.gid})" +
+      " <#{@username}> #{@distinguished_name}]"
     end
   end
 end
