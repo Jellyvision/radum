@@ -3261,6 +3261,10 @@ module RADUM
         # groups having users as implicit members, etc. we just make sure
         # the user is made a UNIX member of the previous UNIX main group
         # when it was changed just in case they are not already a member.
+        # This only applies if the UNIXUser is still a member of their
+        # previous UNIX main group - it is also possible they were explicitly
+        # removed before getting here, so this should only be done if they
+        # are currently a member of their old UNIX main group.
         #
         # Note that when converting a UNIXUser to a User, there will be a
         # gid change, but the gid will be "".to_i (0). In that case, we don't
@@ -3271,33 +3275,43 @@ module RADUM
           group_ops = []
           group_filter = Net::LDAP::Filter.eq("objectclass", "group")
           group = find_group_by_gid old_gid
-          entry = @ldap.search(:base => group.distinguished_name,
-                               :filter => group_filter,
-                               :scope => Net::LDAP::SearchScope_BaseObject).pop
-          # Double check to make sure they are not already members. Since this
-          # logic is difficult to deal with, the algorithm is simply to make
-          # sure the UNIXUser is a member of their previous UNIX main group
-          # if that has not been done by the update_group() method.
-          found = false
           
-          begin
-            found = entry.msSFU30PosixMember.find do |member|
-              user.distinguished_name.downcase == member.downcase
+          # Make sure the group membership was not explicitly removed after
+          # the UNIX main group for the user was modified.
+          unless user.member_of?(group)
+            RADUM::logger.log("\nSpecial case 1: membership in old UNIX main" +
+                              " group <#{group.name}> was explicitly removed" +
+                              " after change - no update required.", LOG_DEBUG)
+          else
+            entry = @ldap.search(:base => group.distinguished_name,
+                                :filter => group_filter,
+                                :scope => Net::LDAP::SearchScope_BaseObject).pop
+            # Double check to make sure they are not already members. Since
+            # this logic is difficult to deal with, the algorithm is simply to
+            # make sure the UNIXUser is a member of their previous UNIX main
+            # group if that has not been done by the update_group() method.
+            found = false
+            
+            begin
+              found = entry.msSFU30PosixMember.find do |member|
+                user.distinguished_name.downcase == member.downcase
+              end
+            rescue NoMethodError
             end
-          rescue NoMethodError
-          end
-          
-          unless found
-            group_ops.push [:add, :memberUid, user.username]
-            group_ops.push [:add, :msSFU30PosixMember, user.distinguished_name]
-            RADUM::logger.log("\nSpecial case 1: updating old UNIX main group" +
-                              " UNIX membership for group <#{group.name}>.",
-                              LOG_DEBUG)
-            RADUM::logger.log("\n" + group_ops.to_yaml, LOG_DEBUG)
-            @ldap.modify :dn => group.distinguished_name,
-                         :operations => group_ops
-            check_ldap_result
-            RADUM::logger.log("\nSpecial case 1: end.\n\n", LOG_DEBUG)
+            
+            unless found
+              group_ops.push [:add, :memberUid, user.username]
+              group_ops.push [:add, :msSFU30PosixMember,
+                              user.distinguished_name]
+              RADUM::logger.log("\nSpecial case 1: updating old UNIX main" +
+                                " group UNIX membership for group" +
+                                " <#{group.name}>.", LOG_DEBUG)
+              RADUM::logger.log("\n" + group_ops.to_yaml, LOG_DEBUG)
+              @ldap.modify :dn => group.distinguished_name,
+                           :operations => group_ops
+              check_ldap_result
+              RADUM::logger.log("\nSpecial case 1: end.\n\n", LOG_DEBUG)
+            end
           end
           
           # In this case, we also have to make sure the user is removed

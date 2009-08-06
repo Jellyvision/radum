@@ -667,7 +667,7 @@ class TC_Live < Test::Unit::TestCase
     assert(ad2_u.member_of?(ad2.find_group_by_name("unix-group3-" + $$.to_s)) ==
            true, "user should be a Windows member of primary group")
     assert(ldap_not_unix_group_member?(ad2_u, g3),
-           "user should not be a UNIX member of primary group")
+           "user should not be a UNIX member of UNIX main group")
     assert(ad2_u.primary_group == ad2_u.unix_main_group,
            "user primary Windows group should be the same as UNIX main group")
     assert(ad2_u.member_of?(ad2.find_group_by_name("unix-group-" + $$.to_s)) ==
@@ -676,6 +676,37 @@ class TC_Live < Test::Unit::TestCase
            "user should be a UNIX member of old UNIX main group")
     assert(ad2_u.member_of?(ad2.find_group_by_name("Domain Users")) == true,
            "user should be a Windows member of Domain Users")
+    
+    # Create a new UNIXUser with a primary Windows group domain_users, a
+    # UNIX main group of g, and a member of group g3.
+    u2 = RADUM::UNIXUser.new :username => "unix-user-2-" + $$.to_s,
+                             :container => @cn, :primary_group => @domain_users,
+                             :uid => @ad.load_next_uid,
+                             :unix_main_group => g, :shell => "/bin/bash",
+                             :home_directory => "/home/unix-user-2-" + $$.to_s,
+                             :nis_domain => "foo"
+    g3.add_user u2
+    @ad.sync
+    
+    # Change u2's UNIX main group to g3 and also remove membership in the old
+    # UNIX main group g. This tests the special UNIX main group logic in
+    # update_user(). A user should not end up with the UNIX group mebership
+    # fix because they are no longer a member due to the removal here.
+    u2.unix_main_group = g3
+    g.remove_user u2
+    @ad.sync
+    
+    ad2 = new_ad
+    ad2_u2 = ad2.find_user_by_username("unix-user-2-" + $$.to_s)
+    assert(ad2_u2.member_of?(ad2.find_group_by_name("unix-group-" + $$.to_s)) ==
+           false, "user should not be a Windows member of old UNIX main group")
+    assert(ldap_not_unix_group_member?(ad2_u2, g),
+           "user should not be a UNIX member of old UNIX main group")
+    assert(ad2_u2.member_of?(ad2.find_group_by_name("unix-group3-" +
+           $$.to_s)) == true,
+           "user should be a Windows member of UNIX main group")
+    assert(ldap_not_unix_group_member?(ad2_u2, g3),
+           "user should not be a UNIX member of UNIX main group")
     
     # Remove the Container now that we are done with it. We have to change
     # the test user account's primary Windows group first.
