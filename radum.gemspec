@@ -1,6 +1,7 @@
 Gem::Specification.new do |s|
   s.authors = ['Shaun Rowland']
   s.add_dependency('ruby-net-ldap', '= 0.0.4')
+  s.required_ruby_version = '~> 1.8.5'
   s.description = <<-EOF
     RADUM is a module to manage users and groups in Active Directory uisng pure
     Ruby on any supported platform.

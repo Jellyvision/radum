@@ -3,32 +3,33 @@
 require 'test/unit'
 require 'radum'
 
-# This tests the User class.
+# This tests the User class. The dup() calls for the ENV hash values is needed
+# because those String objects are frozen in Ruby 1.9.
 class TC_Live < Test::Unit::TestCase
   def setup
     if ENV['LIVE_ROOT']
-      @root = ENV['LIVE_ROOT']
+      @root = ENV['LIVE_ROOT'].dup
     else
       usage
       raise "LIVE_ROOT environment variable not set."
     end
     
     if ENV['LIVE_USER']
-      @user = ENV['LIVE_USER']
+      @user = ENV['LIVE_USER'].dup
     else
       usage
       raise "LIVE_USER environment variable not set."
     end
     
     if ENV['LIVE_PASSWORD']
-      @password = ENV['LIVE_PASSWORD']
+      @password = ENV['LIVE_PASSWORD'].dup
     else
       usage
       raise "LIVE_PASSWORD environment variable not set."
     end
     
     if ENV['LIVE_SERVER']
-      @server = ENV['LIVE_SERVER']
+      @server = ENV['LIVE_SERVER'].dup
     else
       usage
       raise "LIVE_SERVER environment variable not set."
