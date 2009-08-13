@@ -383,7 +383,7 @@ module RADUM
   # Group type constants.
   #
   # These are the Fixnum representations of what should be Bignum objects in
-  # some cases as far as I am aware. In the Active Directory Users and Groups
+  # some cases as far as I am aware. In the Active Directory Users and Computers
   # GUI tool, they are shown as hexidecimal values, indicating they should be
   # Bignums (well, some of them). However, if you try to edit the values in
   # that tool (with advanced attribute editing enabled or with the ADSI Edit
