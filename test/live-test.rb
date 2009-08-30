@@ -1,7 +1,9 @@
-#!/usr/bin/ruby -I ../lib
+#!/usr/bin/env ruby -I ../lib
 
 require 'test/unit'
 require 'radum'
+
+puts "Testing with Ruby version #{RUBY_VERSION}\n\n"
 
 # This tests the User class. The dup() calls for the ENV hash values is needed
 # because those String objects are frozen in Ruby 1.9.
