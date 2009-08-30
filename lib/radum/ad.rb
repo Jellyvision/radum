@@ -13,7 +13,11 @@
 # and Linux in addition to Windows. RADUM does require the Active Directory
 # server to support SSL because that is a requirement for creating user
 # accounts through LDAP. This means that a domain must have a certificate
-# server. Using a self-signed certificate should be fine.
+# server. Using a self-signed certificate should be fine. It might also
+# be necessary to install the Certificate Authority Web Enrollment role
+# service. This is required when running RADUM from Mac OS X Snow Leopard
+# because the ocspd OCSP and CRL daemon will try to contact the Active
+# Directory server.
 #
 # RADUM considers its view of user and group attributes to be authoritative,
 # with the exception that it will not modify the members of a group that it
