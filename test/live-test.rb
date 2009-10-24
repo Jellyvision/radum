@@ -1,5 +1,6 @@
 #!/usr/bin/env ruby -I ../lib
 
+require 'rubygems'
 require 'test/unit'
 require 'radum'
 
