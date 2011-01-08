@@ -922,7 +922,7 @@ module RADUM
       
       # Make sure we are working with a User object only.
       unless user.instance_of?(User)
-        raise ":user argument just be a User object."
+        raise ":user argument must be a User object."
       end
       
       if user.removed?
@@ -1051,7 +1051,7 @@ module RADUM
       
       # Make sure we are working with a UNIXUser object only.
       unless user.instance_of?(UNIXUser)
-        raise ":user argument just be a UNIXUser object."
+        raise ":user argument must be a UNIXUser object."
       end
       
       if user.removed?
