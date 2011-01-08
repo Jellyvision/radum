@@ -1,7 +1,5 @@
 # Ruby 1.9.x requirements.
 if RUBY_VERSION =~ /^1.9/
-  require 'yaml'
-  
   # The net-ldap gem uses String#to_a. In Ruby 1.9.x this needs to be
   # String.lines.to_a, but I have to monkey patch this in for things to work.
   class String
@@ -11,6 +9,7 @@ if RUBY_VERSION =~ /^1.9/
   end
 end
 
+require 'yaml'
 gem 'net-ldap', '= 0.1.1'
 require 'net/ldap'
 
