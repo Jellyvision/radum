@@ -4,7 +4,7 @@ if RUBY_VERSION =~ /^1.9/
   # String.lines.to_a, but I have to monkey patch this in for things to work.
   class String
     def to_a
-      [self]
+      self.lines.to_a
     end
   end
 end

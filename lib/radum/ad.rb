@@ -379,8 +379,15 @@
 # than Windows Server 2003. RADUM was not tested at a domain functional level
 # lower than Windows 2000 native.
 #
+# = Ruby 1.9 Support
+#
+# RADUM now works with Ruby 1.9 and has been tested with Ruby 1.8.7, JRuby
+# 1.5.6, and Ruby 1.9.2. Ruby 1.9 users should note that RADUM adds the
+# String#to_a  method to the String class. This is necessary so that net-ldap
+# 0.1.1 works with Ruby 1.9. This will be removed as soon as possible.
+#
 # Author:: Shaun Rowland <mailto:rowand@shaunrowland.com>
-# Copyright:: Copyright 2009 Shaun Rowland. All rights reserved.
+# Copyright:: Copyright 2011 Shaun Rowland. All rights reserved.
 # License:: BSD License included in the project LICENSE file.
 
 module RADUM
