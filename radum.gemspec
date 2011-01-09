@@ -27,5 +27,5 @@ Gem::Specification.new do |s|
   s.rubyforge_project = 'radum'
   s.summary = 'Manage users and groups in Active Directory.'
   s.test_files = Dir['test/tc_*.rb']
-  s.version = '0.0.2'
+  s.version = '0.0.3'
 end
