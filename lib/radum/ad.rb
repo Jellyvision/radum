@@ -359,16 +359,17 @@
 #
 # = Windows Server Versions
 #
-# RADUM has been exclusively tested against Windows Server 2008 and Windows
-# Server 2003 R2 Standard Edition SP2. The testing system had Microsoft
-# Identity Management for UNIX installed and had the Certificate Services Role
-# added, which is added using Add/Remove Programs in Windows Server 2003.
-# Microsoft Identity Management for UNIX is generally required for editing
-# UNIXUser and UNIXGroup objects in the Active Directory Users and Computers
-# GUI tool if desired, and the Certificate Services Role is required in the
-# domain because SSL is required for creating User and UNIXUser objects using
-# LDAP. The LDAP attributes required for UNIXUser objects don't necessarily
-# require Microsoft Identity Management for UNIX to be installed.
+# RADUM has been tested against Windows Server 2008 R2, Windows Server 2008,
+# and Windows Server 2003 R2 Standard Edition SP2. The testing systems had
+# Microsoft Identity Management for UNIX installed and had the Certificate
+# Services Role added, which is added using Add/Remove Programs in Windows
+# Server 2003. Microsoft Identity Management for UNIX is generally required
+# for editing UNIXUser and UNIXGroup objects in the Active Directory Users
+# and Computers GUI tool if desired, and the Certificate Services Role is
+# required in the domain because SSL is required for creating User and
+# UNIXUser objects using LDAP. The LDAP attributes required for UNIXUser
+# objects don't necessarily require Microsoft Identity Management for UNIX
+# to be installed.
 #
 # RADUM works with a domain functional level of Windows 2003 Server or higher.
 # Most of RADUM will work with a domain functional level of Windows 2000 native
@@ -383,8 +384,9 @@
 #
 # RADUM now works with Ruby 1.9 and has been tested with Ruby 1.8.7, JRuby
 # 1.5.6, and Ruby 1.9.2. Ruby 1.9 users should note that RADUM adds the
-# String#to_a  method to the String class. This is necessary so that net-ldap
-# 0.1.1 works with Ruby 1.9. This will be removed as soon as possible.
+# String#to_a method back to the String class. This is necessary so that
+# net-ldap 0.1.1 works with Ruby 1.9. This will be removed as soon as
+# possible.
 #
 # Author:: Shaun Rowland <mailto:rowand@shaunrowland.com>
 # Copyright:: Copyright 2011 Shaun Rowland. All rights reserved.
