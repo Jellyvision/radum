@@ -23,7 +23,7 @@ module RADUM
     # An array of Group or UNIXGroup objects removed from the User or
     # UNIXUser.
     attr_reader :removed_groups
-    
+
     # Create a new User object that represents a Windows user in Active
     # Directory. This method takes a Hash containing arguments, some of which
     # are required and others optional. The supported arguments follow:
@@ -168,6 +168,9 @@ module RADUM
       @container.add_user self unless instance_of?(UNIXUser)
       @modified = true
       @loaded = false
+      @mail = nil
+      @telephone_number = nil
+      @user_account_control = nil
     end
     
     # True if the User or UNIXUser account is disabled, false otherwise.
@@ -218,12 +221,12 @@ module RADUM
       
       @distinguished_name = distinguished_name
     end
-    
+
     # The User or UNIXUser first name.
     def first_name
       @first_name
     end
-    
+
     # Set the User or UNIXUser first name. This corresponds to the LDAP
     # givenName attribute and is used in the LDAP displayName, description,
     # and name attributes. This defaults to the username when a User or
@@ -237,6 +240,51 @@ module RADUM
     def first_name=(first_name)
       @first_name = first_name
       @modified = true
+    end
+
+    # The User or UNIXUser e-mail.
+    def mail
+      @mail
+    end
+
+    # Set the User or UNIXUser e-mail.
+    #
+    # === Parameter Types
+    #
+    # * mail [String]
+    def mail=(mail)
+      @mail = mail
+      @modified = true
+    end
+
+    # The User or UNIXUser telephone number.
+    def telephone_number
+      @telephone_number
+    end
+
+    # Set the User or UNIXUser telephone number.
+    #
+    # === Parameter Types
+    #
+    # * telephone_number [String]
+    def telephone_number=(telephone_number)
+      @telephone_number = telephone_number
+      @modified = true
+    end
+
+    # Set the User or UNIXUser user account control.
+    #
+    # === Parameter Types
+    #
+    # * user_account_control [String]
+    def user_account_control=(user_account_control)
+      @user_account_control = user_account_control
+      @modified = true
+    end
+
+    # The User or UNIXUser user account control.
+    def user_account_control
+      @user_account_control
     end
     
     # The User or UNIXUser middle initials.

@@ -974,7 +974,10 @@ module RADUM
       groups = user.groups.clone
       removed_groups = user.removed_groups.clone
       loaded = user.loaded?
-      
+      mail = user.mail
+      telephone_number = user.telephone_number
+      user_account_control = user.user_account_control
+
       # Destroy the user now that we have its information.
       container.destroy_user user
       user = UNIXUser.new :username => username, :container => container,
@@ -997,6 +1000,9 @@ module RADUM
       user.surname = surname
       user.script_path = script_path
       user.profile_path = profile_path
+      user.mail = mail
+      user.telephone_number = telephone_number
+      user.user_account_control = user_account_control
       
       # Figure out the Windows home directory type attributes.
       if local_path && local_drive
@@ -1090,6 +1096,9 @@ module RADUM
       groups = user.groups.clone
       removed_groups = user.removed_groups.clone
       loaded = user.loaded?
+      mail = user.mail
+      telephone_number = user.telephone_number
+      user_account_control = user.user_account_control
       
       # Destroy the user now that we have its information.
       container.destroy_user user
@@ -1145,6 +1154,9 @@ module RADUM
       user.surname = surname
       user.script_path = script_path
       user.profile_path = profile_path
+      user.mail = mail
+      user.telephone_number = telephone_number
+      user.user_account_control = user_account_control
       
       # Figure out the Windows home directory type attributes.
       if local_path && local_drive
@@ -1682,7 +1694,8 @@ module RADUM
       
       # Find all the users. The UNIX main group must be set for UNIXUser
       # objects, so it will be necessary to search for that.
-      user_filter = Net::LDAP::Filter.eq("objectclass", "user")
+      #user_filter = Net::LDAP::Filter.eq("objectclass", "user")
+      user_filter = Net::LDAP::Filter.construct("(|(objectClass=user)(objectClass=organizationalPerson))")
       
       @containers.each do |container|
         @ldap.search(:base => container.distinguished_name,
@@ -1726,6 +1739,9 @@ module RADUM
                 user.surname = attr[:surname] if attr[:surname]
                 user.script_path = attr[:script_path] if attr[:script_path]
                 user.profile_path = attr[:profile_path] if attr[:profile_path]
+                user.mail = attr[:mail] if attr[:mail]
+                user.telephone_number = attr[:telephone_number] if attr[:telephone_number]
+                user.user_account_control = attr[:user_account_control] if attr[:user_account_control]
                 
                 if attr[:local_drive] && attr[:local_path]
                   user.connect_drive_to(attr[:local_drive], attr[:local_path])
@@ -1771,6 +1787,9 @@ module RADUM
               user.surname = attr[:surname] if attr[:surname]
               user.script_path = attr[:script_path] if attr[:script_path]
               user.profile_path = attr[:profile_path] if attr[:profile_path]
+              user.mail = attr[:mail] if attr[:mail]
+              user.telephone_number = attr[:telephone_number] if attr[:telephone_number]
+              user.user_account_control = attr[:user_account_control] if attr[:user_account_control]
               
               if attr[:local_drive] && attr[:local_path]
                 user.connect_drive_to(attr[:local_drive], attr[:local_path])
@@ -2229,6 +2248,9 @@ module RADUM
       attr[:shadow_warning] = nil
       attr[:shell] = nil
       attr[:home_directory] = nil
+      attr[:mail] = nil
+      attr[:telephone_number] = nil
+      attr[:user_account_control] = nil
       
       begin
         attr[:first_name] = entry.givenName.pop
@@ -2337,6 +2359,21 @@ module RADUM
       
       begin
         attr[:home_directory] = entry.unixHomeDirectory.pop
+      rescue NoMethodError
+      end
+
+      begin
+        attr[:mail] = entry.mail.pop
+      rescue NoMethodError
+      end
+
+      begin
+        attr[:telephone_number] = entry.telephoneNumber.pop
+      rescue NoMethodError
+      end
+
+      begin
+        attr[:user_account_control] = entry.userAccountControl.pop
       rescue NoMethodError
       end
       
@@ -3125,6 +3162,7 @@ module RADUM
         entry = @ldap.search(:base => user.distinguished_name,
                              :filter => user_filter,
                              :scope => Net::LDAP::SearchScope_BaseObject).pop
+
         attr = user_ldap_entry_attr(entry)
         ops = []
         # This for the UNIX group membership corner case below. Note that 0
@@ -3219,6 +3257,12 @@ module RADUM
               else
                 ops.push [:replace, :pwdLastSet, -1.to_s]
               end
+            when :mail
+              ops.push [:replace, :mail, obj_value.to_s]
+            when :telephone_number
+              ops.push [:replace, :telephoneNumber, obj_value.to_s]
+            when :user_account_control
+              ops.push [:replace, :userAccountControl, obj_value.to_s]
             end
           end
         end
