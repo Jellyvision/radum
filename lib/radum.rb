@@ -10,7 +10,7 @@ if RUBY_VERSION =~ /^1.9/
 end
 
 require 'yaml'
-gem 'net-ldap', '= 0.1.1'
+gem 'net-ldap', '>= 0.1.1'
 require 'net/ldap'
 
 require 'radum/logger'
