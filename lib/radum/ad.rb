@@ -2380,8 +2380,7 @@ module RADUM
       rescue NoMethodError
       end
 
-      attr[:disabled?] = (entry.userAccountControl.pop.to_i ==
-                         UF_NORMAL_ACCOUNT + UF_ACCOUNTDISABLE ? true : false)
+      attr[:disabled?] = false
       attr[:must_change_password?] = (entry.pwdLastSet.pop.to_i == 0)
       attr[:primary_group] = find_group_by_rid(entry.primaryGroupID.pop.to_i)
       attr[:rid] = sid2rid_int(entry.objectSid.pop)
