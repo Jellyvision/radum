@@ -1,3 +1,4 @@
+require 'pry-remote'
 # The RADUM module provides an interface to Microsoft Active Directory for
 # working with users and groups. The User class represents a standard Windows
 # user account. The UNIXUser class represents a Windows account that has UNIX
@@ -1704,6 +1705,7 @@ module RADUM
         @ldap.search(:base => container.distinguished_name,
                      :filter => user_filter,
                      :scope => Net::LDAP::SearchScope_SingleLevel) do |entry|
+binding.remote_pry
           attr = user_ldap_entry_attr(entry)
 
           # Skip any User or UNIXUser objects that already exist (have this
@@ -2403,7 +2405,7 @@ module RADUM
       begin
         attr[:distinguished_name] = entry.distinguishedName.pop
       rescue NoMethodError
-      end      
+      end
 
       attr[:disabled?] = false
 
