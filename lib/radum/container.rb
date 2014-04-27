@@ -70,22 +70,24 @@ module RADUM
       @name = args[:name] or raise "Container :name argument required."
       @name.gsub!(/,\s+/, ",")
       @name.strip!
-      
+
       if @name =~ /[Oo][Uu]=.*[Cc][Nn]=/
         raise "Container CN objects cannot contain OU objects."
       end
-      
+
       @directory = args[:directory] or raise "Container :directory argument" +
                                              " required."
-      
+
       # The container name (like a user) must be unique (case-insensitive).
       # We would not want someone accidently making two equal containers
       # and adding users/groups in the wrong way.
       if @directory.find_container(name)
         raise "Container is already in the directory."
       end
-      
-      @distinguished_name = @name + "," + @directory.root
+
+      @alterate_root = args[:alternate_root] || @directory.root
+
+      @distinguished_name = @name + "," + @alternate_root
       # This has to be set first before adding the Container to the AD.
       @removed = false
       @directory.add_container self
@@ -94,7 +96,7 @@ module RADUM
       @groups = []
       @removed_groups = []
     end
-    
+
     # Add User and UNIXUser objects to the Container. User and UNIXUser objects
     # that were removed or destroyed cannot be added back again and are ignored.
     # The User or UNIXUser must have the Container as its container attribute
@@ -118,7 +120,7 @@ module RADUM
         end
       end
     end
-    
+
     # Remove a User or UNIXUser object from the Container. This sets the
     # User or UNIXUser object's removed attribute to true. If the User or
     # UNIXUser is removed from the Container, it is effectively deleted
@@ -141,7 +143,7 @@ module RADUM
         @users.delete user
         @directory.rids.delete user.rid if user.rid
         @directory.uids.delete user.uid if user.instance_of?(UNIXUser)
-        
+
         @directory.groups.each do |group|
           if group.users.include?(user)
             if user.instance_of?(UNIXUser)
@@ -151,22 +153,22 @@ module RADUM
             end
           end
         end
-        
+
         user.set_removed
-        
+
         # We have to remove the user first before we can remove the user's
         # membership in their unix_main_group. It is safe to attempt removing
         # a user from their unix_main_group if they are already removed.
         if user.instance_of?(UNIXUser)
           user.unix_main_group.remove_user user
         end
-        
+
         @removed_users.push user unless @removed_users.include?(user)
       else
         raise "User must be in this container."
       end
     end
-    
+
     # Destroy a reference to the User or UNIXUser. This removes any reference
     # to the User or UNIXUser from the RADUM system. This is different from
     # removing a User or UNIXUser. Removal causes the User or UNIXUser to be
@@ -191,17 +193,17 @@ module RADUM
         @removed_users.delete user
         @directory.rids.delete user.rid if user.rid
         @directory.uids.delete user.uid if user.instance_of?(UNIXUser)
-        
+
         @directory.groups.each do |group|
           group.destroy_user user if group.users.include?(user)
         end
-        
+
         user.set_removed
       else
         raise "User must be in this container."
       end
     end
-    
+
     # Add Group and UNIXGroup objects to the Container. Group and UNIXGroup
     # objects that were removed or destroyed cannot be added back again and are
     # ignored. The Group or UNIXGroup must have the Container as its container
@@ -225,7 +227,7 @@ module RADUM
         end
       end
     end
-    
+
     # Remove a Group or UNIXGroup object from the Container. This sets the
     # Group or UNIXGroup object's removed attribute to true. A Group or
     # UNIXGroup cannot be removed if it is still any User object's primary
@@ -260,7 +262,7 @@ module RADUM
             raise "Cannot remove group #{group.name}: it is " +
                   "#{user.username}'s primary Windows group."
           end
-          
+
           if user.instance_of?(UNIXUser)
             if group == user.unix_main_group
               raise "Cannot remove group #{group.name}: it is " +
@@ -268,30 +270,30 @@ module RADUM
             end
           end
         end
-        
+
         @groups.delete group
         @directory.rids.delete group.rid if group.rid
         @directory.gids.delete group.gid if group.instance_of?(UNIXGroup)
-        
+
         @directory.groups.each do |current_group|
           if current_group.groups.include?(group)
             current_group.remove_group group
           end
         end
-        
+
         @directory.users.each do |user|
           if user.groups.include?(group)
             user.remove_group group
           end
         end
-        
+
         group.set_removed
         @removed_groups.push group unless @removed_groups.include?(group)
       else
         raise "Group must be in this container."
       end
     end
-    
+
     # Destroy a reference to the Group or UNIXGroup. This removes any reference
     # to the Group or UNIXGroup from the RADUM system. This is different from
     # removing a Group or UNIXGroup. Removal causes the Group or UNIXGroup to be
@@ -319,7 +321,7 @@ module RADUM
             raise "Cannot destroy group #{group.name}: it is " +
                   "#{user.username}'s primary Windows group."
           end
-          
+
           if user.instance_of?(UNIXUser)
             if group == user.unix_main_group
               raise "Cannot destroy group #{group.name}: it is " +
@@ -327,38 +329,38 @@ module RADUM
             end
           end
         end
-        
+
         @groups.delete group
         @removed_groups.delete group
         @directory.rids.delete group.rid if group.rid
         @directory.gids.delete group.gid if group.instance_of?(UNIXGroup)
-        
+
         @directory.groups.each do |current_group|
           if current_group.groups.include?(group)
             current_group.destroy_group group
           end
         end
-        
+
         @directory.users.each do |user|
           user.destroy_group group
         end
-        
+
         group.set_removed
       else
         raise "Group must be in this container."
       end
     end
-    
+
     # True if the Container has been removed from its AD, false otherwise.
     def removed?
       @removed
     end
-    
+
     # Set the Container removed flag.
     def set_removed # :nodoc:
       @removed = true
     end
-    
+
     # The String representation of the Container object.
     def to_s
       "Container <#{@name}> [#{@distinguished_name}]"
