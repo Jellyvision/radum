@@ -2385,11 +2385,28 @@ module RADUM
       rescue NoMethodError
       end
 
+      begin
+        attr[:primary_group] = find_group_by_rid(entry.primaryGroupID.pop.to_i)
+      rescue NoMethodError
+      end
+
+      begin
+        attr[:rid] = sid2rid_int(entry.objectSid.pop)
+      rescue NoMethodError
+      end
+
+      begin
+        attr[:username] = entry.sAMAccountName.pop
+      rescue NoMethodError
+      end
+
+      begin
+        attr[:distinguished_name] = entry.distinguishedName.pop
+      rescue NoMethodError
+      end      
+
       attr[:disabled?] = false
-      attr[:primary_group] = find_group_by_rid(entry.primaryGroupID.pop.to_i)
-      attr[:rid] = sid2rid_int(entry.objectSid.pop)
-      attr[:username] = entry.sAMAccountName.pop
-      attr[:distinguished_name] = entry.distinguishedName.pop
+
       return attr
     end
 
