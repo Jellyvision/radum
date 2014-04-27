@@ -85,7 +85,7 @@ module RADUM
         raise "Container is already in the directory."
       end
 
-      @alterate_root = args[:alternate_root] || @directory.root
+      @alternate_root = args[:alternate_root] || @directory.root
 
       @distinguished_name = @name + "," + @alternate_root
       # This has to be set first before adding the Container to the AD.
